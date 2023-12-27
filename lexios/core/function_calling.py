@@ -1,4 +1,7 @@
 # Tools
+
+from admin.verify_folder import find_project_folder
+
 from lexios.core.lexi_base_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
@@ -6,11 +9,21 @@ from lexios.core.task_scheduler import LexiTaskScheduler
 
 SCHEDULER_FUNCTION = LexiTaskScheduler().schedule_new_action.__name__
 
+PROJECT_FOLDER = find_project_folder()
+
 class ToolCall():
     # Represents a requested command by the AI model, to be attended.
 
     def __init__(
-        self, lexi, thread, user_id, conversation_id, id, function_name, function_arguments, ext_command
+        self, 
+        lexi, 
+        thread, 
+        user_id: int, 
+        conversation_id: str, 
+        id, 
+        function_name: str, 
+        function_arguments: str, 
+        ext_command,
     ):
         super().__init__()
 
@@ -45,7 +58,7 @@ class ToolCall():
         try:
             params = None
             self.status = "in_progress"
-            command = self.ext_command.func
+  
             try:
                 # Dump the JSON into a dict:
                 params = json.loads(self.function_arguments)
@@ -60,13 +73,15 @@ class ToolCall():
 
             # Check if the external command protocol includes messages to the user:
             try:
-                user_message = self.ext_command.ptc.get("before").get(
-                    "user_message", None
+                show_message = self.ext_command.custom_messages.get("before").get(
+                    "text", None
                 )
-                if user_message:
-                    self.lexi.prepare_output(user_message, user_id=self.user_id, thread_id=self.conversation_id)
-            except Exception:
-                pass
+                if show_message:
+                    await self.lexi.prepare_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+
+            except Exception as e:
+                with CustomLogger("func_calls") as log:
+                    log.warning(f"Command {self.ext_command.name} could not print its messages. {e}")
 
             # Check if the action is for scheduling (future action):
             if self.function_name == SCHEDULER_FUNCTION:
@@ -104,19 +119,53 @@ class ToolCall():
 
             # Check if the external command protocol includes messages after execution
             try:
-                user_message = self.ext_command.ptc.get("after").get(
-                    "user_message", None
+                # Text data
+                message = self.ext_command.custom_messages.get("after").get("text", None)
+
+                # IMG data
+                images = self.ext_command.custom_messages.get("after").get(
+                    "images", None
                 )
-                if user_message:
-                    self.lexi.prepare_output(user_message, user_id=self.user_id, thread_id=self.conversation_id)
-            except Exception:
-                pass
+                if images:
+
+                    # Create the directory if it doesn't exist
+                    user_folder = os.path.join(PROJECT_FOLDER, "temp", "downloads", str(self.user_id).zfill(5))
+                    os.makedirs(user_folder, exist_ok=True)
+
+                    # Save files in temporal folder
+                    for filename, img in images.items():
+
+                        filepath = os.path.join(user_folder, filename)
+
+                        with open(filepath, 'wb') as file:
+                            file.write(img.read())
+                        
+                        images[filename] = os.path.join("downloads", str(self.user_id).zfill(5), filename)
+
+                # Send to the frontend for rendering
+                if message or images:
+                    await self.lexi.prepare_output(message, 
+                                                   images=images, 
+                                                   user_id=self.user_id, 
+                                                   spell= False,
+                                                   conversation_id=self.conversation_id, 
+                                                   msg_type="text"
+                    )   
+                
+            except Exception as e:
+                # Log warning
+                with CustomLogger("func_calls") as log:
+                    log.warning(f"Warning: '{self.function_name}' could not render custom messages/images. {e}")
 
             # Check if a preview output(automatic w/o checking with the AI model)
-            if self.ext_command.ptc.get("show_return_to_user", None):
+            if self.ext_command.custom_messages.get("show_return_to_user", None):
                 try:
+                    # Check if there is a sub-routine for printing the function return
                     data = self.ext_command.format_user_response(self.ret_status)
-                    self.lexi.prepare_output(data, spell=False, user_id=self.user_id, thread_id=self.conversation_id)
+
+                    # Print results
+                    await self.lexi.prepare_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
+
                 except Exception as e:
                     # Log warning
                     with CustomLogger("func_calls") as log:
@@ -133,6 +182,16 @@ class ToolCall():
             # Change status to "failed"
             self.status = "failed"
             self.error_details = e.args
+
+            # Check if the external command protocol includes messages after execution
+            try:
+                show_message = self.ext_command.custom_messages.get("if_error").get(
+                    "text", None
+                )
+                if show_message:
+                    await self.lexi.prepare_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+            except Exception:
+                pass
 
             # Log the error:
             if self.function_name != SCHEDULER_FUNCTION:

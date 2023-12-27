@@ -43,9 +43,14 @@ function typeMessage(message, element, callback) {
     typeCharacter();
 }
 
-function addMessageToChat(messageText, source, type, spell = false, metadata = null, time = null) {
+function addMessageToChat(messageText = null, images = null, source, type, spell = false, metadata = null, time = null) {
     const chatMessages = document.querySelector(".msg-body ul");
     const messageScrollArea = document.getElementById("modal-body-messages");
+
+    // Replace newline characters with line break elements to preserve formatting
+    if (source === "system" && messageText) {
+        messageText = messageText.replace(/\n/g, '<br>');
+    }
 
     // Create a new list item
     const newMessageContainer = document.createElement("li");
@@ -69,14 +74,6 @@ function addMessageToChat(messageText, source, type, spell = false, metadata = n
         newMessageContainer.classList.add("sender");
         newMessage.innerHTML = ""; // Clear the text content
 
-    /*
-        // Remove the 'processing...' animation
-
-        const textDotsGIFContainer = chatMessages.querySelector(".typing-animation-container");
-        if (textDotsGIFContainer) {
-            textDotsGIFContainer.remove();
-        }
-    */
 
         if (type === "sys_notif") {
             // Add custom styling for system notification messages
@@ -127,38 +124,43 @@ function addMessageToChat(messageText, source, type, spell = false, metadata = n
     // Append the timestamp to the list item
     newMessageContainer.appendChild(timestampSpan);
 
+    if (images && Object.keys(images).length > 0) {
+        const thumbnailsContainer = document.createElement("div");
+        thumbnailsContainer.className = "thumbnails";
+    
+        // Iterate over the images and create thumbnails
+        for (const [filename, filepath] of Object.entries(images)) {
+            const thumbnail = document.createElement("img");
+            // Construct the URL for the thumbnail
+            thumbnail.src = filepath;
+            thumbnail.alt = filename;
+    
+            // Apply styles to make thumbnails smaller with fixed height
+            thumbnail.style.width = "auto"; // Automatically adjust width to maintain aspect ratio
+            thumbnail.style.height = "150px"; // Adjust the height as needed
+    
+            // Add an event listener to open the full-size image on click
+            thumbnail.addEventListener("click", () => {
+                // Open a new tab or window with the full-size image
+                window.open(filepath, "_blank");
+            });
+    
+            // Append the thumbnail to the container
+            thumbnailsContainer.appendChild(thumbnail);
+        }
+
+        // Apply styles to the thumbnails container for arrangement
+        thumbnailsContainer.style.display = "flex";
+        thumbnailsContainer.style.flexWrap = "wrap";
+        thumbnailsContainer.style.gap = "5px"; // Adjust the gap between thumbnails as needed
+
+        // Append the thumbnails container to the message container
+        newMessageContainer.appendChild(thumbnailsContainer);
+
+    }
+
     // Append the message container to the chat messages
     chatMessages.appendChild(newMessageContainer);
-
-/*
-    // Customize styling based on source and type
-    if (source === "user" && !time) {
-        // Create a new div element for the GIF
-        const gifContainer = document.createElement("div");
-        gifContainer.classList.add("typing-animation-container"); // Add a class for styling
-
-        // Check if you have a GIF file path
-        const gifFileName = "loading.gif"; // replace this with the actual file name
-        const gifFilePath = `/static/images/${gifFileName}`;
-
-        // Create an img element for the GIF
-        const gifImage = document.createElement("img");
-        gifImage.src = gifFilePath;
-        gifImage.alt = "Typing Animation";
-
-        // Adjust the size of the GIF
-        gifImage.style.width = "50px"; // Set the width in pixels
-        gifImage.style.height = "50px"; // Set the height in pixels
-        gifContainer.style.display = "flex";
-        gifContainer.style.justifyContent = "center";
-        gifContainer.style.alignItems = "center";
-
-        // Append the GIF element to the gifContainer
-        gifContainer.appendChild(gifImage);
-
-        // Append the gifContainer to the newMessageContainer
-        chatMessages.appendChild(gifContainer);
-    }*/
     
     // Scroll to the bottom of the chat box to show the new message
     scrollToBottom(messageScrollArea);
@@ -173,4 +175,7 @@ function scrollToBottom(container) {
     container.scrollTop = container.scrollHeight;
 }
 
-
+// Function to format user_id as a 5-digit string
+function formatUserId(user_id) {
+    return String(user_id).padStart(5, '0');
+}

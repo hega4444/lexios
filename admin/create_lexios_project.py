@@ -33,10 +33,10 @@ def __main__():
     open(os.path.join(integrations_dir, "__init__.py"), "a").close()
 
     # Create temporal uploads directory
-    os.makedirs(os.path.join(project_dir, "temp_uploads"))
+    os.makedirs(os.path.join(project_dir, "temp", "uploads"))
 
     # Create temporal uploads directory
-    os.makedirs(os.path.join(project_dir, "temp_downloads"))
+    os.makedirs(os.path.join(project_dir, "temp", "downloads"))
 
     
 

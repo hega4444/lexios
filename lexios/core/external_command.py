@@ -18,10 +18,9 @@ class LexiExternalCommand(LexiBaseTools):
         requires_object = None,
         requires_dynamic_object = None,
         show_return_to_user=False,
-        error=None,
+        if_error=None,
         before=None,
         after=None,
-        next=None,
         printer=None,
     ):
         # Tool settings
@@ -42,12 +41,12 @@ class LexiExternalCommand(LexiBaseTools):
         self.custom_validation = None
 
         # Protocol settings
-        self.ptc = {}
-        self.ptc["error"] = error
-        self.ptc["before"] = before
-        self.ptc["after"] = after
-        self.ptc["next"] = next
-        self.ptc["show_return_to_user"] = show_return_to_user
+        self.custom_messages = {}
+        self.custom_messages["before"] = {'text' : before }
+        self.custom_messages["after"] = {'text' : after }
+        self.custom_messages["if_error"] = {'text' : if_error }
+
+        self.custom_messages["show_return_to_user"] = show_return_to_user
         self.keys = ["error", "before", "after", "next"]
 
     def generate_specs(self):
@@ -251,25 +250,24 @@ class LexiExternalCommand(LexiBaseTools):
 
         return json_string
 
-    def update_msg_protocol(
-        self, key, sys_prompt=None, user_message=None, user_input=None
+    def update_custom_messages(
+        self, event_type: str, text = None, images = None
     ):
-        # Method to help bundle and store messages to user and chat model
+        # Method to update custom content to share with the user while the command is being executed
+        # Recognized event types: 'BEFORE', 'AFTER', 'IF_ERROR'.
 
-        if key.lower() not in self.keys:
+        if event_type.lower() not in self.keys:
             raise ValueError("Key is not valid. Check class definition.")
 
         msg_bundle = {}
 
-        if sys_prompt is not None:
-            msg_bundle["sys_prompt"] = sys_prompt
-        if user_message is not None:
-            msg_bundle["user_message"] = user_message
-        if user_input is not None:
-            msg_bundle["user_input"] = user_input
+        if text is not None:
+            msg_bundle["text"] = text
+        if images is not None:
+            msg_bundle["images"] = images
 
         # Update messages in dictionary
-        self.ptc[key.lower()] = msg_bundle
+        self.custom_messages[event_type.lower()] = msg_bundle
 
     def format_user_response(self, data) -> str:
         # Format external commands return values to show to user, can be used as a tailored output solution

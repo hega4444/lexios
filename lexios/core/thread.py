@@ -455,15 +455,18 @@ class LexiAssistantThread(LexiBaseTools):
     async def attend_tool_calls(self):
         # Execute tool actions:
         self.status = "in_progress"
+
         # Manage tasks pending to execute inside a required action:
         for tool_action in self.tool_calls:
             # Execute the actions if they are still pending
             if tool_action.status == "queued":
+                # Each action
                 await tool_action.async_tool_run()
 
         # Update required action statuses
         if all(tool_action.status == "completed" for tool_action in self.tool_calls):
             self.status = "completed"
+
         elif all(
             tool_action.status == "completed" or tool_action.status == "failed"
             for tool_action in self.tool_calls

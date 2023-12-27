@@ -55,13 +55,13 @@ function submitForm(url, messageInput, fileInput) {
                 if (userMessage.trim() !== "") {
                     formData.append('user_input', userMessage);
                     let messageInnerHTML = userMessage.replace(/\n/g, '<br>');
-                    addMessageToChat(messageInnerHTML, "user", "text");
+                    addMessageToChat(messageInnerHTML, null, "user", "text");
                 }
 
                 if (fileInput.files[0]) {
                     formData.append('file_upload', fileInput.files[0]);
                     const fileName = fileInput.files[0].name;
-                    addMessageToChat(`Uploading file "${fileName}"`, "system", "sys_notif", false, true);
+                    addMessageToChat(`Uploading file "${fileName}"`, null,  "system", "sys_notif", false, true);
                 }
 
                 // AJAX request to the Flask backend
@@ -124,10 +124,11 @@ document.addEventListener("DOMContentLoaded", function () {
             socket.addEventListener('message', async (event) => {
                 // Handle incoming Lexi messages
                 let data = JSON.parse(event.data)
-                let message = data.content;
+                let message = data.content || "" ;
                 const isSpell = data.spell; // Check the 'spell' property
                 const msg_type = data.msg_type; // Check the msg_type
-                const metadata = data.metadata // Retrieve the metadata
+                const metadata = data.metadata || null // Retrieve the metadata
+                const images = data.images || null; // Retrieve images
                 const conversation_id = data.conversation_id // Conversation_id 
 
                 console.log("New Lexi message:", message);
@@ -142,15 +143,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (conversation_id === conversation_id_focus) {
                         // Sanitize and process the message as before
                         // no longer needed message = escapeHTML(message);
-                        // Replace newline characters with line break elements to preserve formatting
-                        message = message.replace(/\n/g, '<br>');
 
                         // Add prompt for Lexi
                         if (msg_type === "text") {
                             message = "Lexi: " + message;
                         }
                         // Use the new function to add the message to the chat
-                        const messageContainer = addMessageToChat(message, "system", msg_type, isSpell, metadata);
+                        addMessageToChat(message, images, "system", msg_type, isSpell, metadata);
 
                         // Example: Set the animation mode to "breath"
                         setAnimationMode('breath');
@@ -349,7 +348,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 text = text.replace(/\n/g, '<br>');
 
                 // Add messages to the main chatbox area
-                addMessageToChat(text, source, "text", false, null, time); // Adjust message parameters
+                addMessageToChat(text, null,  source, "text", false, null, time); // Adjust message parameters
             }
         } else {
             // Handle the case when there are no messages

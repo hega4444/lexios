@@ -1,8 +1,8 @@
 import os
 import openai
-import threading
 import aioredis
 import json
+from io import BytesIO
 from datetime import timedelta
 
 from lexios.settings.main import *
@@ -135,43 +135,46 @@ class LexiOS_Backend(LexiBaseTools):
             user_id=None,
             conversation_id=None, 
             msg_type= "text", 
+            images = None,
             metadata= None
         ):
         # Process an output, use it instead of print():
 
-        #msg_type : "text", "sys_notif"
+        #msg_type : "text", "sys_notif", 
 
-        # Convert all elements to strings
-        args = [str(arg) for arg in args]  
-        # Try to make a string with the args
-        message = " ".join(args)
-
-        # Command line:
-        if self.command_line is True:
-            print(f"{self.lexi_prompt} {message}")
-
-        # Message broker
-        if self.backend:
-
-            try:
-                # Recover session id
-                session_id = self.users.get(user_id).session_id
-
-                # Prepare outbound message
-                outbound_message = {
-                    'session_id': str(session_id),
-                    "content": message,
+        try:
+            # Prepare outbound message
+            session_id = self.users.get(user_id).session_id
+            outbound_message = {
+                    "session_id": str(session_id),
                     "conversation_id": conversation_id,
                     "msg_type": msg_type,
                     "metadata": metadata,
                     "spell": spell,
                 }
 
-                async with aioredis.from_url(self.broker_url) as broker:
-                    await broker.publish("fastapi_channel", json.dumps(outbound_message))
+            # Convert all elements to strings
+            args = [str(arg) for arg in args]  
+            # Try to make a string with the args
+            message = " ".join(args)
 
-            except Exception as e:
-                print("Problems with sending the message: ", e)
+            # Command line output:
+            if self.command_line is True:
+                print(f"{self.lexi_prompt} {message}")
+
+            outbound_message['content'] = message
+
+            # Images
+            if images:
+                outbound_message['images']  = images
+
+            # Send message using broker
+            async with aioredis.from_url(self.broker_url) as broker:
+                await broker.publish("fastapi_channel", json.dumps(outbound_message))
+
+        except Exception as e:
+            print("Problems with sending the message: ", e)
+
 
     def append_basic_IO(self):
 
@@ -210,7 +213,10 @@ class LexiOS_Backend(LexiBaseTools):
             )
             # Check Weather Forecast:
             self.append_command(
-                LexiExternalCommand(SearchEngine.get_weather_forecast, show_return_to_user=False)
+                LexiExternalCommand(
+                    SearchEngine.get_weather_forecast, 
+                    show_return_to_user=False,
+                    before="Weather data by Open-Meteo.com")
             )
             # Schedule an action:
             self.append_command(
@@ -308,13 +314,11 @@ class LexiOS_Backend(LexiBaseTools):
                         )
                         
                         # Run automated data analysis on tables
-                        self.append_command(
-                            LexiExternalCommand(
-                                LexiDatabase.run_data_analysis_on_table,
-                                requires_object=self.sql_engine,
-                                show_return_to_user= False
+                        if self.sql_engine.table_analyzer:
+                            # The SQL Engine provides a customized external command with additional content when executed
+                            self.append_command(
+                                self.sql_engine.table_analyzer
                             )
-                        )
 
                         # Make predictions using a model
                         self.append_command(

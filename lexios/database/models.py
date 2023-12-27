@@ -202,7 +202,7 @@ def initial_database_setup():
         "user": LEXI_DB_ADMIN_USER,
         "password" : LEXI_DB_ADMIN_PASS,
         "port": LEXI_DB_ADMIN_PORT,
-        "load_file": "",
+        "load_setup_script": "",
         "drop_after" : False,  # Set it True to wipe the database, False for creating the data model again
     }
 

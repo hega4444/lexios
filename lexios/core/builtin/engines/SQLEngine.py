@@ -1,17 +1,11 @@
-from typing import Any
 from prettytable import PrettyTable
 import psycopg2
-from stringcolor import *
-from stringcolor.ops import _load_colors
 import datetime
 import csv
-import os
 import sys
-import readline
-import rlcompleter
-import re
 import json
 from decimal import Decimal
+from stringcolor import cs
 
 
 from lexios.settings.main import *
@@ -20,60 +14,10 @@ from lexios.core.lexi_base_tools import *
 
 from lexios.core.builtin.engines.miningEngine import ANN_MODEL, LINEAR_MODEL, SimpleMiner_ANN, SimpleMiner_Linear
 
-# PrettyTablePlus Class, a colorful version of the original PrettyTable 
-class PrettyTablePlus(PrettyTable):
+from lexios.core.external_command import LexiExternalCommand
 
-    def __init__(self, field_names=None, **kwargs) -> None:
-        super().__init__(field_names, **kwargs)
-        if 'color' in kwargs:
-            self.color = kwargs['color']
-        else:
-            self.color = None
-    
-    def get_string(self, **kwargs) -> str:
-        lines = super().get_string(**kwargs)
-        splitted_lines = lines.split("\n")
 
-        pallete = {}
-        pallete['multi1'] = ['DeepPink3', 'DeepPink2', 'DeepPink', 'HotPink', 'IndianRed', 'IndianRed2', 'DarkOrange', 'Red2', 'Salmon']
-        pallete['multi2'] = ['DeepSkyBlue5', 'DodgerBlue3', 'DodgerBlue2', 'Green4', 'SpringGreen5','Turquoise4', 
-                            'DeepSkyBlue3', 'DeepSkyBlue4', 'DodgerBlue', 'Green3',   
-                            'SpringGreen4', 'DarkCyan', 'LightSeaGreen', 'DeepSkyBlue2', 'DeepSkyBlue']
-
-        new_lines = ""
-
-        if self.color and self.color.lower() in pallete:
-            pallete_n = self.color.lower()
-            cols = pallete[pallete_n]
-            n_colors = len(cols)
-            
-            if self.color.lower() == 'multi1':
-                n = 5
-            else:
-                n = 3
-        
-            for line_i, line in enumerate(splitted_lines):
-                i = 0
-                for c in line:
-                    nc = cs(c, cols[((i + line_i ) // n)  % n_colors]) if c != "\n" else c
-                    new_lines += nc
-                    i += 1
-                new_lines += "\n"
-                print(new_lines, end="")
-                new_lines = ""
-            new_lines = ""
-
-        elif self.color:
-            new_lines = str(cs(lines, self.color))
-        else:
-            new_lines = lines
-
-        return new_lines
-    
-    def __str__(self):
-        return super().__str__()
-
-# Print SQL query results in the command line // Mostly here to keep deprecated code stable, needs revision
+# Print SQL query results in the command line // Mostly here to keep working SimpleSQL class without much interference, needs revision
 
 class printSql():
 
@@ -136,10 +80,10 @@ class printSql():
         #    options['color'] = color
 
         if options:
-            table = PrettyTablePlus(**options)
+            table = PrettyTable(**options)
             
         else:
-            table = PrettyTablePlus()
+            table = PrettyTable()
         table.field_names = column_names
         for row in data:
             table.add_row(row)
@@ -383,8 +327,6 @@ class SimpleSQL():
             for table in tables:
                 self.print(f"SELECT * from {table} LIMIT 1;", title=f"Preview of table {table}:")
     
-    def new_pretty_table(self, options):
-        return PrettyTablePlus(**options)
 
     def into_dict(self, sql_block):
         #Executes a SELECT query and saves it into a dictionary
@@ -760,7 +702,7 @@ class SimpleSQL():
 
 class LexiDatabase(SimpleSQL):
     
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
 
         # Check the SQL Engine defined, in the future it could have more flexibility
         if LEXI_DATABASE_ENGINE not in ['PostgreSQL']:
@@ -777,16 +719,17 @@ class LexiDatabase(SimpleSQL):
         db_password = params.get("db_password", None)
         db_port = params.get("db_port", None)
         load_files = params.get("load_files", None)
+        force = params.get("force", False)
 
         # SimpleSQL connection:
         super().__init__(
             db_name = db_name, 
-            force = test_mode, 
+            force = force, 
             load_setup_script = load_setup_script, 
             drop_after = test_mode,
             user= db_user,
             password= db_password,
-            port= db_port
+            port= db_port,
             )
         
         # Activate integration with Data Mining tools
@@ -803,16 +746,20 @@ class LexiDatabase(SimpleSQL):
         # Some options for loading_ mostly for test reasons now
 
         # Load files at setup
-        for file in load_files:
-            try:
-                path, tablename = 0, 1
-                self.create_table_from_csv(
-                            file_name= file[path], 
-                            table_name= file[tablename] ,
-                            create_pri_key = True
-                            )
-            except Exception as e:
-                print(f"Could not load file '{file[tablename]}. Details: {e}'")
+        if load_files:
+            for file in load_files:
+                try:
+                    path, tablename = 0, 1
+                    self.create_table_from_csv(
+                                file_name= file[path], 
+                                table_name= file[tablename] ,
+                                create_pri_key = True
+                                )
+                except Exception as e:
+                    print(f"Could not load file '{file[tablename]}. Details: {e}'")
+
+        # Define the external commands that need special treatment
+        self.table_analyzer = LexiExternalCommand(self.run_data_analysis_on_table)
 
         
     def execute_fetch_sql_query(self, query:str , fetch_one = False) ->str:
@@ -984,6 +931,19 @@ class LexiDatabase(SimpleSQL):
             
             self.models[new_model.model_name] = new_model
 
+            # Retrieve the model plots
+            features_img = new_model.features_plot()
+            performance_img = new_model.performance_plot()
+
+            self.table_analyzer.update_custom_messages(
+                event_type='after',
+                text= 'Below you can see the graphics this model has generated. The first describes the features inference on the predicted result. The second is a performance chart.',
+                images= {
+                    'features.png': features_img,
+                    'performance.png': performance_img,
+                }
+            )
+
             # Finally, return the model performance
             return json.dumps(new_model_record)
 
@@ -1141,23 +1101,17 @@ if __name__ == "__main__":
 
     with LexiDatabase(**options) as lexi_db:
 
-        # Read and create new table in DB
+        #Read and create new table in DB
         lexi_db.create_table_from_csv("data/SalaryData2.csv", 
                             table_name= "salaries" ,
                             create_pri_key = True
                             )
         
-        #print(lexi_db.retrieve_database_erd())
+        print(lexi_db.retrieve_database_erd())
 
-        #print(lexi_db.run_data_analysis_on_table("salaries", "salary", "linear"))
+        print(lexi_db.run_data_analysis_on_table("salaries", "salary", "linear"))
 
-        #print(lexi_db.execute_fetch_sql_query("SELECT DISTINCT column_name, data_type FROM information_schema.columns WHERE table_name = 'salaries' AND column_name = 'Age'"))
-
-
-        #print(lexi_db._generate_input_specs("salaries", ["age", "Gender", "Experience", "Job_title"]))
-
-        #print(lexi_db.make_prediction_using_model("1_salaries_salary_linear", '{"Gender": "Male", "Age": "34", "Experience":"2", "Job_title":"PhD"}'))
-        
+        print(lexi_db.execute_fetch_sql_query("SELECT DISTINCT column_name, data_type FROM information_schema.columns WHERE table_name = 'salaries' AND column_name = 'Age'"))
 
         print(lexi_db.execute_fetch_sql_query("SELECT AVG(age) AS average_age FROM salaries;"))
 

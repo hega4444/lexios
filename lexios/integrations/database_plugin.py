@@ -15,6 +15,7 @@ class DatabaseConnection():
         load_setup_script = False,
         secutiry_object = None,
         load_files: List[str] = None,
+        force: bool = False,
     ):
         self._plugin_identifier = "DatabaseConnection"
 
@@ -32,6 +33,7 @@ class DatabaseConnection():
                     "db_port": port,
                     "security_object" : secutiry_object,
                     "load_files" : load_files,
+                    "force": force,
             }
 
         # Keep a list of files to load in the database at startup

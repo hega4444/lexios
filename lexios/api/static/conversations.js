@@ -159,7 +159,7 @@ function load_conversation_messages(conversationId) {
                     text = text.replace(/\n/g, '<br>');
 
                     // Add messages to the main chatbox area
-                    addMessageToChat(text, source, "text", false, null, time); // Adjust message parameters
+                    addMessageToChat(text, null, source, "text", false, null, time); // Adjust message parameters
                 }
             }
         })

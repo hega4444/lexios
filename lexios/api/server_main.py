@@ -13,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
 from pydantic import BaseModel
 
+from admin.verify_folder import find_project_folder
+PROJECT_FOLDER = find_project_folder()
+
 from lexios.settings.main import *
 from lexios.api.session_data import backend, cookie, verifier
 from lexios.api.redis_websocket import messages_router
@@ -62,6 +65,12 @@ def get_csrf_config():
 # Mount the static files
 folder = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=folder+"/static", html=True), name="static")
+
+# Define the folder path for serving static files
+temp_folder_path = os.path.join(PROJECT_FOLDER, "temp", "downloads")  # Adjust the path as needed
+
+# Mount the downloaded files route
+app.mount("/downloads", StaticFiles(directory=temp_folder_path), name="downloads")
 
 # Define a response for token validation errors
 @app.exception_handler(CsrfProtectError)

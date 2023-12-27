@@ -1,0 +1,26 @@
+# Python-related files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# IDE or editor-specific files (e.g., for VSCode)
+.vscode/
+
+# Test project folders
+new_lexi_project/
+test_hernan4/
+
+# Environment-specific files (e.g., for dotenv)
+.env
+
+# Compiled Python files (if applicable)
+*.pyo
+*.pyd
+
+# Mac-specific files (e.g., .DS_Store)
+.DS_Store
+
+# Editor backup files (e.g., Vim .swp files)
+*.swp

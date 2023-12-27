@@ -1,5 +1,5 @@
 import os
-import sys
+from io import BytesIO
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'    # Disables excessive log
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'   # Disables ODNN
@@ -16,7 +16,8 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 from stringcolor import *
 import matplotlib
-#matplotlib.use("Agg")
+
+matplotlib.use("Agg")
 
 #CONSTANTS
 LINEAR_MODEL = 1
@@ -246,7 +247,7 @@ class SimpleMinerBaseObject():
             print(table)
         return sorted_data
 
-    def show_plot_features(self):
+    def features_plot(self, filename=None):
         if self.field_scores:
             r_values = [(feat['features'], round(feat['scores']['R2'],3)) for feat in self.field_scores.values()]
             r_values = [feat for feat in r_values if len(feat[0]) == 1]
@@ -268,9 +269,19 @@ class SimpleMinerBaseObject():
 
             # Display the pie chart
             plt.axis('equal')  # Equal aspect ratio ensures that the pie chart is drawn as a circle.
-            plt.show()
+            
+            # Save the plot as an image in memory
+            img_data = BytesIO()
+            plt.savefig(img_data, format='png')
+            img_data.seek(0)
+            
+            # Clear the figure to release resources
+            plt.clf()
+            plt.close()
+
+            return img_data
  
-    def show_plot_performance(self):
+    def performance_plot(self):
 
         # Ensure self.actual_values and self.predicted_values are NumPy arrays
         actual_values = np.array(self.actual_values)
@@ -292,8 +303,16 @@ class SimpleMinerBaseObject():
         ax.set_title('Actual vs. Predicted Values')
         ax.grid(True)
 
-        # Show the plot
-        plt.show()
+        # Save the plot as an image in memory
+        img_data = BytesIO()
+        plt.savefig(img_data, format='png')
+        img_data.seek(0)
+        
+        # Clear the figure to release resources
+        plt.clf()
+        plt.close()
+
+        return img_data
 
 
 class SimpleMiner_Linear(SimpleMinerBaseObject):
