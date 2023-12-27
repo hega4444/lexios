@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexi</title>
+    <link rel="icon" href="{{ url_for('static', path='images/favicon.ico') }}" type="image/x-icon" class="flipped-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='style_c1.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='style_c2.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='style_settings.css') }}">
+    
+    <script src="{{ url_for('static', path='load_theme.js') }}"></script>
+    <script src="{{ url_for('static', path='settings.js') }}"></script>
+    <script src="{{ url_for('static', path='speech_recognition.js') }}"></script>
+</head>
+<body>
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Fullscreen background image with slow movement effect -->
+    <div class="background-container">
+        <div class="background-image"></div>
+    </div>
+
+    <a class="top-left-icon">
+        <img src="{{ url_for('static', path='images/spiral-bn.png') }}" alt="Spiral Icon">
+        <span class="lexi-text">lexi </span>
+        <span class="api-text"></span>
+    </a>    
+
+    <!-- chat-area -->
+    <section class="message-area background-element text-element">
+         <!-- navigation bar on top-->
+        <nav id="navbar-main" class="navbar navbar-expand-lg navbar-light text-element" style="background-color: transparent;">
+            <div class="container">
+                <!-- Remove the logo -->
+
+                <!-- Add a button for mobile navigation -->
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <!-- Apply ml-auto directly to the ul element -->
+                    <ul class="navbar-nav ml-auto">
+       
+                        <li class="nav-item">
+                            <span class="nav-link">Hello, {{ user_name }} </span>
+                        </li>
+                  
+                        <li class="nav-item">
+                            <a class="nav-link" href="/dashboard">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/settings">Settings</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout"">Log Out</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>  
+
+    
+        <div class="container">
+            <h3 class="mt-4 mb-3">Settings</h3>
+            <input type="hidden" id="csrf_token" value="{{ csrf_token }}">
+            <form id="settingsForm">
+            <div class="row">
+                <div class="col-md-6-container">
+                    <div class="mb-3 form-group">
+                        <label for="firstName" class="form-label text-element">Name</label>
+                        <input type="text" class="form-control text-element" id="firstName" name="firstName" placeholder="Tom">
+                    </div>
+                
+                    <div class="mb-3 form-group">
+                        <label for="lastName" class="form-label text-element">Last Name</label>
+                        <input type="text" class="form-control text-element" id="lastName" name="lastName" placeholder="Schmidt">
+                    </div>
+                
+                    <div class="mb-3 form-group">
+                        <label for="location" class="form-label text-element">Location</label>
+                        <input type="text" class="form-control text-element" id="location" name="location" placeholder="Berlin">
+                    </div>
+                
+                    <div class="mb-3 form-group">
+                        <label for="google_id" class="form-label">Google account</label>
+                        <input type="text" class="form-control text-element email" id="google_id" name="google_id" placeholder="Your Google ID">
+                    </div>
+
+                    <div> Allow Lexi to:</div>
+                    <!-- News and Weather Options -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="bingSearchCheckbox" name=bingSearch">
+                        <label class="form-check-label text-element" for="bingSearchCheckbox">Perform searches in Bing.</label>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="lexiLearnCheckbox" name="lexiLearnCheckbox">
+                        <label class="form-check-label text-element" for="lexiLearnCheckbox">Learn your preferences and adjust their responses.</label>
+                    </div>
+
+                    <!-- Connect with Gmail and Google Calendar -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="gmailCheckbox" name="gmailCheckbox">
+                        <label class="form-check-label text-element" for="gmailCheckbox">Access Gmail and help you organize your emails.</label>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="calendarCheckbox" name="calendarCheckbox">
+                        <label class="form-check-label text-element" for="calendarCheckbox">Access your Google Calendar.</label>
+                    
+                    </div>
+                        <!-- Theme Selection Dropdown -->
+                    <div class="mb-3">
+                        <label for="themeSelection" class="form-label">Theme Selection:</label>
+                        <select class="form-select text-element" id="themeSelection" name="themeSelection">
+                            <option value="lexi_default">Lexi default Theme</option>
+                            <option value="night_sky">Night Sky</option>
+                            <option value="moonlight_serenade">Moonlight Serenade</option>
+                            <option value="daybreak_delight">Daybreak Delight</option>
+                            <option value="deep_sea">Deep Sea</option>
+                            <option value="sunset_bliss">Sunset Bliss</option>
+                            <option value="forest_canopy">Forest Canopy</option>
+                            <option value="cherry_blossom">Cherry Blossom</option>
+                            <option value="golden_hour">Golden Hour</option>
+                            <option value="midnight_mystery">Midnight Mystery</option>
+                            <option value="tropical_paradise">Tropical Paradise</option>
+                            <option value="vintage_vibes">Vintage Vibes</option>
+                            <option value="user_custom">User custom</option>
+                        </select>
+                    </div>
+                     
+                    <!-- Color Pickers -->
+                    <div class="row">
+                        <!-- Background Color Label -->
+                        <div class="col-md-2 mb-3">
+                            <label for="backgroundColor text-element" class="form-label">Background Color:</label>
+                        </div>
+                    
+                        <!-- Text Color Label -->
+                        <div class="col-md-2 mb-3">
+                            <label for="textColor text-element" class="form-label">Text Color:</label>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Background Color Picker -->
+                        <div class="col-md-2 mb-3">
+                            <input type="color" id="backgroundColor" name="backgroundColor" class="form-control">
+                        </div>
+                    
+                        <!-- Text Color Picker -->
+                        <div class="col-md-2 mb-3">
+                            <input type="color" id="textColor" name="textColor" class="form-control">
+                        </div>
+                    </div>
+                        
+                <div class="col-md-6">
+                </div>
+
+                
+                </div>
+            </div>
+            </form>
+        <!-- Settings section within a container -->
+
+    </section>
+    
+    <div class="confirmation-modal" id="confirmationModal">
+        <div class="modal-content">
+            <p>Are you sure you want to delete this conversation?</p>
+            <button id="confirmDelete">Yes, delete</button>
+            <button id="cancelDelete">Cancel</button>
+        </div>
+    </div>
+    
+
+        
+    </section>
+
+    <!-- char-area -->
+
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Other scripts and closing HTML tags go here -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+</body>
+</html>

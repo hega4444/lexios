@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexi</title>
+    <link rel="icon" href="{{ url_for('static', path='images/favicon.ico') }}" type="image/x-icon" class="flipped-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='style_c1.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='style_c2.css') }}">
+    
+
+    <script src="{{ url_for('static', path='load_theme.js') }}"></script>
+    <script src="{{ url_for('static', path='chat_functions.js') }}"></script>
+    <script src="{{ url_for('static', path='conversations.js') }}"></script>
+    <script src="{{ url_for('static', path='chat.js') }}"></script>
+    <script src="{{ url_for('static', path='speech_recognition.js') }}"></script>
+    <script src="{{ url_for('static', path='email.js') }}"></script>
+    <script src="{{ url_for('static', path='calendar.js') }}"></script>
+</head>
+<body>
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Fullscreen background image with slow movement effect -->
+    <div class="background-container">
+        <div class="background-image"></div>
+    </div>
+
+    <a class="top-left-icon">
+        <img src="{{ url_for('static', path='images/spiral-bn.png') }}" alt="Spiral Icon">
+        <span class="lexi-text">lexi </span>
+        <span class="api-text"></span>
+    </a>    
+
+    <!-- chat-area -->
+    <section class="message-area background-element text-element">
+         <!-- navigation bar on top-->
+        <nav id="navbar-main" class="navbar navbar-expand-lg navbar-light" style="background-color: transparent;">
+            <div class="container">
+                <!-- Remove the logo -->
+
+                <!-- Add a button for mobile navigation -->
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <!-- Apply ml-auto directly to the ul element -->
+                    <ul class="navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <span class="nav-link">Hello, {{ user_name }} </span>
+                        </li>
+                  
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/settings">Settings</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout">Log Out</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>  
+
+    
+    <!-- navigation bar on top-->       
+
+
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <div class="chat-area">
+
+                        
+                     <!-- Chatlist on the left -->
+                        <div class="col-3">
+                                <div class="chatlist">
+                                    
+                                    <div class="create-conversation">
+                                        <button id="create-conversation-button" class="text-element" aria-label="Create new conversation">
+                                            <i class="custom-icon"></i>   new conversation
+                                        </button>
+                                    </div>
+                                    <div class="conversations-list">
+                                            <!-- conversation-elements here -->
+                                    </div>
+                                </div>
+                        </div>
+
+                        
+
+                        <!-- chatbox -->
+                        <div class="chatbox">
+                            <div class="modal-dialog-scrollable">
+                                <div class="modal-content">
+                                    <div class="msg-head">
+                                        <div class="row">
+                                            <div class="col-2 d-flex align-items-center mail">
+                                                <!-- Mail Icon -->
+                                                <a href="#" id="email-access">
+                                                    <img src="/static/images/mail.png" alt="Mail Icon" width="24" height="24">
+                                                </a>
+                                            </div>
+                                            <div class="col-2 d-flex align-items-center calendar">
+                                                <!-- Calendar Icon -->
+                                                <a href="#" id="calendar-access">
+                                                    <img src="/static/images/calendar.png" alt="Calendar Icon" width="24" height="24">
+                                                </a>
+                                            </div>
+                                            <div class="col-2 d-flex align-items-center">
+                                                <!-- More Options Dropdown -->
+                                                <ul class="moreoption">
+                                                    <li class="navbar nav-item dropdown">
+                                                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                            <img src="/static/images/choice.png" alt="Stationery Icon" width="24" height="24">
+                                                        </a>
+                                                        <ul id="actions-dropdown" class="dropdown-menu">
+                                                            <!-- Existing dropdown items -->
+                                                            <li><a class="dropdown-item" href="#" id="reload-button">Reload chat</a></li>
+                                                            <li><a class="dropdown-item" href="#" id="speech-recognition-button">Speech recognition On..</a></li>
+                                                            <li><a class="dropdown-item" href="#" id="speak-button">Speak On..</a></li>
+                                                            <li>
+                                                                <hr class="dropdown-divider">
+                                                            </li>
+                                                            <li><a class="dropdown-item" href="#" id="settings-button">Settings...</a></li>
+                                                        </ul>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+    
+            
+
+
+                                    <div id="modal-body-messages" class="modal-body">
+                                        <div class="msg-body">
+                                            <ul>
+                                                    <!--messages area-->
+
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    
+                                    <div class="send-box">
+                                        <form id="message-form" action="{{ url_for('process_input') }}" method="post" enctype="multipart/form-data">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <textarea id="message-input" name="user_message" class="form-control" aria-label="message…" placeholder="Start a conversation…" autocomplete="off"></textarea>                                            
+                                            <button id="send-button" type="submit"><i class="fa fa-paper-plane" aria-hidden="true"></i>Send</button> <!--Text for send button -->
+                                        </form>
+
+                                        <div class="send-btns">
+                                            <div class="attach">
+                                                <div class="button-wrapper" id="upload-container">
+                                                    <span class="label">
+                                                        <img class="img-fluid" src="https://mehedihtml.com/chatbox/assets/img/upload.svg" alt="image title"> attached file
+                                                    </span>
+                                                    <input type="file" name="file_upload" id="file-upload-input" class="upload-box" placeholder="Upload File" aria-label="Upload File">
+                                                </div>
+                                            
+                                                <select class="form-control text-element" id="exampleFormControlSelect1">
+                                                    <option>Select template</option>
+                                                    <option>Template 1</option>
+                                                    <option>Template 2</option>
+                                                </select>
+                                            
+                                                <div class="add-apoint text-element">
+                                                    <a href="#" data-toggle="modal" data-target="#exampleModal4">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 16C3.58862 16 0 12.4114 0 8C0 3.58862 3.58862 0 8 0C12.4114 0 16 3.58862 16 8C16 12.4114 12.4114 16 8 16ZM8 1C4.14001 1 1 4.14001 1 8C1 11.86 4.14001 15 8 15C11.86 15 15 11.86 15 8C15 4.14001 11.86 1 8 1Z" fill="#7D7D7D"/><path d="M11.5 8.5H4.5C4.224 8.5 4 8.276 4 8C4 7.724 4.224 7.5 4.5 7.5H11.5C11.776 7.5 12 7.724 12 8C12 8.276 11.776 8.5 11.5 8.5Z" fill="#7D7D7D"/><path d="M8 12C7.724 12 7.5 11.776 7.5 11.5V4.5C7.5 4.224 7.724 4 8 4C8.276 4 8.5 4.224 8.5 4.5V11.5C8.5 11.776 8.276 12 8 12Z" fill="#7D7D7D"/></svg> Appoinment
+                                                    </a>
+                                                </div>
+                                            </div>
+                                            
+                                            <script>
+                                                document.getElementById("upload-container").addEventListener("click", function () {
+                                                    document.getElementById("file-upload-input").click();
+                                                });
+                                            </script>
+                                            
+                                            
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- chatbox -->
+
+
+                </div>
+            </div>
+        </div>
+        </div>
+    </section>
+    <div class="confirmation-modal" id="confirmationModal">
+        <div class="modal-content">
+            <p>Are you sure you want to delete this conversation?</p>
+            <button id="confirmDelete">Yes, delete</button>
+            <button id="cancelDelete">Cancel</button>
+        </div>
+    </div>
+
+    <!-- char-area -->
+
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', path='chat_load.js') }}"></script>
+    <!-- Other scripts and closing HTML tags go here -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+</body>
+</html>

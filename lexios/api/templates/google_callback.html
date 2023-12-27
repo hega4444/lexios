@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Callback</title>
+</head>
+<body>
+    <script>
+        // Close the popup and redirect to the main screen
+        window.opener.location.href = '/google_submit_login/?session_id={{ session_id }}&google_callback_success={{ google_callback_success }}';
+        window.close();
+    </script>
+</body>
+</html>

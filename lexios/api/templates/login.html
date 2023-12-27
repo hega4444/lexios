@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexi login</title>
+
+    <link rel="icon" href="{{ url_for('static', path='images/favicon.ico') }}" type="image/x-icon"
+        class="flipped-icon">
+    <!-- Bootstrap CSS link -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome CSS link (for social icons) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat&family=Work+Sans&display=swap" rel="stylesheet">
+
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!--custom scripts-->
+    <script src="{{ url_for('static', path='login.js') }}"></script>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='login.css') }}">
+
+    <script src="{{ url_for('static', path='launch_popup.js') }}"></script>
+
+</head>
+
+<body>
+    <!-- Fullscreen background image with slow movement effect -->
+    <div class="background-container">
+        <div class="background-image"></div>
+    </div>
+
+    <!-- app logo and text -->
+    <a class="top-left-icon">
+        <img src="{{ url_for('static', path='images/spiral-bn.png') }}" alt="Spiral Icon">
+        <span class="lexi-text">lexi </span>
+        <span class="api-text"></span>
+    </a>
+
+    <!-- Form container -->
+    <div class="form-container">
+        <h2>login</h2>
+        <form class="center-form"> <!-- Added center-form class -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <!-- The login form content from your previous code -->
+            <!-- Email input -->
+            <div class="form-outline mb-4">
+                <input type="email" id="login_email" class="form-control" />
+                <label class="form-label" for="login_email">Email address</label>
+            </div>
+
+            <!-- Password input -->
+            <div class="form-outline mb-4">
+                <input type="password" id="login_password" class="form-control" />
+                <label class="form-label" for="login_password">Password</label>
+            </div>
+
+            <!-- 2 column grid layout for inline styling -->
+            <div class="row mb-4">
+                <div class="col d-flex justify-content-center">
+                    <!-- Checkbox -->
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="check-remember" checked />
+                        <label class="form-check-label" for="check-remember"> Remember me </label>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <!-- Simple link -->
+                    <a href="#!">Forgot password?</a>
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <button type="button" id="login-button" class="btn btn-primary btn-block mb-4">Sign in</button>
+
+            <!-- Register buttons -->
+            <div class="text-center">
+                <p>Not a member? <a href="#!">Register</a></p>
+                <p>or sign up with:</p>
+                <button type="button" class="btn btn-link btn-floating mx-1" onclick="openGoogleSignInPopup()">
+                    <i class="fab fa-google"></i>
+                </button>                          
+            </div>
+        </form>
+    </div>
+
+    <!-- Bootstrap JavaScript and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

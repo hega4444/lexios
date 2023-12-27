@@ -1,0 +1,227 @@
+/*Style for login page*/
+
+@keyframes slow-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Container for the background image */
+.background-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Hide overflowing content */
+    z-index: -1;
+}
+
+/*Google icon*/
+.fa-brands, .fab{
+    color: rgba(32, 31, 31, 0.774);
+}
+
+    /* Fullscreen background image with slow movement effect */
+.background-image {
+    position: absolute;
+    width: 150%;
+    height: 150%;
+    background-image: url('../static/images/login_0012.jpg'); /* Replace with your image URL */
+    background-size: cover;
+    background-position: center center; /* Center the image initially */
+    z-index: -1;
+    filter: blur(1px); /* 1px blur effect */
+    animation: slow-movement 120s linear infinite;
+}
+
+/* Add the animation for slow movement */
+@keyframes slow-movement {
+    0%, 100% {
+        transform: translateX(0%) translateY(0%);
+    }
+    50% {
+        transform: translateX(-25%) translateY(-25%);
+    }
+}
+
+
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh; /* Make the body full height of the viewport */
+    overflow: hidden;
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 500;
+}
+
+.top-left-icon {
+    position: absolute;
+    top: 22px; /* Adjust the top padding */
+    left: 22px; /* Adjust the left padding */
+    z-index: 1000;
+    padding-top: 10px; /* Additional top padding */
+    padding-left: 10px; /* Additional left padding */
+    text-decoration: none;
+}
+
+.top-left-icon img {
+    width: 60px; /* Adjust to the desired size */
+    height: auto;
+    transform: rotate(45deg) scaleX(-1); /* Initial rotation and flip */
+    animation: slow-spin 30s linear infinite; /* Apply the animation */
+    /*filter: blur(1px); /* Add a soft blur effect */
+
+}
+
+/* Style the "Lexi" text */
+.lexi-text {
+    color: rgb(194, 191, 191);
+    font-size: 36px; /* Adjust the font size as needed */
+    margin-left: 15px; /* Adjust the margin as needed */
+    margin-top: 15px !important; /* Add some space above the element */
+    vertical-align: middle; /* Adjust the alignment vertically */
+    text-decoration: none; /* Remove the default link underline */
+    filter: blur(0.4px); /* Apply a slight blur effect (adjust the value as needed) */
+    pointer-events: none; /* Prevent the text from being clickable */
+    font-family: 'Nunito Sans', sans-serif;
+}
+
+.api-text {
+    vertical-align: middle;
+    color: rgba(0, 0, 0, 0.781);
+    font-size: 20px;
+    position: relative;
+    top: -10px; /* Adjust this value to move the element up or down */
+  }
+  
+
+/* Add an overlay to darken the background image */
+.background-image::before {
+    content: "";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(53, 29, 59, 0.426); /* Adjust the opacity (last value) to make it darker or lighter */
+}
+
+/* Form container */
+.form-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+    border-radius: 20px;
+    color: rgba(240, 237, 237, 0.775); /* Dark grey text color */
+    text-align: center;
+    /*border: 0.5px solid rgba(185, 101, 206, 0.155); */
+    background-color: #45424260;
+    font-family: 'Montserrat', sans-serif;;
+    background: none;
+}
+
+.form-container h2 {
+    text-align: center;
+    margin-bottom: 25px; /* Increase the margin below the "Login" text */
+    font-size: 35px; /* Adjust the font size */
+}
+
+
+/* Dark grey button with white text */
+.btn-primary {
+    background-color: rgb(75 66 66 / 59%);/* Dark grey background color */
+    color: #ede9e9da; /* White text color */
+    border: 0.5px white; /* Remove the border */
+}
+
+.btn-primary:hover {
+    background-color: #616161; /* Dark grey background color */
+    color: #ffffffee; /* White text color */
+    border: 1px white; /* Remove the border */
+    box-shadow: 0 0 1px 1px #cfced0b6; /* Apply a box-shadow with blur effect */
+}
+
+/* Center-align "Sign in" button */
+.btn-primary.btn-block.mb-4 {
+    text-align: center;
+}
+
+/* Dark grey links */
+.form-container a {
+    color: rgba(226, 220, 220, 0.775); /* Dark grey text color for links */
+}
+
+.form-outline .form-control {
+    border-radius: 11px;
+    background-color: #a9a6a625 !important;
+    border: 0.5px solid rgba(89, 21, 106, 0.424);
+    color: #ffffffd2; /* Text color, adjust as needed */
+    /* Add any other styles you want */
+    font-size: 16px; /* Adjust the font size as needed */
+    margin-bottom: 5px; /* Increase the margin between the "Login" text and the input box */
+}
+
+
+/* Style for autofill */
+.form-outline .form-control:-webkit-autofill {
+    border: 0.5px solid rgba(89, 21, 106, 0.424);
+    background-color: #a9a6a646 !important;
+    color: #ffffffd2; /* Text color, adjust as needed */
+    font-size: 16px; /* Adjust the font size as needed */
+}
+
+/* Change Autocomplete styles in Chrome*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+    border: 0.5px solid rgba(89, 21, 106, 0.424);
+    -webkit-text-fill-color: #ffffffd2;
+    -webkit-text-size-adjust: 20px;
+    -webkit-box-shadow: 0 0 0px 1000px #a9a6a625 inset;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+#check-remember{
+    color:  rgba(226, 220, 220, 0.775);  /* Dark grey text color */
+    background-color: #333333b4;
+    border-color: #575757b4;
+}
+
+#check-remember:checked{
+    color: #636363; /* Dark grey text color */
+}
+
+/* Add black border around input boxes on hover */
+.form-outline input:hover {
+    border: 1px solid #3535356d;
+    filter: blur(0.02rem); /* 1px blur effect on hover */
+}
+
+/* Responsive layout for mobile */
+@media (max-width: 768px) {
+    .background-image {
+        height: 120%; /* Adjust the height to make it visible on mobile */
+    }
+
+    .form-container {
+        width: 90%; /* Reduce the width for smaller screens */
+    }
+
+    .top-left-icon {
+        display: none; /* Hide the icon on mobile screens */
+    }
+
+}

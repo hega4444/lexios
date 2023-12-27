@@ -1,0 +1,838 @@
+/* Lexi specific */
+:root {
+    --glass-effect-base:  rgba(127, 114, 114, 0);
+    --glass-effect-messages: #5553535b;
+    
+}
+
+/* **********************************
+Reset CSS
+************************************** */
+
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+b,
+u,
+i,
+center,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+canvas,
+details,
+embed,
+figure,
+figcaption,
+footer,
+header,
+hgroup,
+menu,
+nav,
+output,
+ruby,
+section,
+summary,
+time,
+mark,
+audio,
+video {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+}
+
+
+/* HTML5 display-role reset for older browsers */
+
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section {
+    display: block;
+}
+
+body {
+    line-height: 1.5;
+}
+
+ol,
+ul {
+    list-style: none;
+}
+
+blockquote,
+q {
+    quotes: none;
+}
+
+blockquote:before,
+blockquote:after,
+q:before,
+q:after {
+    content: '';
+    content: none;
+}
+
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+
+/********************************
+ Typography Style
+******************************** */
+
+body {
+    margin: 0;
+    font-family: 'Open Sans', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+    min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1 {
+    font-size: 36px;
+}
+
+h2 {
+    font-size: 30px;
+}
+
+h3 {
+    font-size: 19px;
+}
+
+h4 {
+    font-size: 22px;
+}
+
+h5 {
+    font-size: 18px;
+}
+
+h6 {
+    font-size: 16px;
+}
+
+p {
+    font-size: 15px;
+}
+
+a {
+    text-decoration: none;
+    font-size: 15px;
+}
+
+* {
+  margin-bottom: 0;
+}
+
+/* LOGO */
+
+@keyframes slow-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+.top-left-icon {
+    position: absolute;
+    top: 22px; /* Adjust the top padding */
+    left: 22px; /* Adjust the left padding */
+    z-index: 1000;
+    text-decoration: none;
+}
+
+.top-left-icon img {
+    width: 60px; /* Adjust to the desired size */
+    height: auto;
+    transform: rotate(45deg) scaleX(-1); /* Initial rotation and flip */
+    animation: slow-spin 30s linear infinite; /* Apply the animation */
+}
+
+/* Style the "Lexi" text */
+.lexi-text {
+    color: rgb(194, 191, 191);
+    font-size: 36px; /* Adjust the font size as needed */
+    margin-left: 15px; /* Adjust the margin as needed */
+    vertical-align: middle; /* Adjust the alignment vertically */
+    text-decoration: none; /* Remove the default link underline */
+    filter: blur(0.4px); /* Apply a slight blur effect (adjust the value as needed) */
+    pointer-events: none; /* Prevent the text from being clickable */
+    font-family: 'Nunito Sans', sans-serif;
+    position: relative;
+    top: -26px; /* Adjust this value to move the element up or down */
+}
+
+.api-text {
+    vertical-align: middle;
+    color: rgba(0, 0, 0, 0.781);
+    font-size: 20px;
+    position: relative;
+    top: -36px; /* Adjust this value to move the element up or down */
+}
+
+/* *******************************
+message-area
+******************************** */
+
+@keyframes moveBackground {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 100% 100%; }
+    100% { background-position: 0% 0%; }
+}
+
+/* BACKGROUNDS*/
+
+.background-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.background-image {
+    width: 100%;
+    height: 100%;
+    background: url('../static/images/polka-dots-big.png') center/cover no-repeat;
+    opacity: 0.1;
+
+    /* Zoom Animation */
+    animation: zoomAnimation 6s infinite alternate;
+
+    /* Spinning Animation */
+    /* Uncomment the following lines when you want to apply the spinning animation */
+    /* animation: spinAnimation 6s infinite linear; */
+    /* transform-origin: center; */
+
+    /* Adjusted properties for spinning animation */
+    /* opacity: 0.1; */
+}
+
+@keyframes zoomAnimation {
+    0% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1.4); /* Adjust the zoom scale as needed */
+    }
+}
+
+@keyframes spinAnimation {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg) scale(1.4);
+        opacity: 0.1;
+    }
+    50% {
+        transform: translateY(0) rotate(120deg) scale(8);
+        opacity: 0.15;
+    }
+}
+
+
+.message-area {
+    height: 100vh;
+    overflow: hidden;
+    padding: 30px 0;
+    /* Separate gradient and image background for better control */
+    background-color:  rgba(0, 0, 0, 0.956);/*#914565c9;*/
+    background-size: cover, cover; /* Apply 'cover' to both layers */
+    /* Animation */
+    animation: moveBackground 150s linear infinite;
+    background-repeat: no-repeat;
+}
+
+.chat-area {
+    position: relative;
+    width: 100%;
+    border-radius: 0.3rem;
+    height: 90vh;
+    overflow: hidden;
+    min-height: calc(100% - 1rem);
+}
+
+.chatlist {
+    outline: 0;
+    height: auto;
+    overflow: hidden;
+    width: 300px;
+    float: left;
+    padding: 15px;
+    border-radius: 15px;
+    margin-bottom: 15px;
+    margin-right: 5px;
+}
+
+
+.chat-area .modal-content {
+    border: none;
+    border-radius: 15px;
+    outline: 0;
+    height: 100%;
+    background-color: var(--glass-effect-base);
+   /* backdrop-filter: blur(5px); /* Adjust the blur value as needed */
+}
+
+
+/* Style the scrollbar itself (width, background, etc.) */
+.modal-body::-webkit-scrollbar {
+    width: 10px;
+}
+
+/* Style the track of the scrollbar (optional) */
+.modal-body::-webkit-scrollbar-track {
+    background: #2d2a2a12;
+}
+
+/* Style the handle of the scrollbar (make it semi-transparent) */
+.modal-body::-webkit-scrollbar-thumb {
+    background: rgb(92, 91, 91); /* Black with 50% opacity */
+    border-radius: 2px;
+}
+
+/* Handle on hover */
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.7); /* Slightly darker on hover */
+}
+
+
+.chatbox {
+    width: auto;
+    overflow: hidden;
+    height: 100%;
+    border-radius: 15px;
+    margin-bottom: 15px;
+    margin-left: 5px;
+}
+
+.chatbox .modal-dialog,
+.chatlist .modal-dialog {
+    max-width: 100%;
+    margin: 0;
+}
+
+.msg-search {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    padding-top: 3px;
+}
+
+.chat-area .form-control {
+    display: block;
+    width: 80%;
+    padding: 0.375rem 0.75rem;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+  /*  color: #2222229e;  deprecated */
+    background-color: var(--glass-effect-base);
+    background-clip: padding-box;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border-radius: 0.25rem;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+
+}
+
+.chat-area .form-control:focus {
+    outline: 0;
+    box-shadow: inherit;
+}
+
+a.add img {
+    height: 36px;
+    opacity: 0.5;
+}
+
+.chat-area .nav-tabs {
+    border-bottom: 1px solid #dee2e6e2;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: inherit;
+}
+
+.chat-area .nav-tabs .nav-item {
+    width: 100%;
+}
+
+.chat-area .nav-tabs .nav-link {
+    width: 100%;
+    color: #c5c4c9c8;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-transform: capitalize;
+    margin-top: 5px;
+    margin-bottom: -1px;
+    background: 0 0;
+    border: 1px #c5c4c986;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+}
+
+.chat-area .nav-tabs .nav-item.show .nav-link,
+.chat-area .nav-tabs .nav-link.active {
+    color: #c5c4c9c8;
+    background-color: var(--glass-effect-base);
+    border-color: transparent transparent #afadad59;
+}
+
+.chat-area .nav-tabs .nav-link:focus,
+.chat-area .nav-tabs .nav-link:hover {
+    border-color: transparent transparent #000;
+    isolation: isolate;
+}
+
+.chat-list h3 {
+    color: #222;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-transform: capitalize;
+    margin-bottom: 0;
+}
+
+.chat-list p {
+    color: #343434;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    text-transform: capitalize;
+    margin-bottom: 0;
+}
+
+.chat-list a.d-flex {
+    margin-bottom: 15px;
+    position: relative;
+    text-decoration: none;
+}
+
+.chat-list .active {
+    display: block;
+    content: '';
+    clear: both;
+    position: absolute;
+    bottom: 3px;
+    left: 34px;
+    height: 12px;
+    width: 12px;
+    background: #00DB75;
+    border-radius: 50%;
+    border: 2px solid #ffffffb7;
+}
+
+.msg-head h3 {
+   /* color: rgb(238, 235, 235); deprecated */
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-bottom: 0;
+}
+
+.msg-head p {
+    color: #e6e3e3c9;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    margin-bottom: 0;
+}
+
+.msg-head {
+    padding: 15px;
+    border-bottom: 1px solid #cccccc21;
+}
+/* Styles for the more option icons */
+.moreoption .navbar {
+    padding: 0;
+}
+
+.moreoption{
+    width: 15px;
+}
+
+.row {
+    justify-content: end;
+}
+
+.moreoption li .nav-link img {
+    filter: invert(0.9);
+    opacity: 0.8;
+    width: 24px;
+    height: 24px;
+    transition: transform 0.3s;
+}
+
+.moreoption li .nav-link:hover img {
+    transform: scale(1.3);
+    opacity: 1;
+}
+
+.moreoption .dropdown-toggle::after {
+    display: none;
+}
+
+.moreoption .dropdown-menu[data-bs-popper] {
+    top: 100%;
+    left: auto;
+    right: 0;
+    margin-top: 0.125rem;
+}
+
+/* Styles for the new mail and calendar icons */
+.col-2 a img {
+    filter: invert(0.9);
+    opacity: 0.8;
+    width: 24px;
+    height: 24px;
+    transition: transform 0.3s;
+}
+
+.col-2 a:hover img {
+    transform: scale(1.3);
+    opacity: 1;
+}
+
+/* Adjust positioning of the new icons */
+.col-2 {
+    text-align: right; /* Align icons to the right */
+    width: 40px;
+}
+
+/* Remove the ::after pseudo-element for the new icons */
+.col-2 a.dropdown-toggle::after {
+    display: none;
+}
+
+
+.msg-body ul {
+    overflow: hidden;
+}
+
+.msg-body ul li {
+    list-style: none;
+    margin: 15px 0;
+}
+
+.msg-body ul li.sender {
+    display: block;
+    width: 100%;
+    position: relative;
+}
+
+.msg-body ul li.sender:before {
+    display: block;
+    clear: both;
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: -7px;
+    height: 0;
+    border-style: solid;
+    border-width: 0 12px 15px 12px;
+    border-color: transparent transparent #b0a3a3dc transparent;
+    -webkit-transform: rotate(-37deg);
+    -ms-transform: rotate(-37deg);
+    transform: rotate(-37deg);
+}
+
+.msg-body ul li.sender p {
+    /*color: #fdf6f6de;  deprecated*/ 
+    font-size: 15px;
+    line-height: 1.7;
+    font-weight: 450;
+    padding: 15px;
+    background-color: var(--glass-effect-messages);
+    display: inline-block;
+    border-bottom-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+    margin-bottom: 0;
+    max-width: 70%; /* Set the maximum width to 70% */
+   /* box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2); /* Larger and softer box shadow */
+    /*font-family: 'Ubuntu Mono', sans-serif;  /**/
+}
+
+.msg-body ul li.sender p b {
+    display: block;
+    color: #ffffff2b;
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+.msg-body ul li.repaly {
+    display: block;
+    width: 100%;
+    text-align: right;
+    position: relative;
+}
+
+.msg-body ul li.repaly:before {
+    display: block;
+    clear: both;
+    content: '';
+    position: absolute;
+    bottom: 15px;
+    right: -7px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 12px 15px 12px;
+    border-color: transparent transparent #c9ccd3b9 transparent;
+    -webkit-transform: rotate(37deg);
+    -ms-transform: rotate(37deg);
+    transform: rotate(37deg);
+}
+
+.msg-body ul li.repaly p {
+    /*color: #ebe5e5e6; deprecated*/
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 400;
+    padding: 15px;
+    background: #2b2b2bc7; 
+    display: inline-block;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom-left-radius: 10px;
+    margin-bottom: 0;
+}
+
+.msg-body ul li.repaly p b {
+    display: block;
+    color: #061061;
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+.msg-body ul li.repaly:after {
+    display: block;
+    content: '';
+    clear: both;
+}
+
+.time {
+    display: block;
+    /*color: #b9b8b8dd; deprecated*/
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 400;
+}
+
+li.repaly .time {
+    margin-right: 20px;
+}
+
+.divider {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+
+.msg-body h6 {
+    text-align: center;
+    font-weight: normal;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #222;
+    background-color: var(--glass-effect-base);
+    display: inline-block;
+    padding: 0 5px;
+    margin-bottom: 0;
+}
+
+.divider:after {
+    display: block;
+    content: '';
+    clear: both;
+    position: absolute;
+    top: 12px;
+    left: 0;
+    border-top: 1px solid #ebebeb9e;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+
+.send-box {
+    padding: 15px;
+    border-top: 1px solid #cccccc29;
+}
+
+.send-box form {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.send-box .form-control {
+    display: block;
+    width: 85%;
+    padding: 0.375rem 0.75rem;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+ /*   color: #ffffff; deprecated*/
+    background-color: var(--glass-effect-base);
+    background-clip: padding-box;
+    border: 0px solid #a19b9bb0;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border-radius: 0.75rem;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+/*custom lexi'*/
+
+/* Style the textarea */
+#message-input {
+    width: 100%;
+    max-height: 200px; /* Set your desired maximum height */
+    overflow-y: auto; /* Show vertical scrollbar when needed */
+    resize: none; /* Disable textarea resizing */
+    padding: 10px; /* Add some padding for better appearance */
+    box-sizing: border-box; /* Include padding and border in the element's total width/height */
+}
+
+#message-input:focus{
+    background: none;
+    border: none;
+}
+
+/* Style the custom scrollbar (you can customize this as needed) */
+#message-input::-webkit-scrollbar {
+    width: 8px;
+}
+
+li.sender p.notification-message {
+    background-color: rgba(76, 21, 127, 0.689); /* Customize background color as needed */
+    color: rgba(230, 227, 235, 0.885); /* Customize text color as needed */
+    /* Add any other styling properties for notification messages here */
+}
+
+#message-input::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+}
+
+#message-input::-webkit-scrollbar-thumb:hover {
+    background-color: #555;
+}
+
+.form-control::placeholder {
+    color: #ffffffc9; /* Replace with your desired color */
+    opacity: 0.8; /* Adjust if you want to change the opacity */
+}
+
+/* search bar needed a specific id */
+#inlineFormInputGroup {
+    border: 1px solid #e0d9d925 /* Transparent border */
+}
+
+#actions-dropdown {
+    background-color: rgba(221, 215, 215, 0.952);
+    border-radius: 15px;
+    padding: 5px;
+
+}
+
+.navbar-nav {
+    background-color: rgba(0, 0, 0, 0.189); /* Faded background with transparency */
+    border-radius: 10px; /* Round borders */
+}
+
+ /* Custom styles for Navbar links */
+ .navbar-light .navbar-nav .nav-link {
+    color: rgba(202, 198, 198, 0.749);/* Text color */
+    font-weight: 400;
+    padding: 5px 10px; /* Adjust padding for spacing */
+}
+
+ /* Custom styles for Navbar links */
+ .navbar-light .navbar-nav .nav-link:hover {
+    color: rgba(243, 240, 240, 0.966); /* Text color */
+}
+

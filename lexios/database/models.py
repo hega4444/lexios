@@ -1,0 +1,279 @@
+from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey, Text, LargeBinary, Boolean, Interval
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm import sessionmaker
+from datetime import date, datetime, timedelta
+from cryptography.fernet import Fernet
+from pydantic import BaseModel, field_validator
+from typing import Optional, Dict, Any
+import bcrypt
+import json
+import uuid
+
+
+from lexios.settings.main import *
+from lexios.core.builtin.engines.SQLEngine import SimpleSQL
+
+# Define the database URI for PostgreSQL
+DATABASE_URI = f"{LEXI_DATABASE_ENGINE.lower()}://{LEXI_DB_ADMIN_USER}:{LEXI_DB_ADMIN_PASS}@{LEXI_DATABASE_HOST}/{LEXI_DATABASE_NAME}"
+
+# Create the database engine
+engine = create_engine(DATABASE_URI)
+
+# Create a session to interact with the database
+Session = sessionmaker(bind=engine)
+
+# Define base class for ORM models
+Base = declarative_base()
+
+# Define base class for pydantic models
+class CustomModelPydantic(BaseModel):
+    @field_validator("created_at", mode="before", check_fields=False)
+    def transform(cls, input) -> str:
+        if isinstance(input, datetime):
+            return input.isoformat()
+        return input
+
+# User model (there is an associated pydantic model in lexios.api.session_data )
+class User(Base):
+    __tablename__ = 'users'
+
+    user_id = Column(Integer, primary_key=True, autoincrement=True)
+    name_first = Column(String(50), nullable=False)
+    name_last = Column(String(50), nullable=False)
+    location = Column(String(50), default=None)
+
+    username = Column(String(50), unique=True, nullable=False)
+    salt = Column(String(29), nullable=False)  # Store the salt as a string
+    hashed_password = Column(String(60), nullable=False)  # Store the hashed password
+    birth_date = Column(Date, default=None)
+    conversation_index = Column(Integer, nullable=False)
+
+    # Additional fields for checks/features
+    bing_searches = Column(Boolean, default=False)
+    lexi_learns = Column(Boolean, default=False)
+
+    # Google ID data
+    encrypted_google_details = Column(LargeBinary)
+    google_id = Column(String(50), default=None)
+    gmail_access = Column(Boolean, default=False)
+    google_calendar_access = Column(Boolean, default=False)
+
+    theme_selection = Column(String(50), default='Lexi default Theme')  # Assuming a default theme is 'light'
+    text_color = Column(String(7), default='#000000')  # Default text color is black
+    background_color = Column(String(7), default='#FFFFFF')  # Default background color is white
+
+    def __init__(self, name_first, name_last, username, password, 
+                 conversation_index, birth_date=None, location=None,
+                 bing_searches=False, lexi_learns=False, google_id=None, google_details=None, 
+                 gmail_access=False, google_calendar_access=False,
+                 theme_selection='lexi_default', text_color='#fdf6f6', background_color='#771840'):
+        
+        # Encrypt google_details
+        if google_details:
+            cipher_suite = Fernet(GOOGLE_ID_SECURE_KEY)
+            encrypted_google_details = cipher_suite.encrypt(json.dumps(google_details).encode('utf-8'))
+            self.encrypted_google_details = encrypted_google_details
+
+        self.name_first = name_first
+        self.name_last = name_last
+        self.location = location
+        self.username = username
+        self.birth_date = birth_date
+        self.conversation_index = conversation_index
+        self.bing_searches = bing_searches
+        self.lexi_learns = lexi_learns
+        self.google_id = google_id
+        self.gmail_access = gmail_access
+        self.google_calendar_access = google_calendar_access
+        self.theme_selection = theme_selection
+        self.text_color = text_color
+        self.background_color = background_color
+
+         # Encrypt password data
+        gen_salt = bcrypt.gensalt()
+        self.salt = gen_salt.decode('utf-8')  # Store the salt as a string
+        gen_hashed_password = bcrypt.hashpw(password.encode('utf-8'), gen_salt)[:60]
+
+        # Truncate hashed password
+        self.hashed_password = gen_hashed_password.decode('utf-8')  # Store the hashed password
+
+    # Define table relationships
+    conversations = relationship('Conversation', back_populates='user')
+    scheduled_tasks = relationship('ScheduledTaskORM', back_populates='user')
+    user_specific_data = relationship('UserSpecificDataORM', back_populates='user')
+
+# User conversations
+class Conversation(Base):
+    __tablename__ = 'conversations'
+
+    id = Column(Integer, primary_key=True)
+    created_on = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey('users.user_id')) 
+    conversation_id = Column(String(6), unique=True)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    title = Column(String(255))
+    app_messages_content =Column(LargeBinary)
+    model_assistant_id = Column(String(32), nullable=False)
+    model_thread_id = Column(String(32), nullable=False)
+    model_messages = Column(LargeBinary)  # Use LargeBinary to store binary data
+    metrics = Column(LargeBinary)  # Use LargeBinary to store binary data
+
+    # Define the relationship to users
+    user = relationship('User', back_populates='conversations')
+
+    def __init__(self, user_id, conversation_id, title, app_messages_content, model_assistant_id, model_thread_id, model_messages, metrics):
+        self.user_id = user_id
+        self.conversation_id = conversation_id
+        self.title = title
+        self.app_messages_content = app_messages_content
+        self.model_assistant_id = model_assistant_id
+        self.model_thread_id = model_thread_id
+        self.model_messages = model_messages
+        self.metrics = metrics
+
+# Store user specifc data 
+class UserSpecificDataORM(Base):
+    __tablename__ = 'user_specific_data'
+
+    data_id = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.user_id')) 
+    data_category = Column(String)  # e.g., 'reminder', 'preference', 'rule', 'user_data'
+    data_content = Column(JSONB)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Define the relationship to users
+    user = relationship('User', back_populates='user_specific_data')
+
+# Pydantic model
+class UserSpecificData(CustomModelPydantic):
+    data_id: str
+    user_id: int
+    data_category: Optional[str]
+    data_content: Optional[str]
+    created_at: Optional[str] = None
+
+class ScheduledTaskORM(Base):
+    __tablename__ = 'scheduled_tasks'
+    
+    task_id = Column(String, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.user_id')) 
+    data_id = Column(String, nullable=True)
+    conversation_id = Column(String(4))
+    function_name = Column(String, nullable=True)
+    arguments = Column(JSONB, nullable=True)
+    annotations = Column(Text, nullable=True)
+    status = Column(String, default='scheduled') 
+    repeat_each = Column(Integer, nullable=True) 
+    category = Column(String, nullable=True)
+    notify_to = Column(String, nullable=True)
+    start_at = Column(DateTime)
+    end_at = Column(DateTime, nullable=True)
+
+    # Define the relationship to users
+    user = relationship('User', back_populates='scheduled_tasks')
+
+# Define a pydantic model for the tasks (so it is easier to move between memory - db)
+class ScheduledTaskPydantic(BaseModel):
+    task_id: str
+    user_id: int
+    conversation_id: str
+    function_name: Optional[str] = None
+    arguments: Optional[dict] = None
+    annotations: Optional[str] = None
+    status: Optional[str] = None
+    data_id: Optional[str] = None
+    repeat_each: Optional[int] = None
+    category: Optional[str] = None
+    notify_to: Optional[str] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+
+# This function is called by the admin tool when creating a new project to have a separate database
+def initial_database_setup():
+    # This function is called by the admin tool when creating a new project to have a separate database
+    
+    session = Session()
+
+    options = {
+        "force" : TEST_MODE,
+        "db_name" : LEXI_DATABASE_NAME,
+        "user": LEXI_DB_ADMIN_USER,
+        "password" : LEXI_DB_ADMIN_PASS,
+        "port": LEXI_DB_ADMIN_PORT,
+        "load_file": "",
+        "drop_after" : False,  # Set it True to wipe the database, False for creating the data model again
+    }
+
+    # Connect to db using simpleSQL
+    with SimpleSQL(**options) as lexi_db:
+        # Check if table users exists
+        table_user_exists = lexi_db.check_table_exists(table_name="users")
+
+    if not table_user_exists:
+        
+        # Create models
+        Base.metadata.create_all(engine)
+
+        # Create a new user and add it to the database
+        new_user = User(name_first='user', name_last='test', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
+        session.add(new_user)
+        session.commit()
+
+    # Close the session when you're done
+    session.close()
+
+
+# Initial setup of Lexi models here:
+if __name__ == '__main__':
+
+    # WARNING !!!! RUN THIS ONLY WHEN RESETING THE MODELS !!!!
+
+    # Lexi internal database set up -----------------------------------------------------------------------------------------------------#
+
+    session = Session()
+
+    options = {
+        "force" : TEST_MODE,
+        "db_name" : LEXI_DATABASE_NAME,
+        "user": LEXI_DB_ADMIN_USER,
+        "password" : LEXI_DB_ADMIN_PASS,
+        "port": LEXI_DB_ADMIN_PORT,
+        "load_setup_script": "",
+        "drop_after" : True,  # Set it True to wipe the database, False for creating the data model again
+    }
+
+    try:
+        if LEXI_AUTOMATIC_DB_SETUP or True: # Adjust if neccesary
+            # Connect to db using simpleSQL
+            with SimpleSQL(**options) as lexi_db:
+                # Check if table users exists
+                table_user_exists = lexi_db.check_table_exists(table_name="users")
+    except Exception:
+        pass
+
+    options['drop_after'] = False
+    if LEXI_AUTOMATIC_DB_SETUP or True: # Adjust if neccesary
+        # Connect to db using simpleSQL
+        with SimpleSQL(**options) as lexi_db:
+            # Check if table users exists
+            table_user_exists = lexi_db.check_table_exists(table_name="users")
+
+
+        if not table_user_exists:
+            
+            # Create models
+            Base.metadata.create_all(engine)
+
+            # Create a new user and add it to the database
+            new_user = User(name_first='Vane', name_last='Valdino', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
+            session.add(new_user)
+            session.commit()
+
+    # Close the session when you're done
+    session.close()
+    print("models generated.")
+    # Lexi internal database set up -----------------------------------------------------------------------------------------------------#
+
+

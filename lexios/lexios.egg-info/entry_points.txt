@@ -1,0 +1,3 @@
+[console_scripts]
+create_lexios_project = lexios.create:__main__
+

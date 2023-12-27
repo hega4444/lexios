@@ -1,0 +1,474 @@
+/* Add a bit of padding to the Navbar to improve appearance */
+#navbar-main {
+    padding: 10px 0;
+}
+/*         Conversations                                              */
+/*____________________________________________________________________*/
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* Adjust the alpha value for darkness */
+    z-index: 999; /* Ensure it's on top of other elements */
+    display: none;
+}
+
+#confirmationModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 300px; /* Adjust the width as needed */
+    background: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#confirmationModal .modal-content {
+    background-color: #464343;
+    color: #f7f7f7;
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    width: 100%; /* Make sure the width is 100% */
+    max-width: 100%; /* Add max-width to ensure responsiveness */
+    box-sizing: border-box; /* Include padding and border in the width */
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Add any additional styles you need */
+
+}
+
+#confirmationModal p {
+    margin-bottom: 20px;
+}
+
+#confirmationModal .modal-content button {
+    flex: 1; /* Equal width for both buttons */
+    margin: 5px; /* Add space between buttons */
+    padding: 10px; /* Adjust padding as needed */
+}
+
+#confirmationModal button {
+    display: inline-block; /* or display: inline-flex; */
+    background-color: #963b17;
+    ;
+    /*color: #fff; deprecated*/
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#confirmationModal button:hover {
+    background-color: #b84315;
+}
+
+#confirmationModal #cancelDelete {
+    background-color: #6C757D;
+    margin-right: 10px;
+}
+
+
+.create-conversation {
+    position: relative;
+    display: inline-block; /* Ensure the button only takes the necessary width */
+}
+
+#create-conversation-button {
+    background: none;
+    border: none;
+   /* color: #ffffff;  deprecated  */
+    padding-bottom: 5px;
+    padding-right: 30px;
+    opacity: 0.75;
+}
+
+#create-conversation-button::after {
+    content: ""; /* Create a pseudo-element for the icon */
+    background-image: url('../static/images/new-chat.png');  /* Replace with your custom icon path */
+    background-size: 24px 24px; /* Set the size of the icon to 24x24 pixels */
+    background-repeat: no-repeat;
+    width: 24px; /* Width of the icon */
+    height: 24px; /* Height of the icon */
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+}
+
+#create-conversation-button:hover {
+    opacity: 1;
+
+}
+
+#create-conversation-button:hover::after {
+    opacity: 1;
+}
+
+.conversation-element {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Separate title and buttons */
+    padding: 10px;
+    transition: background-color 0.3s;
+    overflow: hidden; /* Hide overflowing text */
+    white-space: nowrap; /* Prevent text from wrapping */
+    max-width: 100%; /* Allow the element to take the full width */
+    height: 40px; /* Fixed height for the row */
+    border-radius: 10px;
+    background: linear-gradient(to right, rgba(66, 54, 63, 0.377), transparent);
+    border: none;
+    margin-bottom: 4px; /* Add margin-bottom for space between elements */
+    opacity: 0.7;
+}
+
+
+/* Hover effect */
+.conversation-element:hover {
+    background: linear-gradient(to right, rgba(172, 170, 170, 0.7), transparent);
+    opacity: 1;
+}
+
+.editable .conversation-element {
+    /* Your editable styles here */
+    background: linear-gradient(to right, rgba(128, 128, 128, 0.7), transparent);
+    /* Add any other styles for the editable state */
+    outline: none;
+}
+
+.conversation-title.editable {
+    border: 0.5px solid rgba(211, 211, 211, 0.178); /* Add your desired border style here */
+    outline: none; /* Add your desired outline style here */
+    border-radius: 10px;
+    padding: 3px; /* Add padding for visual separation */
+}
+
+/* Style for the conversation buttons */
+.conversation-buttons {
+    display: flex;
+    gap: 5px; /* Adjust the gap between buttons as needed */
+}
+
+/* Style for the "Edit" button */
+.update-button {
+    background-color: transparent;
+    border: none;
+    width: 24px; /* Set the width of the button */
+    height: 24px; /* Set the height of the button */
+    background-image: url('../static/images/update.png'); /* Specify the path to your edit icon */
+    background-size: cover; /* Scale the icon to fit */
+    cursor: pointer;
+    filter: brightness(0); /* Make the icon white */
+}
+
+/* Style for the "Delete" button */
+.delete-button {
+    background-color: transparent;
+    border: none;
+    width: 24px; /* Set the width of the button */
+    height: 24px; /* Set the height of the button */
+    background-image: url('../static/images/delete.png'); /* Specify the path to your delete icon */
+    background-size: cover; /* Scale the icon to fit */
+    cursor: pointer;
+    filter: brightness(0); /* Make the icon white */
+}
+
+
+/* Style for the conversation title */
+.conversation-title {
+    flex-grow: 1;
+   /* color: white;  deprecated*/
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    
+}
+
+/* Style for the conversation buttons */
+.conversation-buttons {
+    opacity: 0;
+    display: flex;
+    gap: 5px; /* Add space between buttons */
+    align-items: center;
+}
+
+
+/* Style for the conversation buttons */
+.conversation-buttons:hover {
+    opacity: 0.6;
+    filter: invert(1);
+    display: flex;
+    gap: 5px; /* Add space between buttons */
+    align-items: center;
+}
+
+
+#navbarNav {
+    flex-direction: row-reverse;
+}
+
+.dropdown-item {
+    border-radius: 10px;
+}
+
+.dropdown-item:hover {
+    background-color: #e7e0e0c7;
+}
+
+.send-box button {
+    border: none;
+    background: #bab8bba4;
+    padding: 0.375rem 5px;
+    color: #1e1c1cb3;
+    border-radius: 1.04rem;
+    font-size: 14px;
+    font-weight: 400;
+    width: 10%;
+    margin-left: 1%;
+}
+
+.send-box button i {
+    margin-right: 5px;
+}
+
+.send-btns .button-wrapper {
+    position: relative;
+    width: 125px;
+    height: auto;
+    text-align: left;
+    margin: 0 auto;
+    display: flex;
+    background-color: #f6f7faa1; 
+    border-radius: 8px;
+    padding: 5px 15px;
+    float: left;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    overflow: hidden;
+
+
+    background-color: #f6f7fa47;           /*aca nececitamos una variable*/
+    background-clip: padding-box;
+    border: 1px solid #f6f7fa56;
+    border-radius: 8px;
+    margin-bottom: 5px;
+}
+
+.send-btns .button-wrapper span.label {
+    position: relative;
+    z-index: 1;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    width: 100%;
+    cursor: pointer;
+   /*deprecated color: #e3e5e9; */
+    font-weight: 400;
+    text-transform: capitalize;
+    font-size: 13px;
+}
+
+#send-button:hover {
+    color: #f0ebebcb /* Your desired text color */;
+}
+
+#send-button:hover i {
+    color: #f5efefbe /* Your desired icon color */;
+}
+
+#upload {
+    display: inline-block;
+    position: absolute;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    cursor: pointer;
+    background-color: #f6f7fa47;         
+    background-clip: padding-box;
+    border: 1px solid #f6f7fa56;
+    border-radius: 15px;
+    margin-bottom: 5px;
+    
+    
+}
+
+
+/* Hide the default file input button */
+.upload-box {
+    display: none;
+}
+
+.send-btns .attach .form-control {
+    display: inline-block;
+    width: 120px;
+    height: auto;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+  /*  color: #e3e5e9; deprecated*/
+    background-color: #f6f7fa47;         
+    background-clip: padding-box;
+    border: 1px solid #f6f7fa56;
+    border-radius: 8px;
+    margin-bottom: 5px;
+
+}
+
+.send-btns .button-wrapper span.label img {
+    margin-right: 5px;
+    filter: brightness(2);
+}
+
+.button-wrapper {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    text-align: center;
+    margin: 0 auto;
+}
+
+button:focus {
+    outline: 0;
+}
+
+.add-apoint {
+    display: inline-block;
+    margin-left: 5px;
+}
+
+.add-apoint a {
+
+    display: inline-block;
+    width: 120px;
+    height: auto;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+   /* color: #e3e5e9; deprecated*/
+    background-color: #f6f7fa47;            /*aca nececitamos una variable*/
+    background-clip: padding-box;
+    border: 1px solid #f6f7fa56;
+    border-radius: 8px;
+    margin-bottom: 5px;
+
+}
+
+.add-apoint a svg {
+    margin-right: 2px;
+    filter: brightness(2);
+}
+
+.chat-icon {
+    display: none;
+}
+
+.closess i {
+    display: none;
+}
+
+
+.flex-shrink-0 img {
+    height: 30px;
+
+}
+
+
+
+
+@media (max-width: 767px) {
+
+    .top-left-icon {
+        display: none; /* Hide the icon on mobile screens */
+    }
+    
+    .chat-icon {
+        display: block;
+        margin-right: 5px;
+        height: 30px;
+    }
+    .chatlist {
+        width: 100%;
+    }
+    .chatbox {
+        width: 100%;
+        position: absolute;
+        left: 1000px;
+        right: 0;
+        background: #ffffffcb;
+        transition: all 0.5s ease;
+        border-left: none;
+    }
+    .showbox {
+        left: 0 !important;
+        transition: all 0.5s ease;
+    }
+    .msg-head h3 {
+        font-size: 14px;
+    }
+    .msg-head p {
+        font-size: 12px;
+    }
+    .msg-head .flex-shrink-0 img {
+        height: 10px;
+        width: 10px;
+    }
+
+    .send-box button {
+        width: 28%;
+    }
+    .send-box .form-control {
+        width: 70%;
+    }
+    .chat-list h3 {
+        font-size: 14px;
+    }
+    .chat-list p {
+        font-size: 12px;
+    }
+    .msg-body ul li.sender p {
+        font-size: 13px;
+        padding: 8px;
+        border-bottom-left-radius: 6px;
+        border-top-right-radius: 6px;
+        border-bottom-right-radius: 6px;
+    }
+    .msg-body ul li.repaly p {
+        font-size: 13px;
+        padding: 8px;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+        border-bottom-left-radius: 6px;
+    }
+
+     /* Adjust the size of the #avatar-icon for mobile */
+     #avatar-icon {
+        width: 20px; /* Set the desired width */
+        height: 20px; /* Set the desired height to make it a square */
+    }
+
+    .chat-area {
+        background-color: rgba(255, 255, 255, 0.0); /* Adjust the opacity as needed */
+    }
+    .showbox {
+        background-color: rgba(255, 255, 255, 0.0); /* Adjust the opacity as needed */
+    }
+
+}
+

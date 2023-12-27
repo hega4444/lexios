@@ -1,0 +1,119 @@
+
+/* SETTINGS */
+/* Add this to your existing style.css file or in a <style> tag in the head */
+
+/* Style for smaller input fields */
+.smaller-input {
+    width: 50%; /* Adjust the width as needed */
+}
+
+.mb-3 {
+    margin-bottom: 5px !important;
+}
+
+.col-md-6 .mb-3{
+    padding-top: 5px;
+}
+
+.form-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* Align items to the right */
+    margin-bottom: 3px;
+}
+
+.form-group label {
+    width: 100px; /* Adjust the label width as needed */
+    margin-right: 10px;
+    text-align: left; /* Align labels to the right */
+}
+
+.form-group .form-control {
+    width: 180px; /* Adjust the box width as needed */
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 0px solid rgba(185, 156, 156, 0.5);
+    border-radius: 10px;
+    line-height: 1; /* Adjust the line height as needed */
+}
+
+.form-group > .form-control.email {
+    width: 300px; /* Adjust the width for the email input */
+}
+
+/* Style for semi-transparent and darker input boxes */
+.form-control{
+    width: 40%; /* Adjust the width as needed */
+    background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value for transparency */
+  /*  color: white; /* Text color  deprecated*/
+    border: 0px solid rgba(185, 156, 156, 0.5); /* Border color with transparency */
+    border-radius: 10px;
+    line-height: 0.3; /* Adjust the line height as needed */
+    margin-bottom: 10px; /* Adjust the margin bottom to reduce space */
+}
+
+/* Style for checkboxes */
+.form-check-input {
+    background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value for transparency */
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Border color with transparency */
+    color: white; /* Text color */
+    margin-bottom: 5px; /* Adjust the margin bottom to reduce space */
+}
+
+/* Style for select dropdown */
+.form-select {
+    width: 25%; /* Adjust the width as needed */
+    background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value for transparency */
+    border: 1px solid rgba(185, 156, 156, 0.5); /* Border color with transparency */
+    color: white; /* Text color */
+    border-radius: 10px;
+}
+
+
+/* Style for the dropdown list when the select is in focus or being hovered */
+.form-select:focus, .form-select:hover {
+    background-color: rgba(50, 50, 50, 0.8); /* Dark grey with transparency */
+    /* Add any additional styles for the open dropdown list */
+}
+
+/* Style for color picker */
+.form-control[type="color"] {
+    width: 120px; /* Adjust the width as needed */
+    height: 73px;
+    background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value for transparency */
+    border: 1px solid rgba(185, 156, 156, 0.5); /* Border color with transparency */
+    color: white; /* Text color */
+}
+
+/* Style for input boxes when active */
+.form-control:focus {
+    background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value for transparency */
+    border: 1px solid rgba(185, 156, 156, 0.5); /* Border color with transparency */
+    color: white;
+}
+
+.col-md-6-container {
+    min-height: 60vh;
+    max-height: 60vh;
+    overflow-y: auto;
+    overflow-x: hidden; /* Hide horizontal scrollbar */
+    padding: 10px; /* Optional: Add padding for better appearance */
+    box-sizing: border-box; /* Ensure padding is included in width */
+    border-radius: 20px;
+    background-color: rgba(87, 84, 84, 0.18);
+    backdrop-filter: blur(1px); /* Adjust the blur value as needed */
+}
+
+/* Adjust scrollbar colors */
+.col-md-6-container::-webkit-scrollbar {
+    width: 12px; /* Adjust the width of the scrollbar */
+}
+
+.col-md-6-container::-webkit-scrollbar-thumb {
+    background-color: #6c757d; /* Adjust the color of the scrollbar thumb (the draggable part) */
+    border-radius: 8px; /* Adjust the border-radius for a rounded look */
+}
+
+.col-md-6-container::-webkit-scrollbar-track {
+    background-color: #dee2e6; /* Adjust the color of the scrollbar track (the area behind the thumb) */
+    border-radius: 6px; /* Adjust the border-radius for a rounded look */
+}
