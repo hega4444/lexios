@@ -457,11 +457,24 @@ class LexiAssistantThread(LexiBaseTools):
         self.status = "in_progress"
 
         # Manage tasks pending to execute inside a required action:
-        for tool_action in self.tool_calls:
+        for tool_call in self.tool_calls:
             # Execute the actions if they are still pending
-            if tool_action.status == "queued":
+            if tool_call.status == "queued":
+                
                 # Each action
-                await tool_action.async_tool_run()
+                await tool_call.async_tool_run()
+
+                # Check if the tool generated a custom output
+                if tool_call.custom_output:
+                    
+                    # Update conversation ORM
+                    self.conversation_orm.app_messages_content.append({
+                                            'type':'assistant',
+                                            'time': self.format_datetime(str(datetime.now()))[:-3],
+                                            'message': tool_call.custom_output.get("text", None),
+                                            'images': tool_call.custom_output.get("images", None),
+                                        }                    
+                    )
 
         # Update required action statuses
         if all(tool_action.status == "completed" for tool_action in self.tool_calls):

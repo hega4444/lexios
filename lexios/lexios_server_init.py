@@ -11,14 +11,24 @@ class lexiOS():
         # Ensure message broker is active
         ensure_redis_running()
         
-        # Init fastAPI server in asynchronous mode
-        uvicorn.run(
+        settings = {
+            'app': "lexios.api.server_main:app", 
+            'host': SERVER_IP, 
+            'port': SERVER_PORT, 
+            'reload': DEBUG_MODE,
+        }
 
-            app = "lexios.api.server_main:app", 
-            host = SERVER_IP, 
-            port = SERVER_PORT, 
-            reload = DEBUG_MODE,
-        )
+        if ENABLE_SSL:
+
+            settings.update(
+                {
+                    'ssl_keyfile': SSL_KEYFILE,
+                    'ssl_certfile': SSL_CERTFILE,
+                }
+            )
+
+        # Init fastAPI server in asynchronous mode
+        uvicorn.run(**settings)
 
 
 if __name__ == "__main__":

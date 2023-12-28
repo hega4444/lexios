@@ -41,7 +41,7 @@ class UserDataManager():
         # datetime 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
         # subject 'description' : "Subject for reminder."
         # content 'description' : "Detailed information. Save a text as assistant reminding the event. Example: It is time for your xxxx apointment at yyyy"
-        # repeat_each 'description' : "Repeat the reminder each <repeat_each> number of seconds."
+        # repeat_each 'description' : "Repeat the reminder each <repeat_each> number of seconds." Please specify a <end_at> value when using periodic reminders.
         # end_at 'description' : periodic reminder finished at <end_at> time.
 
         # Build data structure
@@ -54,6 +54,14 @@ class UserDataManager():
                 # Check the event is not in the past
                 if start_at <= now:
                     return {'error' : f'start_at is in the past. Current time: {now.isoformat()}'}
+            
+            # Validations for periodic reminders
+            if repeat_each and not end_at:
+                # Make it repeat three times by default.
+                end_at = start_at + timedelta(seconds=(repeat_each * 3 + 1))
+            
+            elif end_at:
+                end_at = parser.parse(end_at)
 
             reminder = {
                 'start_at' : start_at.isoformat() if start_at else None,
@@ -77,7 +85,7 @@ class UserDataManager():
                     conversation_id = self.conversation_id,
                     start_at = start_at or None,
                     repeat_each = timedelta(seconds=int(repeat_each)) if repeat_each else None,
-                    end_at = parser.parse(end_at) if end_at else None,
+                    end_at = end_at or None,
                     category = "reminder",
                     notify_to = "userDataManager",
                     arguments = {'subject': subject, 'content': content},
@@ -91,7 +99,7 @@ class UserDataManager():
         except Exception as e:
             return {'error' : e}
 
-    def update_user_data_element(self, data_id: str, start_at: str= None,repeat_each: str = None, end_at:str = None, subject: str = None, content: str = None):
+    def update_reminder_element(self, data_id: str, start_at: str= None,repeat_each: str = None, end_at:str = None, subject: str = None, content: str = None):
         # SUMM: Update a data_id. Just populate fields to update.
 
         # Retrieve the original version 
@@ -155,15 +163,18 @@ class UserDataManager():
         # Notify the scheduler
         self.lexi.scheduler.cancel_time_event(data_id = data_id)
 
-    def retrieve_existing_user_data_categories(self):
+    def retrieve_user_data_categories(self):
         # SUMM: Find which data categories are already implemented for the user.
 
         categories = retrieve_existing_data_categories(user_id= self.user_id)
 
         # Mix lists and remove duplicates
-        return json.dumps(list(set(self.base_categories + categories)))
+        return {
+            'usage'  : "call read_user_data_category_content(<category>) to get all the data elements under the category.",  
+            'categories available' :json.dumps(list(set(self.base_categories + categories)))
+        }
 
-    def retrieve_user_data_category_content(self, data_category):
+    def read_user_data_category_content(self, data_category):
         # SUMM: Retrieve data_content for the specified data_category. It will return a list with all the data elements of such category.
         # data_category 'description' : "Type of data to save (use retrieve_existing_data_categories() if needed."
         
@@ -175,7 +186,7 @@ class UserDataManager():
             # Return in JSON format
             return json.dumps(data)
         else:
-            available_categories = self.retrieve_existing_user_data_categories()
+            available_categories = self.retrieve_user_data_categories()
             return json.dumps({'status': f'No data found under "{data_category}". Available categories:{available_categories}.'})    
     
     def retrieve_user_data_content_by_id(self, data_id: str):

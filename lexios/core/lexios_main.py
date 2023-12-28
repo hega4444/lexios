@@ -253,7 +253,7 @@ class LexiOS_Backend(LexiBaseTools):
             # Retrieve the current categories for user_specific_data
             self.append_command(
                 LexiExternalCommand(
-                    UserDataManager.retrieve_existing_user_data_categories,
+                    UserDataManager.retrieve_user_data_categories,
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False
                 )
@@ -261,7 +261,7 @@ class LexiOS_Backend(LexiBaseTools):
             # Retrieve all the content related to a certain category
             self.append_command(
                 LexiExternalCommand(
-                    UserDataManager.retrieve_user_data_category_content, 
+                    UserDataManager.read_user_data_category_content, 
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False
                 )

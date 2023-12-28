@@ -13,6 +13,8 @@ from lexios.core.builtin.engines.userDataEngine import UserDataManager
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
 
 class LexiTaskScheduler(LexiBaseTools):
+    # Manages the event loop, schedules actions and keeps a persistent state in database.
+
     def __init__(self, lexi = None):
         super().__init__()
 
@@ -209,19 +211,23 @@ class LexiTaskScheduler(LexiBaseTools):
                 else:
                     await self.attend_internal_event(task)
 
-                # Check if task needs to be reescheduled (periodic task)
-                if task.repeat_each and task.end_at > datetime.now():
-                    
-                    # Calculate new execution time and update in memory
-                    task.start_at = datetime.now().replace(microsecond=0) + timedelta(seconds=task.repeat_each)
-                    task.status = "scheduled"
+                try:
+                    # Check if task needs to be reescheduled (periodic task)
+                    if task.repeat_each and task.end_at > datetime.now():
+                        
+                        # Calculate new execution time and update in memory
+                        task.start_at = datetime.now().replace(microsecond=0) + timedelta(seconds=task.repeat_each)
+                        task.status = "scheduled"
 
-                    # Update in database
-                    update_task_status(
-                        task_id=task.task_id,
-                        new_start_at= task.start_at,
-                        new_status= task.status,
-                    )
+                        # Update in database
+                        update_task_status(
+                            task_id=task.task_id,
+                            new_start_at= task.start_at,
+                            new_status= task.status,
+                        )
+                except Exception as e:
+                    with CustomLogger("scheduled_tasks") as log:
+                        log.warning(f"Could not reschedule task '{task.task_id}'. {e}")
 
             # Remove executed tasks from the list
             self.scheduled_tasks = [task for task in self.scheduled_tasks if task not in ready_tasks]
@@ -299,7 +305,8 @@ class LexiTaskScheduler(LexiBaseTools):
         # Calculate time
         if delay_seconds:
             action_time_formatted = datetime.now().replace(microsecond=0) + timedelta(seconds=delay_seconds)
-        
+
+        # Remove  
         elif start_at:
             action_time_formatted = start_at.replace(microsecond=0)
         

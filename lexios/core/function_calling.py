@@ -36,6 +36,7 @@ class ToolCall():
         self.id = id
         self.ret_status = None
         self.output = None
+        self.custom_output = None
         self.ext_command = ext_command
         self.function_name = function_name
         self.function_arguments = function_arguments
@@ -142,8 +143,16 @@ class ToolCall():
                         
                         images[filename] = os.path.join("downloads", str(self.user_id).zfill(5), filename)
 
-                # Send to the frontend for rendering
+               
                 if message or images:
+                    
+                    # Append custom output
+                    self.custom_output = {
+                        'text': message,
+                        'images': images,
+                    }
+                    
+                    # Send to the frontend for rendering
                     await self.lexi.prepare_output(message, 
                                                    images=images, 
                                                    user_id=self.user_id, 

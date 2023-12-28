@@ -69,9 +69,6 @@ app.mount("/static", StaticFiles(directory=folder+"/static", html=True), name="s
 # Define the folder path for serving static files
 temp_folder_path = os.path.join(PROJECT_FOLDER, "temp", "downloads")  # Adjust the path as needed
 
-# Mount the downloaded files route
-app.mount("/downloads", StaticFiles(directory=temp_folder_path), name="downloads")
-
 # Define a response for token validation errors
 @app.exception_handler(CsrfProtectError)
 def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
@@ -84,13 +81,15 @@ async def validation_exception_handler(request, exc):
     print("details:", exc)
     return JSONResponse(content={"detail": "Validation Error, check console"}, status_code=422)
 
+
+
 # Endpoint to render the HTML form
 @app.get("/", response_class=HTMLResponse)
 async def root(
     request: Request, 
     csrf_protect: CsrfProtect = Depends()
 ):
-
+    
     # Create session id
     session = uuid4()
     data = LexiSessionData(session_id=session)
@@ -118,7 +117,7 @@ async def submit_login(
     email: str = Form(...),
     password: str = Form(...),
     csrf_protect: CsrfProtect = Depends(), 
-    session_data: LexiSessionData = Depends(verifier), 
+    session_data: LexiSessionData = Depends(verifier)
 ):
     
     try:
@@ -133,24 +132,25 @@ async def submit_login(
     user = lexi.session_manager.validate_user_profile(email, password)
    
     if user:
-        # Validate the session id
 
+        # Validate user and attach session id
         user.session_id = session_data.session_id
         user.validated = True
-        session_data = user
 
-        # Save sessiondata to in-memory backend
-        await backend.update(user.session_id, session_data)
-
+        # Update backend
+        await backend.update(session_data.session_id, user)
+        
         # Update active users
-        frontend_active_users[session_data.user_id] = user
+        frontend_active_users[user.user_id] = user
 
-        # Send the session_id as a response
+        # Append identifiers to request and redirect to dashboard screen
         try:
+            
             return JSONResponse({
                 'session_id': str(session_data.session_id), 
                 }
             )
+
         except Exception as e:
             pass
         
@@ -163,56 +163,56 @@ async def submit_login(
 async def google_submit_login(
     request: Request,
     csrf_protect: CsrfProtect = Depends(), 
-    session_data: LexiSessionData = Depends(verifier), 
+    session_data: LexiSessionData = Depends(verifier),
 ):
-    async with session_data:
 
-        # Validate the token
-        try:
-            await csrf_protect.validate_csrf(request)
-        except Exception as e:
-            pass
+    # Validate the token
+    try:
+        await csrf_protect.validate_csrf(request)
+    except Exception as e:
+        pass
 
-        #Retrieve the parameters from the request
-        callback_session_id = request.query.get('session_id', default=None)
-        callback_google_success = request.query.get('google_callback_success', default=None)
+    #Retrieve the parameters from the request
+    state = request.query_params.get('state', default=None)
+    google_success = request.query_params.get('google_callback_success', default=None)
 
-        # Access the google backend
-        if callback_session_id and callback_google_success:
-            google_details = google_backend.get(callback_session_id).get('details')
-        
-            response: JSONResponse = JSONResponse(status_code=200, content={"detail": "OK"})
-            csrf_protect.unset_csrf_cookie(response)  # prevent token reuse
+    # Access the google backend
+    if state and google_success:
+        google_details = google_backend.get(state).get('details')
+    
+        response: JSONResponse = JSONResponse(status_code=200, content={"detail": "OK"})
+        csrf_protect.unset_csrf_cookie(response)  # prevent token reuse
 
-            if google_details:
+        if google_details:
 
-                email = google_details.get('email')
+            email = google_details.get('email')
 
-                # Try to recover profile from Lexi too
-                user = lexi.session_manager.validate_user_profile(
-                    email= email, 
-                    password= 'GOOGLE_ID',
-                    gmail_data= google_details
-                    )
-        
-                if user:
-                    # Validate the session id
+            # Try to recover profile from Lexi too
+            user = lexi.session_manager.validate_user_profile(
+                email= email, 
+                password= 'GOOGLE_ID',
+                gmail_data= google_details
+                )
+    
+            if user:
 
-                    user.session_id = session_data.session_id
-                    user.validated = True
-                    session_data = user
+                # Validate user and attach session id
+                user.session_id = session_data.session_id
+                user.validated = True
 
-                    # Save sessiondata to in-memory backend
-                    await backend.update(user.session_id, session_data)
+                # Update backend
+                await backend.update(session_data.session_id, user)
+                
+                # Update active users
+                frontend_active_users[user.user_id] = user
 
-                    # Update active users
-                    frontend_active_users[session_data.user_id] = user
+                # Append identifiers to request and redirect to dashboard screen
+                try:
+                    
+                    return RedirectResponse(f"/dashboard#{session_data.session_id}")
 
-                    # Redirect to main screen
-                    try:
-                        return RedirectResponse(url='/dashboard')
-                    except Exception as e:
-                        pass
+                except Exception as e:
+                    pass
 
     # Raise an exception otherwise
     raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -587,6 +587,26 @@ async def update_user_settings(
     else:
         # Handle the case when the user is not authenticated
         return JSONResponse({'error': 'User not authenticated'}, status_code=401)
+    
+# Temporal downloads
+# Protect your route with the dependency
+@app.get("/downloads/{user_id}/{filename}", response_class=FileResponse, dependencies=[Depends(cookie)])
+async def download_file(
+    user_id: str, 
+    filename: str,
+    session_data : LexiSessionData = Depends(verifier),
+):
+    # Check if user_id is authorized to access the file
+    if session_data.is_authenticated:
+
+        # Construct the file path
+        file_path = os.path.join(PROJECT_FOLDER, "temp", "downloads", user_id, filename)
+
+        # Serve file
+        return FileResponse(file_path)
+    
+    else:
+        raise HTTPException(status_code=401, detail="Not authorized.")
 
 # User log out
 @app.get('/logout', response_class=RedirectResponse, dependencies=[Depends(cookie)])

@@ -21,7 +21,9 @@ $(document).ready(function () {
             },
             success: function (response) {
                 // Construct the redirect URL with session_id
-                var redirectUrl = "/dashboard#" + response.session_id; // Assuming the server returns session_id
+                console.log("log in successful");
+                var redirectUrl = "/dashboard#" + response.session_id;;
+                // Redirect the user to the dashboard
                 window.location.href = redirectUrl;
             },
             error: function () {

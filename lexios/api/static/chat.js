@@ -109,8 +109,11 @@ document.addEventListener("DOMContentLoaded", function () {
         // Fetch the session id
         const session_id = await fetchSessionID();
 
+        // Determine the protocol (http or https)
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
         // Construct the WebSocket URL
-        const webSocketUrl = `ws://${document.domain}:${location.port}/ws/${session_id}`;
+        const webSocketUrl = `${protocol}//${document.domain}:${location.port}/ws/${session_id}`;
 
         // Create a new WebSocket instance
         const socket = new WebSocket(webSocketUrl);
@@ -341,6 +344,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (result.messages && result.messages.length > 0) {
             for (const message of result.messages) {
                 let text = message.message;
+                let images = message.images;
                 let source = message.type === "assistant" ? "system" : "user";
                 let time = message.time
 
@@ -348,7 +352,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 text = text.replace(/\n/g, '<br>');
 
                 // Add messages to the main chatbox area
-                addMessageToChat(text, null,  source, "text", false, null, time); // Adjust message parameters
+                addMessageToChat(text, images,  source, "text", false, null, time); // Adjust message parameters
             }
         } else {
             // Handle the case when there are no messages

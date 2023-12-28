@@ -259,7 +259,10 @@ class SimpleMinerBaseObject():
 
             # Create a figure with a soft grey background
             fig, ax = plt.subplots(figsize=(6, 6))
-            fig.patch.set_facecolor('#909090')  # Set the background color of the figure
+            fig.patch.set_facecolor('lightgrey')  # Set the background color of the figure
+            
+            # Set the background color of the plot area to grey
+            ax.set_facecolor('lightgrey')
 
             # Create a pie chart
             ax.pie(r2_values, labels=labels, autopct='%1.1f%%', startangle=140)

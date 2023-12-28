@@ -154,12 +154,13 @@ function load_conversation_messages(conversationId) {
                     let text = message.message;
                     let source = message.type === "assistant" ? "system" : "user";
                     let time = message.time;
+                    let images = message.images || null;
                     
                     // Format for html
                     text = text.replace(/\n/g, '<br>');
 
                     // Add messages to the main chatbox area
-                    addMessageToChat(text, null, source, "text", false, null, time); // Adjust message parameters
+                    addMessageToChat(text, images, source, "text", false, null, time); // Adjust message parameters
                 }
             }
         })

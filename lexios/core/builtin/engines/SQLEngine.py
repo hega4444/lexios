@@ -750,11 +750,16 @@ class LexiDatabase(SimpleSQL):
             for file in load_files:
                 try:
                     path, tablename = 0, 1
-                    self.create_table_from_csv(
-                                file_name= file[path], 
-                                table_name= file[tablename] ,
-                                create_pri_key = True
-                                )
+
+                    # Check if thable exists
+                    if not self.check_table_exists(file[tablename]):
+
+                        self.create_table_from_csv(
+                                    file_name= file[path], 
+                                    table_name= file[tablename] ,
+                                    create_pri_key = True
+                                    )
+                    
                 except Exception as e:
                     print(f"Could not load file '{file[tablename]}. Details: {e}'")
 

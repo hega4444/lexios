@@ -10,8 +10,8 @@ LEXI_ALIAS = "Lexi"
 LEXI_GPT_MODEL = "gpt-3.5-turbo-1106"
 LEXI_GPT_TEMPERATURE = 0.8
 
-UPLOAD_FOLDER = 'temp_uploads'
-DOWNLOAD_FOLDER = 'temp_downloads'
+UPLOAD_FOLDER = 'temp/uploads'
+DOWNLOAD_FOLDER = 'temp/downloads'
 TIME_ZONE = "Europe/Berlin"
 TIME_DELTA = 0 # Adjust time zone if neccesary (min)
 LOG_FOLDER = "<new>/backend_logs"
@@ -25,6 +25,9 @@ CONSOLE_VERBOSITY_LEVEL = "ERROR"
 #-----------------------------------------------------------------------------------#
 SERVER_IP = '127.0.0.1' #'192.168.1.108'
 SERVER_PORT = 8000
+ENABLE_SSL = False
+SSL_KEYFILE = "<new>/ssl/key.pem"
+SSL_CERTFILE = "<new>/ssl/cert.pem"
 
 # Message broker - Redis
 #-----------------------------------------------------------------------------------#

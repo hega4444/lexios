@@ -35,10 +35,15 @@ def __main__():
     # Create temporal uploads directory
     os.makedirs(os.path.join(project_dir, "temp", "uploads"))
 
-    # Create temporal uploads directory
+    # Create temporal downloads directory
     os.makedirs(os.path.join(project_dir, "temp", "downloads"))
 
-    
+    # SSL certificate
+    os.makedirs(os.path.join(project_dir, "ssl"))
+
+    # Copy certificate files
+    copy2(os.path.join(base_dir, "lexios", "settings", "ssl", "cert.pem"), os.path.join(project_dir, "ssl", "cert.pem"))
+    copy2(os.path.join(base_dir, "lexios", "settings", "ssl", "key.pem"), os.path.join(project_dir, "ssl", "key.pem"))
 
     # Create main.py file
     main_file_path = os.path.join(project_dir, "main.py")
@@ -78,7 +83,9 @@ def __main__():
     update_constant_value(os.path.join(project_dir, "settings.py"), "UPLOAD_FOLDER", f"'{project_name}/temp_uploads'")
     update_constant_value(os.path.join(project_dir, "settings.py"), "DOWNLOAD_FOLDER", f"'{project_name}/temp_downloads'")
     update_constant_value(os.path.join(project_dir, "settings.py"), "LEXI_DATABASE_NAME", f"'{project_name}_database'")
-
+    update_constant_value(os.path.join(project_dir, "settings.py"), "SSL_KEYFILE", f"'{project_name}/ssl/key.pem'")
+    update_constant_value(os.path.join(project_dir, "settings.py"), "SSL_CERTFILE", f"'{project_name}/ssl/cert.pem'")
+    
     # Setup database
     try:
         from lexios.database.models import initial_database_setup

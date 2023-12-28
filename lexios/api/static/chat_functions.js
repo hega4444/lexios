@@ -47,9 +47,12 @@ function addMessageToChat(messageText = null, images = null, source, type, spell
     const chatMessages = document.querySelector(".msg-body ul");
     const messageScrollArea = document.getElementById("modal-body-messages");
 
-    // Replace newline characters with line break elements to preserve formatting
+    
     if (source === "system" && messageText) {
+        // Replace newline characters with line break elements to preserve formatting
         messageText = messageText.replace(/\n/g, '<br>');
+        // Replace ** with bold HTML tags
+        messageText = messageText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     }
 
     // Create a new list item
@@ -137,7 +140,7 @@ function addMessageToChat(messageText = null, images = null, source, type, spell
     
             // Apply styles to make thumbnails smaller with fixed height
             thumbnail.style.width = "auto"; // Automatically adjust width to maintain aspect ratio
-            thumbnail.style.height = "150px"; // Adjust the height as needed
+            thumbnail.style.height = "210px"; // Adjust the height as needed
     
             // Add an event listener to open the full-size image on click
             thumbnail.addEventListener("click", () => {

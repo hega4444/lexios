@@ -133,8 +133,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Fetch the session id
         const session_id = await fetchSessionID();
 
+        // Determine the protocol (http or https)
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
         // Construct the WebSocket URL
-        const webSocketUrl = `ws://${document.domain}:${location.port}/ws/${session_id}`;
+        const webSocketUrl = `${protocol}//${document.domain}:${location.port}/ws/${session_id}`;
 
         // Create a new WebSocket instance
         const socket = new WebSocket(webSocketUrl);
