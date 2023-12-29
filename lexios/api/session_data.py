@@ -23,7 +23,7 @@ class LexiSessionData(BaseModel):
     lexi_learns: bool = False
     google_id: Optional[str] = None
     oauth_state: Optional[str] = None
-    google_details: Optional[str] = None
+    google_details: Optional[dict] = None
     gmail_access: bool = False
     google_calendar_access: bool = False
     theme_selection: str = 'Lexi default Theme'

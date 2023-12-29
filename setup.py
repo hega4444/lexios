@@ -10,8 +10,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         "fastapi",
-        "celery",
         "uvicorn",
+        "alembic",
         # Add other dependencies as needed
     ],
     entry_points={

@@ -1,21 +1,23 @@
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.exceptions import HTTPException
+from fastapi_csrf_protect import CsrfProtect
+
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport import requests as google_auth_request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 
 from lexios.settings.main import *
 from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
+from lexios.core.builtin.functions.email import GmailReader
+from lexios.core.builtin.functions.calendar import GoogleCalendar
 
-
+# Define router and backend components
 google_router = APIRouter()
 google_backend = {} # Backend data storage for managing user authentication
 
 
-# Replace this with your actual Google authentication route
+# Google authentication initial screen
 @google_router.get('/auth/google', response_class=HTMLResponse)
 async def google_auth():
 
@@ -45,6 +47,7 @@ async def google_auth():
     # Redirect to the google consent screen
     return RedirectResponse(authorization_url)
 
+# Google callback
 @google_router.get('/google_callback', response_class=HTMLResponse)
 async def google_callback(
     request: Request,
@@ -109,3 +112,32 @@ async def google_callback(
     # Otherwise redirect to main screen
     return RedirectResponse("/")
 
+# Event: User opens Gmail inbox
+@google_router.post("/open_gmail/", response_class=JSONResponse, dependencies=[Depends(cookie)])
+async def open_gmail(
+    csrf_protect: CsrfProtect = Depends(), 
+    session_data: LexiSessionData = Depends(verifier)
+):
+    async with session_data:
+        
+        # Invoke a handler
+        email_handler = GmailReader(session_data)
+
+        # Read emails
+        unread = await email_handler.get_unread_emails()
+        print(unread.body)
+
+# Event: User opens Gmail inbox
+@google_router.post("/open_calendar/", response_class=JSONResponse, dependencies=[Depends(cookie)])
+async def open_calendar(
+    csrf_protect: CsrfProtect = Depends(), 
+    session_data: LexiSessionData = Depends(verifier)
+):
+    async with session_data:
+        
+        # Invoke a handler
+        calendar_handler = GoogleCalendar(session_data)
+
+        # Read emails
+        events = await calendar_handler.get_calendar_data()
+        print(events.body)

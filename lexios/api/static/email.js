@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
       fetch('/open_gmail', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-CSRF-TOKEN': csrfToken,
         },
       })

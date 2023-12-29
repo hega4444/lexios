@@ -1,3 +1,4 @@
+import json
 from cryptography.fernet import Fernet
 
 from lexios.database.users import validate_password, create_user_account_in_db
@@ -29,7 +30,7 @@ class LexiSessionManager:
 
         user = validate_password(email=email, password=password)
 
-        if user == 'NEW_LEXI_ACCOUNT_BY_GOOGLE':
+        if user == 'NEW_GOOGLE_ACCOUNT':
             # Create a new account
             user = self.new_lexi_account(email, password, gmail_data= gmail_data) 
 
@@ -40,8 +41,9 @@ class LexiSessionManager:
             else:
                 decrypted_google_details = None
 
-            user_dict = user.__dict__  # Assuming user is an instance of your SQLAlchemy model
-            user_dict['decrypted_google_details'] = decrypted_google_details
+            user_dict = user.__dict__  
+            # Load decrypted gmail data
+            user_dict['google_details'] = json.loads(decrypted_google_details)
 
             loaded_user = LexiSessionData.model_validate(user.__dict__)
             return loaded_user

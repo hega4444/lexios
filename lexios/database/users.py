@@ -28,8 +28,8 @@ def create_user_account_in_db(email, password, user_data = None , gmail_data = N
             password=password,
             google_id=gmail_data['email'],
             google_details={
-                'token': gmail_data['refresh_token'],
-                'state': gmail_data['state'],
+                'refresh_token': gmail_data['refresh_token'],
+                'state': gmail_data['state'],                
                 # Add more if needed
             },
             conversation_index=0)
@@ -68,7 +68,7 @@ def validate_password(email, password):
             if user:
                 return user
             else:
-                return 'NEW_LEXI_ACCOUNT_BY_GOOGLE'
+                return 'NEW_GOOGLE_ACCOUNT'
             
     finally:
         # Close the session
