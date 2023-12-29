@@ -119,5 +119,12 @@ cookie = SessionCookie(
     cookie_params=cookie_params,
 )
 
+def read_session_data_from_backend(user_id: int):
 
+    for session_data in backend.data.values():
 
+        if session_data.user_id == user_id:
+
+            return session_data
+    
+    return None

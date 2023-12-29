@@ -14,14 +14,15 @@ class LexiExternalCommand(LexiBaseTools):
 
     def __init__(
         self,
-        func,
+        func: callable,
         requires_object = None,
         requires_dynamic_object = None,
-        show_return_to_user=False,
-        if_error=None,
-        before=None,
-        after=None,
-        printer=None,
+        show_return_to_user: bool = False,
+        if_error: str = None,
+        before: str = None,
+        after: str = None,
+        printer: callable = None,
+        security_obj: str = None,
     ):
         # Tool settings
         self.func = func
@@ -48,6 +49,9 @@ class LexiExternalCommand(LexiBaseTools):
 
         self.custom_messages["show_return_to_user"] = show_return_to_user
         self.keys = ["error", "before", "after", "next"]
+
+        # Security obj: code to register object and later access control
+        self.security_obj = security_obj
 
     def generate_specs(self):
         sig = inspect.signature(self.func)

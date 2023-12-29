@@ -4,6 +4,7 @@ from cryptography.fernet import Fernet
 from lexios.database.users import validate_password, create_user_account_in_db
 from lexios.core.thread import LexiAssistantThread
 from lexios.api.session_data import LexiSessionData
+from lexios.api.session_data import backend
 
 
 # Configs
@@ -35,18 +36,21 @@ class LexiSessionManager:
             user = self.new_lexi_account(email, password, gmail_data= gmail_data) 
 
         if user:
+            
+            # Get the content of the user before decryption
+            user_dict = user.__dict__  
+
             if user.encrypted_google_details:
+                
                 cipher_suite = Fernet(GOOGLE_ID_SECURE_KEY)
                 decrypted_google_details = cipher_suite.decrypt(user.encrypted_google_details)
-            else:
-                decrypted_google_details = None
 
-            user_dict = user.__dict__  
-            # Load decrypted gmail data
-            user_dict['google_details'] = json.loads(decrypted_google_details)
+                # Load decrypted gmail data
+                user_dict['google_details'] = json.loads(decrypted_google_details)
 
-            loaded_user = LexiSessionData.model_validate(user.__dict__)
-            return loaded_user
+            # Create session_data
+            session_data = LexiSessionData.model_validate(user.__dict__)
+            return session_data
         
         else:
             return None
@@ -111,5 +115,6 @@ class LexiSessionManager:
             thread = user_loaded.get(conversation_id, None)
             if thread:
                 return thread.delete()
+
 
 

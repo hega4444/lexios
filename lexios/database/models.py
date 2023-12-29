@@ -9,7 +9,6 @@ from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any
 import bcrypt
 import json
-import uuid
 
 
 from lexios.settings.main import *
@@ -103,6 +102,22 @@ class User(Base):
     conversations = relationship('Conversation', back_populates='user')
     scheduled_tasks = relationship('ScheduledTaskORM', back_populates='user')
     user_specific_data = relationship('UserSpecificDataORM', back_populates='user')
+    roles = relationship('Role', back_populates='user')
+
+# Security roles
+class Role(Base):
+
+    __tablename__ = 'roles'
+
+    role_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.user_id'), nullable=False)
+    name = Column(String, nullable=False)
+    read = Column(Boolean, default=False)
+    write = Column(Boolean, default=False)
+    execute = Column(Boolean, default=False)
+
+    user = relationship('User', back_populates='roles')
+
 
 # User conversations
 class Conversation(Base):
@@ -221,6 +236,10 @@ def initial_database_setup():
         session.add(new_user)
         session.commit()
 
+        user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=True)
+        session.add(user_role)
+        session.commit()
+
     # Close the session when you're done
     session.close()
 
@@ -269,6 +288,10 @@ if __name__ == '__main__':
             # Create a new user and add it to the database
             new_user = User(name_first='Vane', name_last='Valdino', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
             session.add(new_user)
+            session.commit()
+
+            user_role = Role(user_id=new_user.user_id, name='user_access', read=True, write=True, execute=True)
+            session.add(user_role)
             session.commit()
 
     # Close the session when you're done

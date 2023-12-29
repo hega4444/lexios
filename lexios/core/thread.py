@@ -7,6 +7,8 @@ from lexios.database.models import Conversation
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
 from lexios.core.lexi_base_tools import *
 from lexios.core.function_calling import ToolCall
+from lexios.core.toolbox import UserToolBox
+from lexios.api.session_data import read_session_data_from_backend
 from lexios.core.logger import CustomLogger
 
 
@@ -60,7 +62,18 @@ class LexiAssistantThread(LexiBaseTools):
         # Context for the Thread:
         self.admin_assistant = admin_assistant
         self.model = model
-        self.tools = self.lexi.build_toolbox()
+
+        session_data = read_session_data_from_backend(user_id)
+
+        # Create the toolbox for the thread
+        self.tools = UserToolBox(
+            user = session_data,
+            commands= tools,
+            setup={
+                "code_interpreter": True,
+                "retrieval" : True,
+            }
+            ).create_thread_toolbox()
 
         # Thread specific instructions:
         self.instructions = instructions

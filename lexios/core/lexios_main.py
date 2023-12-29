@@ -138,9 +138,9 @@ class LexiOS_Backend(LexiBaseTools):
             images = None,
             metadata= None
         ):
-        # Process an output, use it instead of print():
-
-        #msg_type : "text", "sys_notif", 
+        
+        # process outbound messages to the user interface
+        # msg_type : "text", "sys_notif", 
 
         try:
             # Prepare outbound message
@@ -378,7 +378,6 @@ class LexiOS_Backend(LexiBaseTools):
             tools.append({"type": "retrieval"})
 
         # External Commands:
-
         for tool in self.toolbox.values():
             tools.append(dict(tool.specs))
 
