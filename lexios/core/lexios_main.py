@@ -231,7 +231,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.schedule_reminder,
                     requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
             # Delete reminders, alarms, alerts
@@ -239,7 +240,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.delete_reminder,
                     requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
             # Create other user specific data
@@ -247,7 +249,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.add_user_specific_data,
                     requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
             # Retrieve the current categories for user_specific_data
@@ -255,7 +258,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.retrieve_user_data_categories,
                     requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
             # Retrieve all the content related to a certain category
@@ -263,7 +267,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.read_user_data_category_content, 
                     requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
             # Retrieve a specific data element by its data_id
@@ -271,7 +276,8 @@ class LexiOS_Backend(LexiBaseTools):
                 LexiExternalCommand(
                     UserDataManager.retrieve_user_data_content_by_id, 
                     requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
                 )
             )
 

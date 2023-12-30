@@ -18,7 +18,7 @@ class GmailReader():
         self.user = user
         self.check_frequency = timedelta(minutes=5) 
 
-        if self.user.gmail_access:
+        if self.user.gmail_access and self.user.google_details:
 
             # Check if a refresh token is available in the session
             refresh_token = self.user.google_details.get('refresh_token')
@@ -85,3 +85,8 @@ class GmailReader():
 
         # Return the messages
         return JSONResponse({'messages': unread_messages_data})
+    
+class GmailBackgroundTask():
+
+    def __init__(self) -> None:
+        pass

@@ -22,7 +22,8 @@ class LexiExternalCommand(LexiBaseTools):
         before: str = None,
         after: str = None,
         printer: callable = None,
-        security_obj: str = None,
+        roles_required: str = None,
+        session_data_check: str = None,
     ):
         # Tool settings
         self.func = func
@@ -51,12 +52,12 @@ class LexiExternalCommand(LexiBaseTools):
         self.keys = ["error", "before", "after", "next"]
 
         # Security obj: code to register object and later access control
-        self.security_obj = security_obj
+        self.roles_required = roles_required
+        self.session_data_check = session_data_check
 
     def generate_specs(self):
+        
         sig = inspect.signature(self.func)
-        return_annotation = self.stringify_types(str(sig.return_annotation))
-
         det_annotation = self.func.__annotations__
 
         params = OrderedDict()

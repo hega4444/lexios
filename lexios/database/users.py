@@ -1,7 +1,12 @@
 # User data and User specific data
 import bcrypt
-from typing import Optional, Dict, Any, List
+import json
+from typing import Dict, Any, List
+from cryptography.fernet import Fernet
+from sqlalchemy import or_
 
+from lexios.settings.main import *
+from lexios.api.session_data import LexiSessionData
 from lexios.database.models import Session, User, UserSpecificData, UserSpecificDataORM
 
 def create_user_account_in_db(email, password, user_data = None , gmail_data = None):
@@ -74,6 +79,26 @@ def validate_password(email, password):
         # Close the session
         session.close()
 
+def retrieve_users_with_background_tasks():
+    # Returns all the users with any background tasks enabled
+
+    # Create a session
+    session = Session()
+
+    try:
+        users = (
+            session.query(User)
+            .filter(or_(User.gmail_access == True, User.google_calendar_access == True))
+            .all()
+)
+        # Convert data to pydantic model
+        users = [LexiSessionData.model_validate(user.__dict__) for user in users]
+        return users
+    
+    finally:
+        # Close session
+        session.close()
+
 # Update user data in the database
 def update_user_data_in_db(lexi_user):
     # Create a session
@@ -82,13 +107,22 @@ def update_user_data_in_db(lexi_user):
     try:
         user = session.query(User).filter_by(user_id=lexi_user.user_id).first()
         if user:
+
+            # Encrypt google_details
+            if lexi_user.google_details:
+                cipher_suite = Fernet(GOOGLE_ID_SECURE_KEY)
+                encrypted_google_details = cipher_suite.encrypt(json.dumps(lexi_user.google_details).encode('utf-8'))
+
+            else:
+                encrypted_google_details = None
+
             # Update user data
             user.conversation_index = lexi_user.conversation_index
             user.name_first = lexi_user.name_first
             user.name_last = lexi_user.name_last
             user.location = lexi_user.location
             user.google_id = lexi_user.google_id
-            user.encrypted_google_details = lexi_user.google_details
+            user.encrypted_google_details = encrypted_google_details
             user.bing_searches = lexi_user.bing_searches
             user.lexi_learns = lexi_user.lexi_learns
             user.gmail_access = lexi_user.gmail_access

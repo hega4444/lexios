@@ -2,13 +2,17 @@ import re
 import asyncio
 import uuid
 from dateutil import parser
+from datetime import datetime
 
 
 from lexios.core.lexi_base_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import ScheduledTaskPydantic
+from lexios.database.users import retrieve_users_with_background_tasks
 from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_in_db, update_task_status
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
+from lexios.core.builtin.functions.email import GmailReader
+from lexios.core.builtin.functions.calendar import GoogleCalendar
 
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
 
@@ -18,16 +22,55 @@ class LexiTaskScheduler(LexiBaseTools):
     def __init__(self, lexi = None):
         super().__init__()
 
-        if lexi:
 
-            # Link with LexiOS
-            self.lexi = lexi
-        
-            # Retrieve all scheduled tasks from the database into memory
-            self.scheduled_tasks = self.load_scheduled_tasks_from_db()
+        # Link with LexiOS
+        self.lexi = lexi
+    
+        # Retrieve all scheduled tasks from the database into memory
+        self.scheduled_tasks = self.load_scheduled_tasks_from_db()
 
-            # Start the background coroutine
-            asyncio.create_task(self.check_pending_tasks())
+        # Start the background coroutine
+        asyncio.create_task(self.check_pending_tasks())
+
+        # Start background listeners
+        users = retrieve_users_with_background_tasks()
+        for user in users:
+
+            now = datetime.now().replace(microsecond=0)
+
+            if user.gmail_access:
+                try:
+                    # Initiate handler
+                    email_handler = GmailReader(user)
+
+                    # Schedule background task
+                    self.new_time_event(
+                        user_id= user.user_id,
+                        data_id= None,
+                        category= "backgroud_tasks",
+                        start_at= now,
+                        repeat_each= timedelta(minutes=email_handler.check_frequency), 
+                        notify_to= "email_listener"
+                    )
+                except Exception as e:
+                    pass
+            
+            if user.google_calendar_access:
+                try:
+                    # Initiate handler
+                    calendar_handler = GoogleCalendar(user)
+
+                    # Schedule background task
+                    self.new_time_event(
+                        user_id= user.user_id,
+                        data_id= None,
+                        category= "backgroud_tasks",
+                        start_at= now,
+                        repeat_each= timedelta(minutes=calendar_handler.check_frequency),
+                        notify_to="calendar_listener",
+                    )
+                except Exception as e:
+                    pass
     
     def load_scheduled_tasks_from_db(self):
         # Retrieve scheduled tasks from the database as ORM models
@@ -397,5 +440,15 @@ class LexiTaskScheduler(LexiBaseTools):
                
                # Trigger notification process
                await manager.notify_reminder(event.data_id)
+        
+        elif event.notify_to == "email_listener":
+            # Initiate handler
+            GmailReader(event.user_id).get_unread_emails()
+
+        elif event.notify_to == "calendar_listener":
+            # Initiate handler
+            GmailReader(event.user_id).get_unread_emails()
+        
+
 
 

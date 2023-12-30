@@ -38,9 +38,14 @@ class UserToolBox():
         for command in self.ext_commands.values():
             
             try:
-                verification = LexiAccessControl(user=self.user, security_obj=command.security_obj)()
+                verification = LexiAccessControl(
+                    user=self.user, 
+                    roles_required=command.roles_required,
+                    session_data_check=command.session_data_check
+                )()
 
                 if verification:
+                    # If the verification is ok then add to the current toolbox
                     tools.append(dict(command.specs))
                     
             except PermissionError as e:

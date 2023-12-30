@@ -83,6 +83,14 @@ class LexiAssistantThread(LexiBaseTools):
             try:
                 restore_assistant_failed = False
                 assistant = openai.beta.assistants.retrieve(model_assistant_id)
+
+                # if assistant is retrieved, update tools
+                if assistant:
+                    assistant = openai.beta.assistants.update(
+                        assistant_id= assistant.id,
+                        tools= self.tools,
+                    )
+
                 self.user_assistant = assistant
             except Exception as e:
                 restore_assistant_failed = True   
