@@ -1,3 +1,4 @@
+import re
 import uuid
 import json
 from dateutil import parser
@@ -98,6 +99,24 @@ class UserDataManager():
                 return id
         except Exception as e:
             return {'error' : e}
+    
+    def create_automated_email_response_rule(self, sender_email_address: str, instructions: str):
+        # SUMM: Create a rule for answering emails coming from a 'sender', following the specified 'rules'.
+        # sender_email_address 'description': valid email address from the sender (just email, no alias).
+        # instructions 'description': specify the instructions of how the message should be generated.
+        # instructions 'description': example: "In case of situation x, do y. "
+
+        try:
+
+            self.add_user_specific_data(
+                data_category= "automated_email_responses",
+                data_content= {
+                    'sender' : sender_email_address,
+                    'instructions': instructions,
+                }
+            )
+        except Exception as e:
+            pass
 
     def update_reminder_element(self, data_id: str, start_at: str= None,repeat_each: str = None, end_at:str = None, subject: str = None, content: str = None):
         # SUMM: Update a data_id. Just populate fields to update.
@@ -231,6 +250,4 @@ class UserDataManager():
         
         except Exception as e:
             return {'error': e}
-        
-
     

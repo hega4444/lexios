@@ -24,6 +24,7 @@ class LexiExternalCommand(LexiBaseTools):
         printer: callable = None,
         roles_required: str = None,
         session_data_check: str = None,
+        allowed_in_background = False,
     ):
         # Tool settings
         self.func = func
@@ -54,6 +55,9 @@ class LexiExternalCommand(LexiBaseTools):
         # Security obj: code to register object and later access control
         self.roles_required = roles_required
         self.session_data_check = session_data_check
+
+        # Define if the command can be executed by assistants running in background mode
+        self.allowed_in_background = allowed_in_background
 
     def generate_specs(self):
         

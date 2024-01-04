@@ -54,7 +54,7 @@ class LexiOS_Backend(LexiBaseTools):
         self.broker_url = BROKER_URL
 
         # Session Manager
-        self.session_manager = LexiSessionManager()
+        self.session_manager = LexiSessionManager(self)
 
         # Settings for output messages:
         self.filter_echo = True # Filter assistant replies that are an echo of user input      
@@ -175,7 +175,6 @@ class LexiOS_Backend(LexiBaseTools):
         except Exception as e:
             print("Problems with sending the message: ", e)
 
-
     def append_basic_IO(self):
 
         # Append internal basic I/O methods / protocols
@@ -275,6 +274,16 @@ class LexiOS_Backend(LexiBaseTools):
             self.append_command(
                 LexiExternalCommand(
                     UserDataManager.retrieve_user_data_content_by_id, 
+                    requires_dynamic_object=UserDataManager, 
+                    show_return_to_user=False,
+                    session_data_check="lexi_learns",
+                )
+            )
+           
+            # Create automated email responses 
+            self.append_command(
+                LexiExternalCommand(
+                    UserDataManager.create_automated_email_response_rule, 
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
@@ -464,7 +473,6 @@ class LexiOS_Backend(LexiBaseTools):
                         conversation_id = conversation_id,
                         args = {
                             'conversation_id' : conversation_id,
-                            'admin_assistant' : self.admin_assistant,
                             'user_id': user_id,
                             'session_id':session_id,
                             'model': self.model,
@@ -511,9 +519,7 @@ class LexiOS_Backend(LexiBaseTools):
                         args = {
                             'restore_conversation' : True,
                             'conversation_id' : conversation.conversation_id,
-                            'admin_assistant' : self.admin_assistant,
                             'user_id': user_id,
-                            'session_id':session_id,
                             'user_message': '',
                             'app_messages_content': conversation.app_messages_content,
                             'model': self.model,

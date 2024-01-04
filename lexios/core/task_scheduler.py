@@ -8,7 +8,7 @@ from datetime import datetime
 from lexios.core.lexi_base_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import ScheduledTaskPydantic
-from lexios.database.users import retrieve_users_with_background_tasks
+from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
 from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_in_db, update_task_status
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 from lexios.core.builtin.functions.email import GmailReader
@@ -29,55 +29,51 @@ class LexiTaskScheduler(LexiBaseTools):
         # Retrieve all scheduled tasks from the database into memory
         self.scheduled_tasks = self.load_scheduled_tasks_from_db()
 
-        # Start the background coroutine
-        asyncio.create_task(self.check_pending_tasks())
-
         # Start background listeners
         users = retrieve_users_with_background_tasks()
         for user in users:
 
-            now = datetime.now().replace(microsecond=0)
+            now = datetime.now().replace(microsecond=0) + timedelta(seconds=5)
 
             if user.gmail_access:
                 try:
-                    # Initiate handler
-                    email_handler = GmailReader(user)
-
                     # Schedule background task
                     self.new_time_event(
                         user_id= user.user_id,
                         data_id= None,
                         category= "backgroud_tasks",
                         start_at= now,
-                        repeat_each= timedelta(minutes=email_handler.check_frequency), 
-                        notify_to= "email_listener"
+                        repeat_each= GmailReader.check_frequency, 
+                        notify_to= "email_listener",
+                        save_in_db= False,
                     )
                 except Exception as e:
                     pass
             
             if user.google_calendar_access:
                 try:
-                    # Initiate handler
-                    calendar_handler = GoogleCalendar(user)
-
                     # Schedule background task
                     self.new_time_event(
                         user_id= user.user_id,
                         data_id= None,
                         category= "backgroud_tasks",
                         start_at= now,
-                        repeat_each= timedelta(minutes=calendar_handler.check_frequency),
+                        repeat_each= GoogleCalendar.check_frequency,
                         notify_to="calendar_listener",
+                        save_in_db= False,
                     )
                 except Exception as e:
                     pass
+        
+        # Start the background coroutine to listen for tasks
+        asyncio.create_task(self.check_pending_tasks())
     
     def load_scheduled_tasks_from_db(self):
         # Retrieve scheduled tasks from the database as ORM models
-        orm_tasks = get_all_scheduled_tasks()
+        stored_tasks = get_all_scheduled_tasks()
 
         # Convert ORM models to Pydantic models
-        pydantic_tasks = [ScheduledTaskPydantic.model_validate(task.__dict__) for task in orm_tasks]
+        pydantic_tasks = [ScheduledTaskPydantic.model_validate(task.__dict__) for task in stored_tasks]
 
         # Save the Pydantic models in the class attribute
         return pydantic_tasks
@@ -255,9 +251,12 @@ class LexiTaskScheduler(LexiBaseTools):
                     await self.attend_internal_event(task)
 
                 try:
-                    # Check if task needs to be reescheduled (periodic task)
-                    if task.repeat_each and task.end_at > datetime.now():
-                        
+                    # Schedule next event 
+                    if task.repeat_each:
+
+                        if (task.end_at and  task.end_at < datetime.now()):
+                            continue
+        
                         # Calculate new execution time and update in memory
                         task.start_at = datetime.now().replace(microsecond=0) + timedelta(seconds=task.repeat_each)
                         task.status = "scheduled"
@@ -273,7 +272,7 @@ class LexiTaskScheduler(LexiBaseTools):
                         log.warning(f"Could not reschedule task '{task.task_id}'. {e}")
 
             # Remove executed tasks from the list
-            self.scheduled_tasks = [task for task in self.scheduled_tasks if task not in ready_tasks]
+            self.scheduled_tasks = [task for task in self.scheduled_tasks if task.status != "completed"]
 
             # Sleep for a short duration before checking again
             await asyncio.sleep(1)
@@ -340,7 +339,8 @@ class LexiTaskScheduler(LexiBaseTools):
                        repeat_each: timedelta = None,
                        conversation_id: str = None,
                        arguments: dict = None,
-                       annotations: str = None
+                       annotations: str = None,
+                       save_in_db: bool = True,
     ):
         
         # Define an internal time event for lexi processes
@@ -377,7 +377,8 @@ class LexiTaskScheduler(LexiBaseTools):
             self.scheduled_tasks.append(event)
 
             # Save the scheduled event in the database as backup in case recovery is needed
-            save_scheduled_task_in_db(event)
+            if save_in_db:
+                save_scheduled_task_in_db(event)
         
         except Exception as e:
             with CustomLogger("scheduled_tasks") as log:
@@ -442,12 +443,20 @@ class LexiTaskScheduler(LexiBaseTools):
                await manager.notify_reminder(event.data_id)
         
         elif event.notify_to == "email_listener":
+            # Recover user data
+            user = get_user_data_by_user_id(event.user_id)
             # Initiate handler
-            GmailReader(event.user_id).get_unread_emails()
+            await GmailReader(user).execute_applying_rules()
 
         elif event.notify_to == "calendar_listener":
+            # Recover user data
+            user = get_user_data_by_user_id(event.user_id)
             # Initiate handler
-            GmailReader(event.user_id).get_unread_emails()
+           # await GmailReader(user).get_unread_emails()
+
+        #update event status
+        
+        event.status = "completed"
         
 
 

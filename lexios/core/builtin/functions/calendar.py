@@ -12,11 +12,12 @@ from lexios.api.session_data import LexiSessionData
 
 class GoogleCalendar():
 
+    check_frequency = timedelta(minutes=30)
+
     def __init__(self, user: LexiSessionData) -> None:
         self.user = user
         self.events = [] 
-        self.check_frequency = timedelta(minutes=30)
-
+        
         if self.user.google_calendar_access:
             # Check if a refresh token is available in the session
             refresh_token = self.user.google_details.get('refresh_token')

@@ -4,7 +4,6 @@ from cryptography.fernet import Fernet
 from lexios.database.users import validate_password, create_user_account_in_db
 from lexios.core.thread import LexiAssistantThread
 from lexios.api.session_data import LexiSessionData
-from lexios.api.session_data import backend
 
 
 # Configs
@@ -15,10 +14,15 @@ class LexiSessionManager:
 
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls, lexi = None):
+
         if not cls._instance:
             cls._instance = super(LexiSessionManager, cls).__new__(cls)
-            cls._instance.active_connections = {}
+            cls._instance.active_connections = {}   
+        
+        if lexi:
+            cls._instance.lexi = lexi
+
         return cls._instance
 
     def new_lexi_account(self, email, password, user_data = None, gmail_data = None):

@@ -193,7 +193,7 @@ class ScheduledTaskORM(Base):
 class ScheduledTaskPydantic(BaseModel):
     task_id: str
     user_id: int
-    conversation_id: str
+    conversation_id: Optional[str] = None
     function_name: Optional[str] = None
     arguments: Optional[dict] = None
     annotations: Optional[str] = None

@@ -79,6 +79,30 @@ def validate_password(email, password):
         # Close the session
         session.close()
 
+def get_user_data_by_user_id(user_id: int):
+    # Returns user data by user id
+
+    # Create a session
+    session = Session()
+
+    try:
+        user = session.query(User).filter_by(user_id = user_id).first()
+
+        # Convert data to pydantic model
+        if user:
+
+            user_data = user.__dict__
+
+            # Descrypt google account data if any
+            if user_data.get("encrypted_google_details"):
+                cipher_suite = Fernet(GOOGLE_ID_SECURE_KEY)
+                user_data['google_details'] = json.loads(cipher_suite.decrypt(user.encrypted_google_details))
+            
+            return LexiSessionData.model_validate(user_data)
+
+    finally:
+        # Close session
+        session.close()
 def retrieve_users_with_background_tasks():
     # Returns all the users with any background tasks enabled
 
@@ -92,8 +116,18 @@ def retrieve_users_with_background_tasks():
             .all()
 )
         # Convert data to pydantic model
-        users = [LexiSessionData.model_validate(user.__dict__) for user in users]
-        return users
+        users_descrpyted = []
+        for user in users:
+            user_data = user.__dict__
+
+            # Descrypt google account data if any
+            if user_data.get("encrypted_google_details"):
+                cipher_suite = Fernet(GOOGLE_ID_SECURE_KEY)
+                user_data['google_details'] = json.loads(cipher_suite.decrypt(user.encrypted_google_details))
+            
+            users_descrpyted.append(LexiSessionData.model_validate(user_data))
+
+        return users_descrpyted
     
     finally:
         # Close session
@@ -134,6 +168,7 @@ def update_user_data_in_db(lexi_user):
             session.commit()
     except Exception as e:
         pass  # Handle the exception as needed, for now, it's ignored
+        session.rollback()
     finally:
         # Close session
         session.close()

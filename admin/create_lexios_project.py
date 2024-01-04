@@ -3,7 +3,7 @@
 import os
 import sys
 from shutil import  copy2
-from admin.settings import update_constant_value
+from admin.settings import edit_constant_value_in_script
 
 def __main__():
     if len(sys.argv) != 2:
@@ -79,12 +79,12 @@ def __main__():
     copy2(os.path.join(base_dir, "lexios", "settings", "settings_template.py"), os.path.join(project_dir, "settings.py"))
 
     # Custom values for new project
-    update_constant_value(os.path.join(project_dir, "settings.py"), "LOG_FOLDER", f"'{project_name}/backlogs'")
-    update_constant_value(os.path.join(project_dir, "settings.py"), "UPLOAD_FOLDER", f"'{project_name}/temp_uploads'")
-    update_constant_value(os.path.join(project_dir, "settings.py"), "DOWNLOAD_FOLDER", f"'{project_name}/temp_downloads'")
-    update_constant_value(os.path.join(project_dir, "settings.py"), "LEXI_DATABASE_NAME", f"'{project_name}_database'")
-    update_constant_value(os.path.join(project_dir, "settings.py"), "SSL_KEYFILE", f"'{project_name}/ssl/key.pem'")
-    update_constant_value(os.path.join(project_dir, "settings.py"), "SSL_CERTFILE", f"'{project_name}/ssl/cert.pem'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "LOG_FOLDER", f"'{project_name}/backlogs'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "UPLOAD_FOLDER", f"'{project_name}/temp_uploads'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "DOWNLOAD_FOLDER", f"'{project_name}/temp_downloads'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "LEXI_DATABASE_NAME", f"'{project_name}_database'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "SSL_KEYFILE", f"'{project_name}/ssl/key.pem'")
+    edit_constant_value_in_script(os.path.join(project_dir, "settings.py"), "SSL_CERTFILE", f"'{project_name}/ssl/cert.pem'")
     
     # Setup database
     try:

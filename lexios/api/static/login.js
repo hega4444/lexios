@@ -1,7 +1,17 @@
 $(document).ready(function () {
-    // Handle form submission
+    // Handle form submission on button click
     $("#login-button").click(function () {
-        
+        submitLoginForm();
+    });
+
+    // Handle form submission on Enter key press
+    $("#login_password").keypress(function (e) {
+        if (e.which === 13) {
+            submitLoginForm();
+        }
+    });
+
+    function submitLoginForm() {
         // Get the values of email and password input fields
         var email = $("#login_email").val();
         var password = $("#login_password").val();
@@ -22,7 +32,7 @@ $(document).ready(function () {
             success: function (response) {
                 // Construct the redirect URL with session_id
                 console.log("log in successful");
-                var redirectUrl = "/dashboard#" + response.session_id;;
+                var redirectUrl = "/dashboard#" + response.session_id;
                 // Redirect the user to the dashboard
                 window.location.href = redirectUrl;
             },
@@ -31,5 +41,5 @@ $(document).ready(function () {
                 alert("Login failed. Please check your email and password.");
             }
         });
-    });
+    }
 });

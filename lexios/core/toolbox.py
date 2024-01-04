@@ -21,7 +21,7 @@ class UserToolBox():
         self.ext_commands = commands
         self.tool_specs_output = None
 
-    def create_thread_toolbox(self):
+    def __call__(self):
 
         # Create a list of tools available for the assistant:
         tools = []
@@ -38,10 +38,15 @@ class UserToolBox():
         for command in self.ext_commands.values():
             
             try:
+
+                # For background assistants, filter commands not allowed
+                if self.setup.get("run_in_background", False) and not command.allowed_in_background:
+                    continue
+                
                 verification = LexiAccessControl(
                     user=self.user, 
                     roles_required=command.roles_required,
-                    session_data_check=command.session_data_check
+                    session_data_check=command.session_data_check,
                 )()
 
                 if verification:

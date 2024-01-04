@@ -124,7 +124,7 @@ async def open_gmail(
         email_handler = GmailReader(session_data)
 
         # Read emails
-        unread = await email_handler.get_unread_emails()
+        unread = await email_handler.retrieve_unread_emails()
         print(unread.body)
 
 # Event: User opens Gmail inbox

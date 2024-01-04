@@ -5,6 +5,7 @@ import pickle  # For pickling/unpickling the Python object
 
 from lexios.database.models import Conversation 
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
+from lexios.database.users import get_user_data_by_user_id
 from lexios.core.lexi_base_tools import *
 from lexios.core.function_calling import ToolCall
 from lexios.core.toolbox import UserToolBox
@@ -18,10 +19,9 @@ class LexiAssistantThread(LexiBaseTools):
     def __init__(
         self,
         lexi=None,
-        admin_assistant=None,
+        run_in_background= False,
         user_assistant=None,
         user_id: str = None,
-        session_id = None,
         user_message: str = None,
         files=None,
         tools=None,
@@ -29,7 +29,6 @@ class LexiAssistantThread(LexiBaseTools):
         instructions = None,
         conversation_id = None,
         restore_conversation = False,
-        app_messages_content = None,
         model_assistant_id = None,
         model_thread_id = None,
         metrics = None,
@@ -48,9 +47,6 @@ class LexiAssistantThread(LexiBaseTools):
         self.user_id = user_id
         self.conversation_id = conversation_id
 
-        # Session that is running this thread
-        self.session_id = session_id
-
         # Reset signal, will create a new thread on the next Run execution
         self.reset_signal = False
 
@@ -60,20 +56,24 @@ class LexiAssistantThread(LexiBaseTools):
         self.has_changed = False 
 
         # Context for the Thread:
-        self.admin_assistant = admin_assistant
+        self.run_in_background = run_in_background
         self.model = model
 
+        # First try to get a fresh copy fronm the backend
         session_data = read_session_data_from_backend(user_id)
+        if not session_data:
+            session_data = get_user_data_by_user_id(self.user_id)
 
         # Create the toolbox for the thread
         self.tools = UserToolBox(
             user = session_data,
             commands= tools,
             setup={
+                "run_in_background": run_in_background,
                 "code_interpreter": True,
                 "retrieval" : True,
             }
-            ).create_thread_toolbox()
+            )()
 
         # Thread specific instructions:
         self.instructions = instructions
@@ -116,18 +116,20 @@ class LexiAssistantThread(LexiBaseTools):
                 model=self.lexi.model,
             )
 
-            # Create new conversation model for the db
-            self.conversation_id = conversation_id
-            self.conversation_orm = Conversation(
-                                        user_id= self.user_id,
-                                        conversation_id= self.conversation_id,
-                                        title = "new chat..",
-                                        app_messages_content=[],
-                                        model_assistant_id= self.user_assistant.id,
-                                        model_thread_id= None,
-                                        model_messages= None,
-                                        metrics= None,
-                                    )           
+            if not self.run_in_background:
+
+                # Create new conversation model for the db
+                self.conversation_id = conversation_id
+                self.conversation_orm = Conversation(
+                                            user_id= self.user_id,
+                                            conversation_id= self.conversation_id,
+                                            title = "new chat..",
+                                            app_messages_content=[],
+                                            model_assistant_id= self.user_assistant.id,
+                                            model_thread_id= None,
+                                            model_messages= None,
+                                            metrics= None,
+                                        )           
 
         # Assistant files
         self.assistant_files = []
@@ -140,7 +142,7 @@ class LexiAssistantThread(LexiBaseTools):
         self.tool_calls_status = None
 
     async def new_user_message(self, user_message: str = None, filename:str = None):
-        # Handles the creation of a new Thread 
+        # Handles the execution of a run Thread 
         if user_message or filename:
 
             # clear the thread refrence if there is a reset signal request
@@ -230,7 +232,9 @@ class LexiAssistantThread(LexiBaseTools):
                             # Log entry
                             with CustomLogger("messages") as log:
                                 log.debug("new message", details={"from": "lexi", "content": assistant_reply, "filtered": True})
-                        else:
+                        
+                                
+                        elif not self.run_in_background:
 
                             # Update conversation ORM
                             self.conversation_orm.app_messages_content.append({
@@ -288,17 +292,25 @@ class LexiAssistantThread(LexiBaseTools):
 
         except ValueError as e:
                 # Inform the user about the problem:
-                self.lexi.prepare_output(
-                    "I'm sorry, there was a problem processing your last request. Please try again...", 
-                    user_id = self.user_id,
-                    conversation_id=self.conversation_id
-                )
+                if not self.run_in_background:
+                    await self.lexi.prepare_output(
+                        "I'm sorry, there was a problem processing your last request. Please try again...", 
+                        user_id = self.user_id,
+                        conversation_id=self.conversation_id
+                    )
                 # Let know the LexiOS
                 raise ValueError(f"Problem running process_run. Details: {e}")
 
         # End of Run execution
         # Release the LexiAssistant to attend new requests    
         self.running_stat = "ready"
+
+        if self.run_in_background and run.status in ["completed", "cancelled", "failed", "expired"]:
+
+            self.response = {
+                'status': run.status,
+                'output': assistant_reply,
+            }
 
     def update_thread_messages(self, new_message = None, new_file = None):
         # Appends messages and attachments to the current user_thread
@@ -345,13 +357,15 @@ class LexiAssistantThread(LexiBaseTools):
         # Text messages (with or without attachments):
         if new_message:
 
-            # Update conversation ORM
-            self.conversation_orm.app_messages_content.append({
-                                    'type':'user',
-                                    'time': self.format_datetime(str(datetime.now()))[:-3],
-                                    'message':new_message,
-                                }                    
-            )
+            if not self.run_in_background:
+
+                # Update conversation ORM
+                self.conversation_orm.app_messages_content.append({
+                                        'type':'user',
+                                        'time': self.format_datetime(str(datetime.now()))[:-3],
+                                        'message':new_message,
+                                    }                    
+                )
             self.has_changed = True
 
             # Check if message includes attachment:
@@ -393,8 +407,9 @@ class LexiAssistantThread(LexiBaseTools):
                         messages=[user_msg], metadata=self.metadata()
                     )
 
-                    # Register thread in conversation ORM
-                    self.conversation_orm.model_thread_id = self.thread.id
+                    if not self.run_in_background:
+                        # Register thread in conversation ORM
+                        self.conversation_orm.model_thread_id = self.thread.id
 
                 except Exception as e:
                     raise ValueError(f"Problem creating thread. Message: {new_message}, Files: {new_file}. Details: {e}")

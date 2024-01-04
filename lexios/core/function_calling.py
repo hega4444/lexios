@@ -7,7 +7,7 @@ from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
 
 
-SCHEDULER_FUNCTION = LexiTaskScheduler().schedule_new_action.__name__
+SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
 
 PROJECT_FOLDER = find_project_folder()
 

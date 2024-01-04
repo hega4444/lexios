@@ -1,6 +1,6 @@
 import ast
 
-def update_constant_value(file_path, constant_name, new_value):
+def edit_constant_value_in_script(file_path, constant_name, new_value):
     """
     Update the value of a constant in a Python file.
 
@@ -33,7 +33,7 @@ def update_constant_value(file_path, constant_name, new_value):
         file.write(updated_code)
 
 
-def update_constant_value(file_path, constant_name, new_value):
+def edit_constant_value_in_script(file_path, constant_name, new_value):
     updated_lines = []
 
     with open(file_path, 'r') as file:
