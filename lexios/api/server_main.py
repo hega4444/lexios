@@ -291,9 +291,9 @@ async def get_conversation_data(
 
                     # Link the loaded conversations to the User session
                     lexi.load_conversation(session_data.session_id, c)
-
-                    # Retrieve messages from the newest conversation
-                    messages = lexi.session_manager.rerieve_conversation(session_data.user_id, conversation_index)
+   
+                # Retrieve messages from the newest conversation
+                messages = lexi.session_manager.rerieve_conversation(session_data.user_id, conversation_index)
                 
                 session_data.conversation_id_focus = conversation_index
                 

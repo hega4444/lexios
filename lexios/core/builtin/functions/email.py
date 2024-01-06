@@ -62,7 +62,7 @@ class GmailReader():
     async def retrieve_unread_emails(self):
 
         # Calculate the date 24 hours ago from the current time
-        date_24_hours_ago = (datetime.utcnow() - timedelta(hours=72)).strftime('%Y/%m/%d')
+        date_24_hours_ago = (datetime.utcnow() - timedelta(hours=24)).strftime('%Y/%m/%d')
 
         # List unread messages excluding promotions category from the last 24 hours
         # Exclude promotions
@@ -183,28 +183,27 @@ class GmailReader():
                 # Check if there is any rule set for messages coming from a specifc sender
 
                     if rule.get("sender") and rule.get("sender") in message.get("sender", ""):
-
+                        
+                        # Generate reply content
                         message_body = await self.generate_automated_email_content(
                             sender = message.get("sender"),
                             original_message= message.get("snippet") + message.get("body"),
                             user_request = rule.get("original_user_request"),
                         )
                         
-                        # Generate reply
+                        # Reply email
                         await self.reply_to_email(
                             original_message_id = message.get("id"),
                             reply_body= message_body.get("output"), 
                         )
 
-                        # Generate a data_id
+                        # Save in database as processed
                         new_data_id = str(uuid.uuid4())
-
-                        # Save in database
                         create_user_specific_data(UserSpecificData(
                             data_id= new_data_id,
                             user_id= self.user.user_id,
                             data_category= "processed_emails", 
-                            data_content= json.dumps({
+                            data_content= json.dumps({    
                                 'id' : message.get("id"),
                                 'status': "processed",
                             }), 

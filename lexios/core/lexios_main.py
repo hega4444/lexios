@@ -523,7 +523,6 @@ class LexiOS_Backend(LexiBaseTools):
                             'conversation_id' : conversation.conversation_id,
                             'user_id': user_id,
                             'user_message': '',
-                            'app_messages_content': conversation.app_messages_content,
                             'model': self.model,
                             'tools': self.toolbox,
                             'files': None,
