@@ -1,6 +1,7 @@
 # email.py
 import base64
 import json
+import uuid
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from email.mime.multipart import MIMEMultipart
@@ -12,7 +13,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 from lexios.core.aitools import ai_assistant_request
-from lexios.database.users import retrieve_category_content
+from lexios.database.users import retrieve_category_content, create_user_specific_data
+from lexios.database.models import UserSpecificData
 from lexios.api.session_data import LexiSessionData
 from lexios.settings.main import *
 
@@ -60,7 +62,7 @@ class GmailReader():
     async def retrieve_unread_emails(self):
 
         # Calculate the date 24 hours ago from the current time
-        date_24_hours_ago = (datetime.utcnow() - timedelta(hours=24)).strftime('%Y/%m/%d')
+        date_24_hours_ago = (datetime.utcnow() - timedelta(hours=72)).strftime('%Y/%m/%d')
 
         # List unread messages excluding promotions category from the last 24 hours
         # Exclude promotions
@@ -158,47 +160,75 @@ class GmailReader():
 
     async def execute_applying_rules(self):
 
+        # Get already processed messages
+        processed_emails = retrieve_category_content(self.user.user_id, "processed_emails")
+        messages_ids = [json.loads(email.data_content).get("id") for email in processed_emails]
+
         # Get the list of unread
         unread_messages = await self.retrieve_unread_emails()
 
+        # Filter messages that were already replied
+        unread_messages = [message for message in unread_messages if message.get("id") not in messages_ids]
+
         # Retrieve the existing rules applying for the user
-        instructions = retrieve_category_content(self.user.user_id, "automated_email_responses")
+        rules = retrieve_category_content(self.user.user_id, "automated_email_responses")
 
-        instructions = [json.loads(instruction.data_content) for instruction in instructions]
+        rules = [json.loads(rule.data_content) for rule in rules]
 
-        if unread_messages and instructions:
+        if unread_messages and rules:
 
             for message in unread_messages:
 
+                for rule in rules:
                 # Check if there is any rule set for messages coming from a specifc sender
-                if any(
-                    instruction.get("sender") and instruction.get("sender") in message.get("sender", "")
-                    for instruction in instructions
-                ):
-                    message_body = await self.generate_automated_email_content(
-                        sender = message.get("sender"),
-                        original_message= message.get("snippet") + message.get("body"),
-                        instructions = instructions,
-                    )
-                    
-                    # Generate reply
-                    await self.reply_to_email(
-                        original_message_id = message.get("id"),
-                        reply_body= message_body.get("output"), 
-                    )
-    
-    async def generate_automated_email_content(self, sender: str, original_message: str, instructions: str):
+
+                    if rule.get("sender") and rule.get("sender") in message.get("sender", ""):
+
+                        message_body = await self.generate_automated_email_content(
+                            sender = message.get("sender"),
+                            original_message= message.get("snippet") + message.get("body"),
+                            user_request = rule.get("original_user_request"),
+                        )
+                        
+                        # Generate reply
+                        await self.reply_to_email(
+                            original_message_id = message.get("id"),
+                            reply_body= message_body.get("output"), 
+                        )
+
+                        # Generate a data_id
+                        new_data_id = str(uuid.uuid4())
+
+                        # Save in database
+                        create_user_specific_data(UserSpecificData(
+                            data_id= new_data_id,
+                            user_id= self.user.user_id,
+                            data_category= "processed_emails", 
+                            data_content= json.dumps({
+                                'id' : message.get("id"),
+                                'status': "processed",
+                            }), 
+                            )
+                        )
+        
+    async def generate_automated_email_content(self, sender: str, original_message: str, user_request: str):
         # Creates a dynamic response to an email
 
         response = await ai_assistant_request(
                             user_id= self.user.user_id,
 
-                            request="This is an internally generated request running in brackground."
-                
-                                f" Please create the automated text following these instructions: {instructions}"
-                                f" Details: Sender: {sender}, Original_message: {original_message}.",
+                            request=f"Write and return the reply content to this email: {original_message}"
+                                f"by Sender: {sender}"
+                                f"Here is the original request from the user: {user_request}"
+                                "Example output:"
+                                '"""'
+                                "Dear ...,"
+                                "<body>"
+                                ""
+                                '"""',
 
-                            instructions="Reply with the body message ready to be included in the reply email."
+                            instructions= "You are a tool that generates the text content for an email reply"
+                                'Your answer must be hust the email response enclosed in """ .',
         )
         
         return response

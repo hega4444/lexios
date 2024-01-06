@@ -112,7 +112,7 @@ class LexiAssistantThread(LexiBaseTools):
             self.user_assistant = openai.beta.assistants.create(
                 instructions=self.instructions,
                 name=self.lexi.name,
-                tools=self.tools, 
+                tools=self.tools,   
                 model=self.lexi.model,
             )
 
@@ -178,7 +178,6 @@ class LexiAssistantThread(LexiBaseTools):
                         thread_id=self.thread.id,
                         assistant_id=self.user_assistant.id,
                         model=self.model,
-                        instructions=json.dumps(self.metadata()),
                     )
                 except Exception as e:
                     with CustomLogger("assistants") as log:

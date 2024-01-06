@@ -259,6 +259,7 @@ class LexiOS_Backend(LexiBaseTools):
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
+                    allowed_in_background= True,
                 )
             )
             # Retrieve all the content related to a certain category
@@ -268,6 +269,7 @@ class LexiOS_Backend(LexiBaseTools):
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
+                    allowed_in_background= True,
                 )
             )
             # Retrieve a specific data element by its data_id
@@ -277,6 +279,7 @@ class LexiOS_Backend(LexiBaseTools):
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
+                    allowed_in_background= True,
                 )
             )
            
@@ -474,7 +477,6 @@ class LexiOS_Backend(LexiBaseTools):
                         args = {
                             'conversation_id' : conversation_id,
                             'user_id': user_id,
-                            'session_id':session_id,
                             'model': self.model,
                             'tools': self.toolbox,
                             'lexi': self,

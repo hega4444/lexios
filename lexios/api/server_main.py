@@ -17,6 +17,7 @@ from admin.verify_folder import find_project_folder
 PROJECT_FOLDER = find_project_folder()
 
 from lexios.settings.main import *
+from lexios.api.globals import Globals
 from lexios.api.session_data import backend, cookie, verifier
 from lexios.api.redis_websocket import messages_router
 from lexios.api.google_routes import google_router, google_backend
@@ -466,6 +467,10 @@ async def process_input(
     }
 
     try:
+
+        # Update the global variables
+        Globals(user_input=user_input)
+
         # Send message to Lexi and get response
         await lexi.process_user_request(data=message)
         return JSONResponse(content={"status": "Message sent to Lexi."})

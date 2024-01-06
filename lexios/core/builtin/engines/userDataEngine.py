@@ -1,9 +1,9 @@
-import re
 import uuid
 import json
 from dateutil import parser
 from datetime import timedelta, datetime
 
+from lexios.api.globals import Globals
 from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import UserSpecificData
@@ -34,6 +34,9 @@ class UserDataManager():
         self.conversation_id = conversation_id
 
         self.base_categories = ['reminders', 'preferences', 'memories']
+        
+        # Define hidden categories (these wont be accesible for the AI model)
+        self.hidden_categories = ["processed_emails"]
 
     def schedule_reminder(self, start_at: str, subject:str, repeat_each: str = None, end_at:str = None, content: str = None):
         # SUMM: Creates a reminder for the user at specific datetime with subject/content, it can also <repeat_each> number of seconds until <end_at>. Returns the data_id.
@@ -103,17 +106,18 @@ class UserDataManager():
     def create_automated_email_response_rule(self, sender_email_address: str, instructions: str):
         # SUMM: Create a rule for answering emails coming from a 'sender', following the specified 'rules'.
         # sender_email_address 'description': valid email address from the sender (just email, no alias).
-        # instructions 'description': specify the instructions of how the message should be generated.
-        # instructions 'description': example: "In case of situation x, do y. "
+        # instructions 'description': attach instructions for a GPT model to create a response requested by the user.
 
         try:
 
             self.add_user_specific_data(
                 data_category= "automated_email_responses",
                 data_content= {
+                    'rule_id': str(uuid.uuid4())[:4],
                     'sender' : sender_email_address,
-                    'instructions': instructions,
-                }
+                    'original_user_request': Globals().user_input,
+                },
+                internal_call = True,
             )
         except Exception as e:
             pass
@@ -187,6 +191,9 @@ class UserDataManager():
 
         categories = retrieve_existing_data_categories(user_id= self.user_id)
 
+        #Filter hidden categories
+        categories = [category for category in categories if category not in self.hidden_categories]
+
         # Mix lists and remove duplicates
         return {
             'usage'  : "call read_user_data_category_content(<category>) to get all the data elements under the category.",  
@@ -229,6 +236,10 @@ class UserDataManager():
 
         if kwargs.get("internal_call", False) is False and data_category == "reminders":
             return {'error': 'For "reminders" use function "schedule_reminder()". This function is to store user preferences and other user relevant data.'}
+
+        if kwargs.get("internal_call", False) is False and data_category == "automated_email_responses":
+            return {'error': 'For "email_responses" use function "create_automated_email_response_rule()". This function is to store user preferences and other user relevant data.'}
+
 
         # Serialize JSON content before saving
         serialized_data_content = json.dumps(data_content)
