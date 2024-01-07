@@ -11,7 +11,6 @@ from lexios.core.lexi_base_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.task_scheduler import LexiTaskScheduler
 
-
 # Lexi's Engines 
 from lexios.core.builtin.engines.SQLEngine import LexiDatabase
 from lexios.core.builtin.engines.searchEngine import SearchEngine
@@ -407,9 +406,8 @@ class LexiOS_Backend(LexiBaseTools):
 
     async def process_user_request(
         self, user_input: str = None, 
-        user_id="default", 
-        conversation_id = 'default',
-        session_id = 'default', 
+        user_id: int = None, 
+        conversation_id: str = None,
         data = None, 
         filename = None, 
     ) -> str:
@@ -424,12 +422,6 @@ class LexiOS_Backend(LexiBaseTools):
             try:
                 # conversation_id
                 conversation_id = data['conversation_id']
-            except KeyError:
-                pass
-            
-            try:
-                # session_id
-                session_id = data['session_id']
             except KeyError:
                 pass
 
@@ -508,34 +500,4 @@ class LexiOS_Backend(LexiBaseTools):
         except Exception:
             pass
     
-    def load_conversation(self, session_id, conversation):
-        # Loads a existing conversation retrieved by the session manager
-        try:
-            
-            user_id = conversation.user_id
-
-            # Create the thread with the Lexi Session Manager
-            self.session_manager.new_lexi_thread(
-                        user_id = user_id,
-                        conversation_id = conversation.conversation_id,
-                        args = {
-                            'restore_conversation' : True,
-                            'conversation_id' : conversation.conversation_id,
-                            'user_id': user_id,
-                            'user_message': '',
-                            'model': self.model,
-                            'tools': self.toolbox,
-                            'files': None,
-                            'lexi': self,
-                            'model_assistant_id': conversation.model_assistant_id,
-                            'model_thread_id': conversation.model_thread_id, 
-                            'metrics': conversation.metrics,
-                            'instructions': self.instructions,
-                            'conversation_orm' : conversation,
-                            'title_stat': 'set',  
-                        }
-                    )
-
-        except Exception as e:
-            pass
 

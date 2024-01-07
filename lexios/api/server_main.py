@@ -34,6 +34,9 @@ lexi = get_lexi_backend_instance(
     active_users= frontend_active_users
 )
 
+# Retrieve a reference to the session manager
+session_manager = lexi.session_manager
+
 app = FastAPI()
 app.include_router(messages_router)
 app.include_router(google_router)
@@ -130,7 +133,7 @@ async def submit_login(
     csrf_protect.unset_csrf_cookie(response)  # prevent token reuse
 
     # Check if the user exists and the password is correct
-    user = lexi.session_manager.validate_user_profile(email, password)
+    user = session_manager.validate_user_profile(email, password)
    
     if user:
 
@@ -189,7 +192,7 @@ async def google_submit_login(
             email = google_details.get('email')
 
             # Try to recover profile from Lexi too
-            user = lexi.session_manager.validate_user_profile(
+            user = session_manager.validate_user_profile(
                 email= email, 
                 password= 'GOOGLE_ID',
                 gmail_data= google_details
@@ -259,7 +262,7 @@ async def get_conversation_data(
 
         if select_conversation_id:
             session_data.conversation_id_focus = select_conversation_id
-            messages = lexi.session_manager.rerieve_conversation(session_data.user_id, select_conversation_id)
+            messages = session_manager.rerieve_conversation(session_data.user_id, select_conversation_id)
 
             conversation_data = {
                 'messages': messages,
@@ -280,26 +283,24 @@ async def get_conversation_data(
                 conversation_index = newest_conversation.conversation_id
 
                 conversations_list = []
-                for c in conversations:
+                for conversation in conversations:
                     # Create conversations list
 
                     conversations_list.append([
-                        c.title,
-                        c.conversation_id
+                        conversation.title,
+                        conversation.conversation_id
                     ]
                     )
 
                     # Link the loaded conversations to the User session
-                    lexi.load_conversation(session_data.session_id, c)
-   
-                # Retrieve messages from the newest conversation
-                messages = lexi.session_manager.rerieve_conversation(session_data.user_id, conversation_index)
-                
+                    session_manager.load_conversation(conversation)
+
+                # Set the focus on the latest conversation             
                 session_data.conversation_id_focus = conversation_index
                 
                 conversation_data = {
-                    'messages' : messages,
                     'conversations_list' : conversations_list,
+                    'conversation_focus': conversation_index,
                 }
                 return JSONResponse(conversation_data)
 
@@ -313,8 +314,8 @@ async def get_conversation_data(
 
                 # Prepare return 
                 conversation_data = {
-                        'messages' : [],
-                        'conversations_list' : [['new chat..', conversation_index]]
+                        'conversations_list' : [['new chat..', conversation_index]],
+                        'conversation_focus': conversation_index,
                 }
                 return JSONResponse(conversation_data)
 
@@ -327,7 +328,7 @@ async def update_conversation_title(
     session_data: LexiSessionData = Depends(verifier),
 ):
 
-    lexi.session_manager.update_converstion_title(session_data.user_id, conversation_id, new_title)
+    session_manager.update_converstion_title(session_data.user_id, conversation_id, new_title)
 
     return JSONResponse({'message': 'Conversation title updated successfully'})
 
@@ -360,7 +361,7 @@ def delete_conversation(
     session_data : LexiSessionData = Depends(verifier),
 ):
     # Call lexi session manager to take care of the task
-    lexi.session_manager.delete_conversation(session_data.user_id, conversation_id)
+    session_manager.delete_conversation(session_data.user_id, conversation_id)
     return JSONResponse({'message': 'Conversation deleted successfully'})
     
 # Get the color combination for a specific theme
@@ -447,10 +448,16 @@ async def process_input(
     # Handle file upload
     file_path = None
     if file_upload:
-        subfolder = os.path.join("uploads", session_id[:5])
-        os.makedirs(subfolder, exist_ok=True)
+
+        # Create the user directory if it doesn't exist
+        user_uploads = os.path.join(PROJECT_FOLDER, "temp", "uploads", str(session_data.user_id).zfill(5))
+        os.makedirs(user_uploads, exist_ok=True)
+
+        # Create filepath
         filename = file_upload.filename
-        file_path = os.path.join(subfolder, filename)
+        file_path = os.path.join(user_uploads, filename)
+
+        # Save user file in its temporal folder
         with open(file_path, "wb") as f:
             f.write(file_upload.file.read())
 
@@ -460,7 +467,6 @@ async def process_input(
     # Prepare structure for sending to Lexi:
     message = {
         "user_id": user_id,
-        "session_id": session_id,
         "conversation_id": session_data.conversation_id_focus,
         "user_input": user_input,
         "filename": file_path,
@@ -623,5 +629,5 @@ async def logout(
     update_user_data_in_db(session_data)    
 
     # conversation history 
-    lexi.session_manager.close_session(session_data.user_id)
+    session_manager.close_session(session_data.user_id)
     return RedirectResponse(url='/')

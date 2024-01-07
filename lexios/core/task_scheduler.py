@@ -163,11 +163,11 @@ class LexiTaskScheduler(LexiBaseTools):
                 pass
         
         if function_name == REMINDER_FUNCTION:
-          return f"{{'error': 'cannot schedule function {REMINDER_FUNCTION}(), call function directly instead.'}}"
+            raise ValueError(f"error: 'cannot schedule function {REMINDER_FUNCTION}(), call function directly instead.")
 
         if function_name not in self.lexi.toolbox:
             # Let know the assistant if the function name is not available.
-            return "{'status': 'Function name not recognized.'}"
+            raise ValueError("error : 'Function name not recognized.")
 
         # Try to use 'regex' validators in comments to prevent mistakes (only if 'regex' was defined):
         try:
@@ -203,7 +203,7 @@ class LexiTaskScheduler(LexiBaseTools):
                         params = self.string_to_dict(arguments)
                     except Exception:
                         # Communicate with the AI model to check its input:
-                        return "{'status' : 'Error-Arguments should be passed as dictionary'}."
+                        raise ValueError("Error - Arguments should be passed as dictionary.")
             else:
                 params = arguments
 

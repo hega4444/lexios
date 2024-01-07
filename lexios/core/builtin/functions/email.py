@@ -217,13 +217,15 @@ class GmailReader():
                             user_id= self.user.user_id,
 
                             request=f"Write and return the reply content to this email: {original_message}"
-                                f"by Sender: {sender}"
+                                f"received from: {sender}"
                                 f"Here is the original request from the user: {user_request}"
+
                                 "Example output:"
                                 '"""'
-                                "Dear ...,"
+                                f"Dear (direct the message to {sender}),"
                                 "<body>"
                                 ""
+                                f"(Sign email as {' '.join(self.user.name_first, self.user.name_last)} "
                                 '"""',
 
                             instructions= "You are a tool that generates the text content for an email reply"

@@ -1,7 +1,9 @@
 #thread.py
-
+import re
 import openai
 import pickle  # For pickling/unpickling the Python object
+
+from admin.verify_folder import find_project_folder
 
 from lexios.database.models import Conversation 
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
@@ -12,6 +14,7 @@ from lexios.core.toolbox import UserToolBox
 from lexios.api.session_data import read_session_data_from_backend
 from lexios.core.logger import CustomLogger
 
+PROJECT_FOLDER = find_project_folder()
 
 class LexiAssistantThread(LexiBaseTools):
     # Represents one conversation with the user
@@ -33,7 +36,7 @@ class LexiAssistantThread(LexiBaseTools):
         model_thread_id = None,
         metrics = None,
         conversation_orm = None,
-        title_stat = 'new'
+        title_generated = False,
 
     ) -> None:
         # Call the __init__ methods of the base classes
@@ -141,6 +144,11 @@ class LexiAssistantThread(LexiBaseTools):
         self.tool_calls = []
         self.tool_calls_status = None
 
+        # Conversation title status
+        self.title_generated = title_generated
+        if restore_conversation:
+            self.title_generated = True
+
     async def new_user_message(self, user_message: str = None, filename:str = None):
         # Handles the execution of a run Thread 
         if user_message or filename:
@@ -167,17 +175,21 @@ class LexiAssistantThread(LexiBaseTools):
         try:
             if new_message or new_file:
                 try:
-                    self.update_thread_messages(new_message, new_file)
+                    await self.update_thread_messages(new_message, new_file)
                 except ValueError as e:
                     raise ValueError("Could not update messages in Thread.")
             
             if new_message:
                 try:
+                    # Define scpecific instructions for the run
+                    instructions = str(self.metadata()) + self.instructions
+
                     # Run the thread
                     run = openai.beta.threads.runs.create(
                         thread_id=self.thread.id,
                         assistant_id=self.user_assistant.id,
                         model=self.model,
+                        instructions= instructions,
                     )
                 except Exception as e:
                     with CustomLogger("assistants") as log:
@@ -220,7 +232,7 @@ class LexiAssistantThread(LexiBaseTools):
 
                         # Replace annotations if included in the message
                         # Also get attachment references if any
-                        assistant_reply, attachments  = self.replace_annotations(messages.data[0])
+                        assistant_reply, attachments  = self.manage_downloads(messages.data[0])
 
                         # If the Run requires action and shows some echo message, filter it:
                         if (
@@ -237,9 +249,10 @@ class LexiAssistantThread(LexiBaseTools):
 
                             # Update conversation ORM
                             self.conversation_orm.app_messages_content.append({
-                                    'type':'assistant',
+                                    'source':'system',
+                                    'type': 'text', 
                                     'time': self.format_datetime(str(datetime.now()))[:-3],
-                                    'message':assistant_reply,
+                                    'text':assistant_reply,
                                 }
                             )
                             self.has_changed = True
@@ -255,15 +268,23 @@ class LexiAssistantThread(LexiBaseTools):
                         if attachments:
                             for filename in attachments:
 
-                                self.lexi.prepare_output(
+                                await self.lexi.prepare_output(
                                     f'Download "{filename}"',
                                     user_id = self.user_id,
                                     conversation_id=self.conversation_id,
                                     msg_type = "sys_notif",
                                     spell = False,
-                                    metadata = {
-                                        "attachment" : attachments[filename]
-                                        }
+                                    metadata = {"attachment" : attachments[filename]}
+                                )
+
+                                # Update conversation ORM
+                                self.conversation_orm.app_messages_content.append({
+                                        'text': f'Download "{filename}"',
+                                        'source': "system",
+                                        'type':'sys_notif',
+                                        'time': self.format_datetime(str(datetime.now()))[:-3],
+                                        'metadata': {"attachment" : attachments[filename]},
+                                    }
                                 )
 
                     # Exit the loop in case of failure
@@ -299,10 +320,32 @@ class LexiAssistantThread(LexiBaseTools):
                     )
                 # Let know the LexiOS
                 raise ValueError(f"Problem running process_run. Details: {e}")
+        
+        finally:
+            # Release the LexiAssistant to attend new requests    
+            self.running_stat = "ready"
+        
+        # Autogenerate conversation title
+        if run.status == "completed" and not self.title_generated and \
+        not self.run_in_background:
+
+            # Make a JSON structure with the conversation messages
+            content = json.dumps(self.conversation_orm.app_messages_content)
+            
+            # Generate name, update title
+            new_title = self.generate_conversation_name(content)
+            self.update_conversation_title(new_title)
+
+            # Notify the frontend
+            await self.lexi.prepare_output(
+                new_title,
+                user_id = self.user_id,
+                conversation_id=self.conversation_id,
+                msg_type = "title_update",
+            )
 
         # End of Run execution
-        # Release the LexiAssistant to attend new requests    
-        self.running_stat = "ready"
+        # Save the response generated, used for background tasks
 
         if self.run_in_background and run.status in ["completed", "cancelled", "failed", "expired"]:
 
@@ -311,7 +354,7 @@ class LexiAssistantThread(LexiBaseTools):
                 'output': assistant_reply,
             }
 
-    def update_thread_messages(self, new_message = None, new_file = None):
+    async def update_thread_messages(self, new_message = None, new_file = None):
         # Appends messages and attachments to the current user_thread
 
         if new_file:
@@ -330,7 +373,6 @@ class LexiAssistantThread(LexiBaseTools):
 
 
                 assistant_files = openai.beta.assistants.files.list(self.user_assistant.id)
-                print(assistant_files)
                 
                 # Log file upload:
                 with CustomLogger("file_uploads") as log:
@@ -340,12 +382,22 @@ class LexiAssistantThread(LexiBaseTools):
                 filename = os.path.basename(new_file)
 
                 #Notify the user:
-                self.lexi.prepare_output(
+                await self.lexi.prepare_output(
                     f'File "{filename}" uploaded', 
                     user_id=self.user_id, 
                     conversation_id=self.conversation_id,
                     spell = False, 
                     msg_type="sys_notif"
+                )
+
+                # Update conversation messages
+                self.conversation_orm.app_messages_content.append(
+                    {
+                        'text': f'File "{filename}" uploaded',
+                        'source': "system",
+                        'type':'sys_notif',
+                        'time': self.format_datetime(str(datetime.now()))[:-3],
+                    }
                 )
 
             except FileNotFoundError as e:
@@ -360,9 +412,10 @@ class LexiAssistantThread(LexiBaseTools):
 
                 # Update conversation ORM
                 self.conversation_orm.app_messages_content.append({
-                                        'type':'user',
+                                        'source':'user',
+                                        'type': 'text',
                                         'time': self.format_datetime(str(datetime.now()))[:-3],
-                                        'message':new_message,
+                                        'text':new_message,
                                     }                    
                 )
             self.has_changed = True
@@ -403,7 +456,8 @@ class LexiAssistantThread(LexiBaseTools):
                         user_msg["file_ids"] = [file_ref]
 
                     self.thread = openai.beta.threads.create(
-                        messages=[user_msg], metadata=self.metadata()
+                        messages=[user_msg], 
+                        metadata=self.metadata()
                     )
 
                     if not self.run_in_background:
@@ -471,15 +525,15 @@ class LexiAssistantThread(LexiBaseTools):
             ext_command = self.lexi.toolbox.get(call["function"]["name"], None)
             try:
                 tool_call = ToolCall(
-                    self.lexi,
-                    self.thread,
-                    self.user_id,
-                    self.conversation_id,
-                    call["id"],
-                    call["function"]["name"],
-                    call["function"]["arguments"],
+                    lexi=self.lexi,
+                    thread=self.thread,
+                    user_id=self.user_id,
+                    conversation_id=self.conversation_id,
+                    id=call["id"],
+                    function_name=call["function"]["name"],
+                    function_arguments=call["function"]["arguments"],
                     # Get the reference to the ext command:
-                    ext_command
+                    ext_command=ext_command,
                 )
                 self.tool_calls.append(tool_call)
             except Exception as e:
@@ -504,9 +558,9 @@ class LexiAssistantThread(LexiBaseTools):
                     
                     # Update conversation ORM
                     self.conversation_orm.app_messages_content.append({
-                                            'type':'assistant',
+                                            'source':'system',
                                             'time': self.format_datetime(str(datetime.now()))[:-3],
-                                            'message': tool_call.custom_output.get("text", None),
+                                            'text': tool_call.custom_output.get("text", None),
                                             'images': tool_call.custom_output.get("images", None),
                                         }                    
                     )
@@ -545,7 +599,7 @@ class LexiAssistantThread(LexiBaseTools):
 
         return metadata  # Return as a dictionary, not as a JSON string
 
-    def replace_annotations(self, message) -> str:
+    def manage_downloads(self, message) -> str:
         # Extract the message content
 
         message_content = message.content[0].text.value
@@ -560,6 +614,9 @@ class LexiAssistantThread(LexiBaseTools):
 
                 # Remove the annotations (for now)
                 message_content = message_content.replace(annotation.text, "")
+
+                # Regular expression to match text starting with "[Download" and ending with "]"
+                message_content = re.sub(r'\[Download[^\]]*\](?:\(\))?$', '', message_content)
                 
                 # Gather citations based on annotation attributes
                 if (file_citation := getattr(annotation, 'file_citation', None)):
@@ -579,22 +636,19 @@ class LexiAssistantThread(LexiBaseTools):
                         
                         file_content =  openai.files.content(cited_file.id).content
 
-                        # Create a subfolder with the first 5 characters of the session_id
-                        subfolder_name = self.session_id[:5]
-                        subfolder_path = os.path.join(DOWNLOAD_FOLDER, subfolder_name)
-
-                        # Create the subfolder if it doesn't exist
-                        if not os.path.exists(subfolder_path):
-                            os.makedirs(subfolder_path)
+                        # Create the user directory if it doesn't exist
+                        user_folder = os.path.join(PROJECT_FOLDER, "temp", "downloads", str(self.user_id).zfill(5))
+                        os.makedirs(user_folder, exist_ok=True)
 
                         # Create the file path inside the subfolder
-                        save_file_path = os.path.join(subfolder_path, filename)
+                        save_file_path = os.path.join(user_folder, filename)
 
                         # Write the content to the file
                         with open(save_file_path, "wb") as output_file:
                             output_file.write(file_content)
                         
-                        attachments[filename] = {'file_path': save_file_path}
+                        # Update the filename using the static folder of the fronted "downloads"
+                        attachments[filename] = {'file_path': os.path.join("downloads", str(self.user_id).zfill(5), filename)}
 
                         with CustomLogger("downloads") as log:
                             log.info(f"User: {self.user_id} File name:{filename} Status: Downloaded.")
@@ -610,6 +664,7 @@ class LexiAssistantThread(LexiBaseTools):
     def update_conversation_title(self, new_title):
         self.conversation_orm.title = new_title
         self.has_changed = True
+        self.title_generated = True
 
     def save_conversation(self):
         # Save conversation orm
@@ -632,3 +687,23 @@ class LexiAssistantThread(LexiBaseTools):
         self.status = "deleted"
         delete_conversation_in_db(self.conversation_id)
 
+    def generate_conversation_name(self, content):
+        # Define the prompt for GPT-3
+
+        response = openai.chat.completions.create(
+        model= LEXI_GPT_MODEL,
+        # Constraint to valid JSON format
+        response_format={ "type": "json_object" },
+        temperature=0.5,
+        messages=[
+            {"role": "system", "content": "You are tool that generates a 'conversation_title' designed to output JSON."},
+            {"role": "user", "content": f"conversation messages: {content}" }
+        ]
+        )
+        # Load response as a dictionary
+        response_generated = json.loads(response.choices[0].message.content)
+
+        # Extract the value from the dictionary
+        new_title = str(list(response_generated.values())[0])
+
+        return new_title

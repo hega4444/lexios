@@ -112,4 +112,3 @@ class LexiBaseTools:
         day_name = now.strftime("%A")
         # Return the first three characters (e.g., 'Mon')
         return day_name[:3]
-    

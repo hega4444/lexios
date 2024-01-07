@@ -3,7 +3,9 @@ from cryptography.fernet import Fernet
 
 from lexios.database.users import validate_password, create_user_account_in_db
 from lexios.core.thread import LexiAssistantThread
+from lexios.core.logger import CustomLogger
 from lexios.api.session_data import LexiSessionData
+
 
 
 # Configs
@@ -76,6 +78,38 @@ class LexiSessionManager:
         return new_thread
 
 
+    def load_conversation(self, conversation):
+        # Loads a existing conversation retrieved by the session manager
+        try:
+            
+            user_id = conversation.user_id
+
+            # Create the thread with the Lexi Session Manager
+            self.new_lexi_thread(
+                        user_id = user_id,
+                        conversation_id = conversation.conversation_id,
+                        args = {
+                            'restore_conversation' : True,
+                            'conversation_id' : conversation.conversation_id,
+                            'user_id': user_id,
+                            'user_message': '',
+                            'model': self.lexi.model,
+                            'tools': self.lexi.toolbox,
+                            'files': None,
+                            'lexi': self,
+                            'model_assistant_id': conversation.model_assistant_id,
+                            'model_thread_id': conversation.model_thread_id, 
+                            'metrics': conversation.metrics,
+                            'instructions': self.lexi.instructions,
+                            'conversation_orm' : conversation,
+                            'title_generated': True,  
+                        }
+                    )
+
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.error(f"Could not load conversation: {e}")
+
     def get_thread(self, user_id, conversation_id):
         # Recovers the thread object for a user / conversation
         try:
@@ -119,6 +153,4 @@ class LexiSessionManager:
             thread = user_loaded.get(conversation_id, None)
             if thread:
                 return thread.delete()
-
-
 
