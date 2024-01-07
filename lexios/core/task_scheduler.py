@@ -11,7 +11,7 @@ from lexios.database.models import ScheduledTaskPydantic
 from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
 from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_in_db, update_task_status
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
-from lexios.core.builtin.functions.email import GmailReader
+from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
 
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
@@ -43,7 +43,7 @@ class LexiTaskScheduler(LexiBaseTools):
                         data_id= None,
                         category= "backgroud_tasks",
                         start_at= now,
-                        repeat_each= GmailReader.check_frequency, 
+                        repeat_each= GmailClient.check_frequency, 
                         notify_to= "email_listener",
                         save_in_db= False,
                     )
@@ -446,13 +446,13 @@ class LexiTaskScheduler(LexiBaseTools):
             # Recover user data
             user = get_user_data_by_user_id(event.user_id)
             # Initiate handler
-            await GmailReader(user).execute_applying_rules()
+            await GmailClient(user=user).execute_applying_rules()
 
         elif event.notify_to == "calendar_listener":
             # Recover user data
             user = get_user_data_by_user_id(event.user_id)
             # Initiate handler
-           # await GmailReader(user).get_unread_emails()
+            await GoogleCalendar(user=user).get_calendar_data()
 
         #update event status
         

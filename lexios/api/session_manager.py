@@ -96,7 +96,7 @@ class LexiSessionManager:
                             'model': self.lexi.model,
                             'tools': self.lexi.toolbox,
                             'files': None,
-                            'lexi': self,
+                            'lexi': self.lexi,
                             'model_assistant_id': conversation.model_assistant_id,
                             'model_thread_id': conversation.model_thread_id, 
                             'metrics': conversation.metrics,
@@ -126,7 +126,8 @@ class LexiSessionManager:
             pass
 
         try:
-            self.active_connections.pop(user_id)
+            #self.active_connections.pop(user_id)
+            pass
         except Exception:
             pass
     

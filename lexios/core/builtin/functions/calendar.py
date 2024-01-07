@@ -3,19 +3,23 @@ import base64
 from datetime import timedelta, datetime
 
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
 from lexios.settings.main import *
-from lexios.api.session_data import LexiSessionData
 
 class GoogleCalendar():
 
     check_frequency = timedelta(minutes=30)
 
-    def __init__(self, user: LexiSessionData) -> None:
-        self.user = user
+    def __init__(self, **kwargs) -> None:
+
+        if "user" in kwargs:
+            self.user = kwargs.get("user")
+
         self.events = [] 
         
         if self.user.google_calendar_access:
@@ -66,8 +70,54 @@ class GoogleCalendar():
         # Process the events as needed
         return JSONResponse({'events': events})
     
-    def create_event(self):
-        pass
+    def create_google_calendar_event(self, summary:str, start_datetime:str, end_datetime:str, description=None):
+        # SUMM: Create an event in google calendar
+        # summary 'description': Name for the event
+        # description 'description': A more detailed description of the event
 
+        if not self.user.google_calendar_access:
+            raise AttributeError('User has not granted permission to access calendar data.')
+        
+         # Convert date strings to datetime objects
+        start_datetime = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S')
+        end_datetime = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S')
+
+        # Create google event data structure
+        event_data = {
+            'summary': summary,
+            'description': description,
+            'start': {
+                'dateTime': start_datetime.strftime('%Y-%m-%dT%H:%M:%S'),
+                'timeZone': 'UTC',
+            },
+            'end': {
+                'dateTime': end_datetime.strftime('%Y-%m-%dT%H:%M:%S'),
+                'timeZone': 'UTC',
+            },
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'popup', 'minutes': 30},
+                    {'method': 'email', 'minutes': 60},
+                ],
+            },
+            # Additional fields can be added as needed
+            # ...
+        }
+
+        try:
+            event = self.calendar_service.events().insert(
+                calendarId='primary',
+                body=event_data
+            ).execute()
+
+            # Update the internal events list with the new event
+            self.update_calendar_with([event])
+
+            return {'event': event}
+
+        except HttpError as e:
+            raise HTTPException(status_code=e.resp.status, detail=f'Error creating event: {str(e)}')
+        
     def update_event(self):
         pass

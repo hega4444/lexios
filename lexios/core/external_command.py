@@ -1,5 +1,5 @@
 
-import sys
+import asyncio
 import inspect
 import re
 import json
@@ -333,7 +333,7 @@ class LexiExternalCommand(LexiBaseTools):
                 return None
         return check
 
-    def execute_command(self, context = None, **kwargs):
+    async def execute_command(self, context = None, **kwargs):
         # Executes the external command 
 
         # Check for custom external command validation
@@ -358,7 +358,12 @@ class LexiExternalCommand(LexiBaseTools):
             dynamic_context = context.get("dynamic_context")
             required_object = self.requires_dynamic_object(**dynamic_context)
             method_to_call = getattr(required_object, self.name)
-            result = method_to_call(**kwargs)
+
+            if asyncio.iscoroutinefunction(method_to_call):
+
+                result = await method_to_call(**kwargs)
+            else:
+                result = method_to_call(**kwargs)
 
         else:
             # Execute static function otherwise

@@ -5,6 +5,7 @@ from admin.verify_folder import find_project_folder
 from lexios.core.lexi_base_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
+from lexios.api.session_data import read_session_data_from_backend  
 
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
@@ -104,11 +105,12 @@ class ToolCall():
                         'dynamic_context' : {
                             'lexi': self.lexi,
                             'user_id' : self.user_id,
+                            'user': read_session_data_from_backend(self.user_id),
                             'conversation_id' : self.conversation_id,
                         }
                     }
 
-                    self.ret_status = self.ext_command.execute_command(context, **params)
+                    self.ret_status = await self.ext_command.execute_command(context, **params)
                     
                 except Exception as e:
                     raise ValueError(

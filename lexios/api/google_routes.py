@@ -9,7 +9,7 @@ from google.auth.transport import requests as google_auth_request
 
 from lexios.settings.main import *
 from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
-from lexios.core.builtin.functions.email import GmailReader
+from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
 
 # Define router and backend components
@@ -30,6 +30,7 @@ async def google_auth():
             'https://www.googleapis.com/auth/userinfo.profile',
             'https://www.googleapis.com/auth/calendar',  # Add calendar scope
             'https://www.googleapis.com/auth/gmail.modify',  # Add Gmail scope
+            "https://www.googleapis.com/auth/contacts.readonly",
         ],
         redirect_uri=REDIRECT_URI
     )
@@ -111,33 +112,3 @@ async def google_callback(
         
     # Otherwise redirect to main screen
     return RedirectResponse("/")
-
-# Event: User opens Gmail inbox
-@google_router.post("/open_gmail/", response_class=JSONResponse, dependencies=[Depends(cookie)])
-async def open_gmail(
-    csrf_protect: CsrfProtect = Depends(), 
-    session_data: LexiSessionData = Depends(verifier)
-):
-    async with session_data:
-        
-        # Invoke a handler
-        email_handler = GmailReader(session_data)
-
-        # Read emails
-        unread = await email_handler.retrieve_unread_emails()
-        print(unread.body)
-
-# Event: User opens Gmail inbox
-@google_router.post("/open_calendar/", response_class=JSONResponse, dependencies=[Depends(cookie)])
-async def open_calendar(
-    csrf_protect: CsrfProtect = Depends(), 
-    session_data: LexiSessionData = Depends(verifier)
-):
-    async with session_data:
-        
-        # Invoke a handler
-        calendar_handler = GoogleCalendar(session_data)
-
-        # Read emails
-        events = await calendar_handler.get_calendar_data()
-        print(events.body)

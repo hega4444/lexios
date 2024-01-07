@@ -16,6 +16,9 @@ from lexios.core.builtin.engines.SQLEngine import LexiDatabase
 from lexios.core.builtin.engines.searchEngine import SearchEngine
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 
+# Built-in tools
+from lexios.core.builtin.functions.calendar import GoogleCalendar
+from lexios.core.builtin.functions.email import GmailClient 
 
 class LexiOS_Backend(LexiBaseTools):
     # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
@@ -288,7 +291,35 @@ class LexiOS_Backend(LexiBaseTools):
                     UserDataManager.create_automated_email_response_rule, 
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
-                    session_data_check="lexi_learns",
+                    session_data_check="gmail_access",
+                )
+            )
+
+            # Send email
+            self.append_command(
+                LexiExternalCommand(
+                    GmailClient.send_email, 
+                    requires_dynamic_object=GmailClient, 
+                    show_return_to_user=False,
+                    session_data_check="gmail_access",
+                )
+            )
+            # Seacrh for a contact
+            self.append_command(
+                LexiExternalCommand(
+                    GmailClient.search_email_by_name, 
+                    requires_dynamic_object=GmailClient, 
+                    show_return_to_user=False,
+                    session_data_check="gmail_access",
+                )
+            )
+            # Create automated email responses 
+            self.append_command(
+                LexiExternalCommand(
+                    GoogleCalendar.create_google_calendar_event, 
+                    requires_dynamic_object=GoogleCalendar, 
+                    show_return_to_user=False,
+                    session_data_check="google_calendar_access",
                 )
             )
 

@@ -27,6 +27,14 @@ const globalSettings = {
         });
     }
 
+    // Capture the text input element
+    const messageInput = document.getElementById('message-input');
+
+    if (messageInput) {
+          // Update text color for the text input
+          messageInput.style.color = globalSettings.textColor;
+    }
+
     // Update text color for elements with class 'add-apoint'
     const addApointElements = document.querySelectorAll('.add-apoint a');
     addApointElements.forEach(element => {

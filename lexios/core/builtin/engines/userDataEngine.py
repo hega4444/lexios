@@ -28,10 +28,15 @@ class UserSpecificData(BaseModel):
 # User data manager creates a level of abstraction allowing the ai model save user prefrences and specific data
 class UserDataManager():
 
-    def __init__(self, lexi= None, user_id: int= None, conversation_id: str = None) -> None:
-        self.lexi = lexi
-        self.user_id = user_id
-        self.conversation_id = conversation_id
+    def __init__(self, **kwargs) -> None:
+
+        # Load parameters
+        if "lexi" in kwargs:
+            self.lexi = kwargs.get("lexi")
+        if "user_id" in kwargs:
+            self.user_id = kwargs.get("user_id")
+        if "conversation_id" in kwargs:
+            self.conversation_id = kwargs.get("conversation_id")
 
         self.base_categories = ['reminders', 'preferences', 'memories']
         

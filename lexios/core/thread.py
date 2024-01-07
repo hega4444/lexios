@@ -310,7 +310,7 @@ class LexiAssistantThread(LexiBaseTools):
                             # Clear to_dos:
                             self.tool_calls = []
 
-        except ValueError as e:
+        except Exception as e:
                 # Inform the user about the problem:
                 if not self.run_in_background:
                     await self.lexi.prepare_output(

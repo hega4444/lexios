@@ -13,21 +13,22 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 from lexios.core.aitools import ai_assistant_request
+from lexios.core.logger import CustomLogger
 from lexios.database.users import retrieve_category_content, create_user_specific_data
 from lexios.database.models import UserSpecificData
-from lexios.api.session_data import LexiSessionData
 from lexios.settings.main import *
 
 
-class GmailReader():
+class GmailClient():
     # Class to access Gmail data, read and send emails
 
     # Define how often is the email checked
     check_frequency = timedelta(minutes=10) 
 
-    def __init__(self, user: LexiSessionData) -> None:
+    def __init__(self, **kwargs) -> None:
 
-        self.user = user
+        if "user" in kwargs:
+            self.user = kwargs.get("user")
         
         if self.user.gmail_access and self.user.google_details:
 
@@ -43,9 +44,11 @@ class GmailReader():
                 "client_secret": CLIENT_SECRET,
                 "refresh_token": refresh_token,
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "scopes": ["https://www.googleapis.com/auth/gmail.modify"],
+                "scopes": [
+                    "https://www.googleapis.com/auth/gmail.modify",
+                    "https://www.googleapis.com/auth/contacts.readonly",
+                ],
             }
-
             credentials = Credentials.from_authorized_user_info(credentials_info)
 
             # If credentials are expired, refresh them
@@ -54,6 +57,9 @@ class GmailReader():
 
             # Build the Gmail API service
             self.gmail_service = build('gmail', 'v1', credentials=credentials)
+
+            # Build the People API service
+            self.people_service = build('people', 'v1', credentials=credentials)
 
         else:
             raise AttributeError("User has not granted access to Gmail data.")
@@ -111,8 +117,12 @@ class GmailReader():
         # Return the messages
         return unread_messages_data
     
-    async def send_email(self, to_address, subject, body):
-        # Send an email using the Gmail API
+    async def send_email(self, to_address: str, subject: str, body: str):
+        # SUMM: Send an email using the Gmail API
+        # to_adsress 'description': email addresss
+
+        # Replace name annotation
+        body= body.replace("[Your Name]", ' '.join([self.user.name_first, self.user.name_last]))
 
         # Create a MIME message for sending
         message = MIMEMultipart()
@@ -225,7 +235,7 @@ class GmailReader():
                                 f"Dear (direct the message to {sender}),"
                                 "<body>"
                                 ""
-                                f"(Sign email as {' '.join(self.user.name_first, self.user.name_last)} "
+                                f"(Sign email as {' '.join([self.user.name_first, self.user.name_last])} "
                                 '"""',
 
                             instructions= "You are a tool that generates the text content for an email reply"
@@ -233,4 +243,56 @@ class GmailReader():
         )
         
         return response
-    
+
+    async def search_email_by_name(self, name: str):
+        # SUMM: Search for an email address among the gmail contacts
+
+        try:
+            # Use the People API to search for contacts by name
+            page_token = None
+
+            while True:
+                # Make the API request with the current page token
+                connections = self.people_service.people().connections().list(
+                    resourceName='people/me',
+                    personFields='names,emailAddresses,nicknames',  # Include names, nicknames, and email addresses
+                    pageSize=200,  # Set a larger page size to retrieve more results at once
+                    pageToken=page_token,  # Set the page token for the next page
+                ).execute()
+
+                # Extract the connections from the response
+                connections_list = connections.get('connections', [])
+
+                for connection in connections_list:
+                    # Extract names
+                    names = connection.get('names', [])
+                    for n in names:
+                        print(n.get("displayName"))
+                        if 'displayName' in n and name.lower() in n['displayName'].lower():
+            
+                            # Check if email is directly under 'emailAddresses'
+                            emails = connection.get('emailAddresses', [])
+                            if emails:
+                                # Prefer the first email address; you can modify this logic based on your requirements
+                                return emails[0].get('value')
+
+                            # Check if email is under 'emailAddresses.value'
+                            email_value = connection.get('emailAddresses.value')
+                            if email_value:
+                                return email_value
+
+                            # Check if email is under nested structures like 'emailAddresses[0].value'
+                            nested_email = connection.get('emailAddresses', [])
+                            if isinstance(nested_email, list) and nested_email:
+                                return nested_email[0].get('value')
+
+                # Check if there are more pages to retrieve
+                page_token = connections.get('nextPageToken')
+                if not page_token:
+                    break  # No more pages
+
+            return None
+
+        except Exception as e:
+            print(f"An error occurred while searching for email by name: {e}")
+            return None
