@@ -1,7 +1,7 @@
 # conversations.py
-
+import json  
 from lexios.database.models import Session, Conversation
-
+from lexios.core.logger import CustomLogger
 
 def get_user_conversations(user_id):
     # Retrieve stored conversations
@@ -12,35 +12,52 @@ def get_user_conversations(user_id):
         # Query the database to retrieve conversations for the given user_id
         conversations = session.query(Conversation).filter_by(user_id=user_id).order_by(Conversation.last_updated.desc()).all()
 
+        # Unpickle messages data 
+        for conversation in conversations:
+            conversation.app_messages_content = json.loads(conversation.app_messages_content)
+
         return conversations
+    
+    except Exception as e:
+        with CustomLogger("lexios") as log:
+            log.warning(f"Could not retrieve conversations data. {e}")
+            
+        session.rollback()  # Rollback changes in case of an error
+        raise  # Re-raise the exception for proper error handling
+
     finally:
         # Close the session
         session.close()
 
-def save_conversation_in_db(new_conversation):
+def save_conversation_in_db(conversation: Conversation):
     # Create a session
     session = Session()
 
+    # Picke mmesages data
+    conversation.app_messages_content = json.dumps(conversation.app_messages_content)
+
     try:
         # Query the database to check if the conversation already exists
-        existing_conversation = session.query(Conversation).filter_by(conversation_id=new_conversation.conversation_id).first()
+        existing_conversation = session.query(Conversation).filter_by(conversation_id=conversation.conversation_id).first()
 
         if existing_conversation:
             # Update the existing conversation with the new data
-            existing_conversation.title = new_conversation.title  # Update each column as needed
-            existing_conversation.app_messages_content = new_conversation.app_messages_content
-            existing_conversation.model_assistant_id = new_conversation.model_assistant_id
-            existing_conversation.model_thread_id = new_conversation.model_thread_id
-            existing_conversation.metrics = new_conversation.metrics 
+            existing_conversation.title = conversation.title  # Update each column as needed
+            existing_conversation.app_messages_content = conversation.app_messages_content
+            existing_conversation.model_assistant_id = conversation.model_assistant_id
+            existing_conversation.model_thread_id = conversation.model_thread_id
+            existing_conversation.metrics = conversation.metrics 
             # ...
 
             session.commit()  # Commit the changes
         else:
             # Conversation doesn't exist, so add the new one
-            session.add(new_conversation)
+            session.add(conversation)
             session.commit()
 
     except Exception as e:
+        with CustomLogger("lexios") as log:
+            log.warning(f"Could not retrieve conversations data. {e}")
         session.rollback()  # Rollback changes in case of an error
         raise  # Re-raise the exception for proper error handling
 

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey, Text, LargeBinary, Boolean, Interval
+from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey, Text, LargeBinary, Boolean, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -129,7 +129,7 @@ class Conversation(Base):
     conversation_id = Column(String(6), unique=True)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     title = Column(String(255))
-    app_messages_content =Column(LargeBinary)
+    app_messages_content = Column(JSON)
     model_assistant_id = Column(String(32), nullable=False)
     model_thread_id = Column(String(32), nullable=False)
     model_messages = Column(LargeBinary)  # Use LargeBinary to store binary data
@@ -231,9 +231,15 @@ def initial_database_setup():
         # Create models
         Base.metadata.create_all(engine)
 
+        # Create Admin user
+        admin_user = User(name_first='Admin', name_last='Login', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
+        session.add(admin_user)
+
         # Create a new user and add it to the database
         new_user = User(name_first='user', name_last='test', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
         session.add(new_user)
+
+
         session.commit()
 
         user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=True)

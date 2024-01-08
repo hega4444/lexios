@@ -21,6 +21,9 @@ class LexiAccessControl():
 
                 if not isinstance(self.verification, bool):
                     raise ValueError
+                
+                if not self.verification:
+                      raise PermissionError("Permission denied")
             
             except Exception as e:
                 with CustomLogger("security") as log:
@@ -28,15 +31,15 @@ class LexiAccessControl():
                 
                 raise PermissionError(f"Permission denied with errors, {e}")
         
-        if roles_required:
+        if self.verification and roles_required:
             # Default role needed for not registered objects
             roles_required = ["user_access"] 
 
             # Check if user has required roles
             if not any(role.name in roles_required for role in user_roles):
-                raise PermissionError("Permission denied")
-            
-        
+                raise PermissionError("Permission denied")     
+    
+        # If nothing trigerred ań error till now, then set verification status to True
         self.verification = True
 
     def __call__(self):

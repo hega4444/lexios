@@ -1,21 +1,7 @@
 // chat.js manages the connection with the server and messages exchangek-remember
 
-// Function to dynamically change the background image
-  function changeBackground() {
-    // Generate a random number between 1 and 9
-    const randomNumber = Math.floor(Math.random() * 9) + 1;
-
-    // Construct the background image file name
-    const backgroundImageFileName = `bg_000${randomNumber}.jpg`;
-
-    // Apply the background image to the .message-area element
-    const messageArea = document.querySelector(".message-area");
-    //messageArea.style.backgroundImage = `
-    //    linear-gradient(20deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 100%),
-    //    url('../static/images/${backgroundImageFileName}')`;
-}
-
 // Fetch user id
+
 const fetchSessionID = async () => {
     try {
         const response = await fetch('/get_session_id');
@@ -28,65 +14,64 @@ const fetchSessionID = async () => {
 };
 
 // Store the original height of the textarea when the page loads
+
 document.addEventListener('DOMContentLoaded', function () {
     const messageInput = document.getElementById('message-input');
     messageInput.setAttribute('data-original-height', messageInput.clientHeight);
 }); 
 
 // Submit request to Lexi
-function submitForm(url, messageInput, fileInput) {
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-    const originalHeight = messageInput.getAttribute('data-original-height');
-    
-    // Construct the form data to include session_id
-    fetchSessionID()
-        .then((session_id) => {
-            const formData = new FormData();
-            formData.append('csrf_token', csrfToken);
-            formData.append('session_id', session_id);
 
-            const userMessage = messageInput.value;
+async function submitForm(url, messageInput, fileInput) {
+    try {
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+        const originalHeight = messageInput.getAttribute('data-original-height');
+        
+        // Construct the form data to include session_id
+        const session_id = await fetchSessionID();
 
-            if (userMessage.trim() !== "" || fileInput.files[0]) {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('session_id', session_id);
 
-                // Example: Set the animation mode to "think"
-                setAnimationMode('think');
+        const userMessage = messageInput.value;
 
-                if (userMessage.trim() !== "") {
-                    formData.append('user_input', userMessage);
-                    let messageInnerHTML = userMessage.replace(/\n/g, '<br>');
-                    addMessageToChat(messageInnerHTML, null, "user", "text");
-                }
+        if (userMessage.trim() !== "" || fileInput.files[0]) {
 
-                if (fileInput.files[0]) {
-                    formData.append('file_upload', fileInput.files[0]);
-                    const fileName = fileInput.files[0].name;
-                    addMessageToChat(`Uploading file "${fileName}"`, null,  "system", "sys_notif", false, true);
-                }
+            // Set the animation mode to "think"
+            setAnimationMode('think');
 
-                // AJAX request to the Flask backend
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-Token': csrfToken,
-                    },
-                    body: formData
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-
-                // Clear the input field
-                messageInput.value = "";
-                fileInput.value = "";
-                messageInput.style.height = originalHeight + 'px';
+            if (userMessage.trim() !== "") {
+                formData.append('user_input', userMessage);
+                let messageInnerHTML = userMessage.replace(/\n/g, '<br>');
+                addMessageToChat(messageInnerHTML, null, "user", "text");
             }
-        })
-        .catch((error) => {
-            console.error('Error fetching user ID:', error);
-        });
-}
 
+            if (fileInput.files[0]) {
+                formData.append('file_upload', fileInput.files[0]);
+                const fileName = fileInput.files[0].name;
+                addMessageToChat(`Uploading file "${fileName}"`, null,  "system", "sys_notif", false, true);
+            }
+
+            // AJAX request to the Flask backend
+            await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrfToken,
+                },
+                body: formData
+            });
+
+            // Clear the input field
+            messageInput.value = "";
+            fileInput.value = "";
+            messageInput.style.height = originalHeight + 'px';
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        }
+}
 
 document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById("message-form");
@@ -157,7 +142,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             message = "Lexi: " + message;
                         }
                         // Use the new function to add the message to the chat
-                        addMessageToChat(message, images, "system", msg_type, isSpell, metadata);
+                        await addMessageToChat(message, images, "system", msg_type, isSpell, metadata);
 
                         // Example: Set the animation mode to "breath"
                         setAnimationMode('breath');
@@ -201,11 +186,14 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Attach the submitForm function to the form submit event
-    form.addEventListener("submit", function (event) {
+    form.addEventListener("submit", async function (event) {
         event.preventDefault(); // Prevent the default form submission behavior 
-        submitForm(form.getAttribute("action"), messageInput, fileInput);
+        try {
+            await submitForm(form.getAttribute("action"), messageInput, fileInput);
+        } catch (error) {
+            console.error('Error submitting form:', error);
+        }
     });
-
 
     // Function to get the CSRF token from cookies (you can include this function)
     function getCookie(name) {

@@ -1,7 +1,6 @@
 #thread.py
 import re
 import openai
-import pickle  # For pickling/unpickling the Python object
 
 from admin.verify_folder import find_project_folder
 
@@ -106,9 +105,9 @@ class LexiAssistantThread(LexiBaseTools):
             except Exception as e:
                 restore_thread_failed = True
             
+            # Restore messages from database
             if not restore_assistant_failed and not restore_thread_failed:
                 self.conversation_orm = conversation_orm
-                self.conversation_orm.app_messages_content = pickle.loads(self.conversation_orm.app_messages_content)
 
         if restore_conversation is False or restore_assistant_failed or restore_thread_failed:
             # Create the user_assistant role
@@ -234,6 +233,8 @@ class LexiAssistantThread(LexiBaseTools):
                         # Also get attachment references if any
                         assistant_reply, attachments  = self.manage_downloads(messages.data[0])
 
+                        assistant_reply, link = self.manage_links(assistant_reply)
+
                         # If the Run requires action and shows some echo message, filter it:
                         if (
                             self.lexi.filter_echo is True
@@ -263,6 +264,27 @@ class LexiAssistantThread(LexiBaseTools):
                             # Log entry
                             with CustomLogger("messages") as log:
                                 log.debug("new message", details={"from": "lexi", "content": assistant_reply, "filtered": False})
+
+                        # Handle links
+                        if link:
+                            await self.lexi.prepare_output(
+                                    link.get("text"),
+                                    user_id = self.user_id,
+                                    conversation_id=self.conversation_id,
+                                    msg_type = "sys_notif",
+                                    spell = False,
+                                    metadata = {"attachment" : link },
+                            )
+
+                            # Update conversation ORM
+                            self.conversation_orm.app_messages_content.append({
+                                        'text': link.get("text"),
+                                        'source': "system",
+                                        'type':'sys_notif',
+                                        'time': self.format_datetime(str(datetime.now()))[:-3],
+                                        'metadata': {"attachment" : link },
+                                    }
+                            )
 
                         # Handle attachments
                         if attachments:
@@ -599,7 +621,7 @@ class LexiAssistantThread(LexiBaseTools):
 
         return metadata  # Return as a dictionary, not as a JSON string
 
-    def manage_downloads(self, message) -> str:
+    def manage_downloads(self, message):
         # Extract the message content
 
         message_content = message.content[0].text.value
@@ -648,7 +670,7 @@ class LexiAssistantThread(LexiBaseTools):
                             output_file.write(file_content)
                         
                         # Update the filename using the static folder of the fronted "downloads"
-                        attachments[filename] = {'file_path': os.path.join("downloads", str(self.user_id).zfill(5), filename)}
+                        attachments[filename] = {'link': os.path.join("downloads", str(self.user_id).zfill(5), filename)}
 
                         with CustomLogger("downloads") as log:
                             log.info(f"User: {self.user_id} File name:{filename} Status: Downloaded.")
@@ -660,6 +682,33 @@ class LexiAssistantThread(LexiBaseTools):
         except Exception as e:
             pass
         return message_content, attachments
+
+    def manage_links(self, text: str) -> str:
+        # Identify links and create appropiate containers
+        
+        # Define a regular expression pattern for matching URLs and text within square brackets
+        pattern = re.compile(r'(?P<text>[^\[]+)(?:\[(?P<text_in_brackets>[^\]]+)\])?(?:\((?P<link>https?://[^\)]+)\))?')
+
+        # Search for the pattern in the input text
+        match = re.search(pattern, text)
+
+        if match:
+            # Extract the matched groups
+            modified_text = match.group('text').strip()
+            text_in_brackets = match.group('text_in_brackets')
+            link = match.group('link')
+
+            if link:
+
+                link_data = {
+                    'text': text_in_brackets,
+                    'link' : link, 
+                }
+
+                return modified_text, link_data
+        
+        
+        return text, None
 
     def update_conversation_title(self, new_title):
         self.conversation_orm.title = new_title
@@ -673,7 +722,6 @@ class LexiAssistantThread(LexiBaseTools):
             try:
                 #self.conversation_orm.model_messages = pickle.dumps(self.conversation_orm.model_messages)
                 self.conversation_orm.model_messages = None # for now
-                self.conversation_orm.app_messages_content = pickle.dumps(self.conversation_orm.app_messages_content)
             except Exception as e:
                 pass
 

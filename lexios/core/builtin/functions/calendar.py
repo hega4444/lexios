@@ -55,7 +55,6 @@ class GoogleCalendar():
         for event in events:
             if event not in self.events:
                 self.events.append(event)
-        print (events)
 
     async def get_calendar_data(self, days: int = 10):
         # Example: Retrieve the next 10 events from the user's primary calendar
@@ -79,8 +78,8 @@ class GoogleCalendar():
             raise AttributeError('User has not granted permission to access calendar data.')
         
          # Convert date strings to datetime objects
-        start_datetime = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S')
-        end_datetime = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S')
+        start_datetime = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S') + timedelta(minutes=TIME_DELTA)
+        end_datetime = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S') + timedelta(minutes=TIME_DELTA)
 
         # Create google event data structure
         event_data = {

@@ -1,6 +1,7 @@
 # lexios/api/routes.py
 import os
 import asyncio
+
 from fastapi import FastAPI, Request, Depends, Form, HTTPException, Body
 from fastapi import File, UploadFile, Query, Path
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
@@ -18,13 +19,12 @@ PROJECT_FOLDER = find_project_folder()
 
 from lexios.settings.main import *
 from lexios.api.globals import Globals
-from lexios.api.session_data import backend, cookie, verifier
-from lexios.api.redis_websocket import messages_router
+from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
+from lexios.api.redis_websocket import messages_router, listen_to_redis
 from lexios.api.google_routes import google_router, google_backend
+from lexios.api.web_proxy import get_link_icon_and_title
 from lexios.database.conversations import get_user_conversations
 from lexios.database.users import update_user_data_in_db
-from lexios.api.redis_websocket import listen_to_redis
-from lexios.api.session_data import LexiSessionData
 from lexios.integrations.make import get_lexi_backend_instance
 
 # set up lexi backend features
@@ -631,3 +631,25 @@ async def logout(
     # conversation history 
     session_manager.close_session(session_data.user_id)
     return RedirectResponse(url='/')
+
+@app.get("/test", response_class=HTMLResponse)
+async def test(
+    request: Request,
+):
+    return templates.TemplateResponse(
+        "test.html",    
+        {"request": request},
+        )
+
+
+@app.get("/url/{url:path}", response_class=JSONResponse)
+async def proxy(url: str, request: Request):
+    # Return the icon and title of a given href 
+    
+    if url:
+
+        data = await get_link_icon_and_title(url)
+
+        response = JSONResponse(data)
+        
+        return response

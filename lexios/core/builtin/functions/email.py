@@ -64,7 +64,6 @@ class GmailClient():
         else:
             raise AttributeError("User has not granted access to Gmail data.")
 
-
     async def retrieve_unread_emails(self):
 
         # Calculate the date 24 hours ago from the current time

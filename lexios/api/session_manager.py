@@ -123,13 +123,24 @@ class LexiSessionManager:
             for thread in self.active_connections[user_id].values():
                 thread.save_conversation()
         except Exception as e:
-            pass
+            with CustomLogger("lexios") as log:
+                log.warning(f"Could not save conersation data. User_id:{user_id}. Details:{e}")
 
         try:
-            #self.active_connections.pop(user_id)
+            self.active_connections.pop(user_id)
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.warning(f"Could not close session correctly. User_id:{user_id}. Details:{e}")
+    
+    def save_session(self, user_id):
+        # Handles the close of active connections
+        try:
+            for thread in self.active_connections[user_id].values():
+                thread.save_conversation()
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.warning(f"Could not save conersation data. User_id:{user_id}. Details:{e}")
     
     def update_converstion_title(self, user_id, conversation_id, new_title):
         # Sends a message to the LexiThread to update the conversation title

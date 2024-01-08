@@ -43,10 +43,9 @@ function typeMessage(message, element, callback) {
     typeCharacter();
 }
 
-function addMessageToChat(messageText = null, images = null, source, type, spell = false, metadata = null, time = null) {
+async function addMessageToChat(messageText = null, images = null, source, type, spell = false, metadata = null, time = null) {
     const chatMessages = document.querySelector(".msg-body ul");
     const messageScrollArea = document.getElementById("modal-body-messages");
-
     
     if (source === "system" && messageText) {
         // Replace newline characters with line break elements to preserve formatting
@@ -86,10 +85,10 @@ function addMessageToChat(messageText = null, images = null, source, type, spell
 
             if (metadata && metadata.attachment) {
                 // Check if "attachment" has a "file_path" property
-                if (metadata.attachment.file_path) {
+                if (metadata.attachment.link) {
                     // Create a link element
                     const link = document.createElement("a");
-                    link.href = metadata.attachment.file_path; // Set the link target
+                    link.href = metadata.attachment.link; // Set the link target
                     link.textContent = messageText; // Use the message text as link text
                     newMessage.appendChild(link); // Append the link to the message
                 } 
@@ -164,14 +163,33 @@ function addMessageToChat(messageText = null, images = null, source, type, spell
 
     // Append the message container to the chat messages
     chatMessages.appendChild(newMessageContainer);
-    
+
+    // Link wildcards
+    // Regular expression to match URLs
+    const urlRegex = /(https?|ftp):\/\/[^\s/$.?#].[^\s]*/gi;
+
+    if (messageText) {
+        // Check if the messageText contains a URL
+        const urls = messageText.match(urlRegex);
+
+        if (urls) {
+            // Fetch link previews for the URLs concurrently
+            const previews = await Promise.all(urls.map(url => previewLink(url)));
+        
+            // Use a for...of loop to iterate over the previews array
+            for (const [index, preview] of previews.entries()) {
+                const url = urls[index];
+                processPreview(preview, url, newMessageContainer);
+            }
+        }
+    }
     // Scroll to the bottom of the chat box to show the new message
     scrollToBottom(messageScrollArea);
 
     // Return the newMessageContainer object
     return newMessageContainer;
-}
 
+}
 
 // Function to scroll to the bottom of the chat container
 function scrollToBottom(container) {
@@ -182,3 +200,69 @@ function scrollToBottom(container) {
 function formatUserId(user_id) {
     return String(user_id).padStart(5, '0');
 }
+
+// Async function to fetch link previews
+async function previewLink(url) {
+    try {
+        const response = await fetch(`/url/${encodeURIComponent(url)}`);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching link preview:", error);
+        return null;
+    }
+}
+
+
+// Function to open a link in a new tab
+function openLinkInNewTab(url) {
+    window.open(url, "_blank");
+}
+
+
+function processPreview(preview, link_url, messageContainer) {
+    const { icon_url, title } = preview;
+
+    // Create a thumbnail container
+    const containerElement = document.createElement("div");
+    containerElement.className = "link_thumbnail";
+
+    const thumbnailContainer = document.createElement("div");
+
+    // Create an image element for the thumbnail
+    const thumbnailImage = document.createElement("img");
+    thumbnailImage.src = icon_url;
+    thumbnailImage.alt = title;
+    thumbnailImage.style.width = "70px"; // Adjust the width as needed
+    thumbnailImage.style.cursor = "pointer"; // Change cursor on hover
+    thumbnailImage.title = "Click to open"; // Tooltip on hover
+
+    // Create a container for the title
+    const titleContainer = document.createElement("div");
+    titleContainer.style.display = "flex";
+    titleContainer.style.alignItems = "center"; // Align items vertically at the center
+
+    // Create a paragraph element for the title (in bold)
+    const titleParagraph = document.createElement("p");
+    titleParagraph.textContent = title;
+    titleParagraph.style.fontWeight = "bold"; // Set the text to bold
+    titleParagraph.style.cursor = "pointer"; // Change cursor on hover
+    titleParagraph.title = "Click to open"; // Tooltip on hover
+
+    // Append the thumbnail image to the thumbnail container
+    thumbnailContainer.appendChild(thumbnailImage);
+
+    // Append the title paragraph to the title container
+    titleContainer.appendChild(titleParagraph);
+
+    // Append the thumbnail container and title container to the main container element
+    containerElement.appendChild(thumbnailContainer);
+    containerElement.appendChild(titleContainer);
+
+    // Add click event listeners to the image and the paragraph
+    thumbnailImage.addEventListener("click", () => openLinkInNewTab(link_url));
+    titleParagraph.addEventListener("click", () => openLinkInNewTab(link_url));
+
+    messageContainer.appendChild(containerElement);
+}
+

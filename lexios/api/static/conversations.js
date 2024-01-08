@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (result.conversations_list && result.conversations_list.length > 0) {
             for (const customTitle of result.conversations_list) {
                 // Create custom conversation elements for each title
-                const customConversationElement = createConversationElement(customTitle);
+                const customConversationElement = await createConversationElement(customTitle);
                 chatList.appendChild(customConversationElement);
             }
         } else {
@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
         
         // Load conversation in main view screen
-        load_conversation_messages(result.conversation_focus)
+        await load_conversation_messages(result.conversation_focus)
         moveConversationToTop(result.conversation_focus)
         
     } catch (error) {
@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
                 // Create and append new conversation element 
                 const customTitle = ["new chat..", next_conversation_id];
-                const customConversationElement = createConversationElement(customTitle);
+                const customConversationElement = await createConversationElement(customTitle);
 
                 // Assuming chatList is the parent container
                 // Use the firstChild property to get the first child of the container
@@ -143,7 +143,7 @@ function updateConversationTitle(conversation_id, new_title) {
         });
 }
 
-function createConversationElement(title) {
+async function createConversationElement(title) {
 
     const conversationElement = document.createElement('div');
     conversationElement.className = 'conversation-element';
@@ -167,7 +167,7 @@ function createConversationElement(title) {
     const originalTitle = title[0];
 
     // Add a click event listener to the entire conversation element
-    conversationElement.addEventListener('click', function(event) {
+    conversationElement.addEventListener('click', async function(event) {
         // Prevent the event from bubbling up to the document level
         event.stopPropagation();
         
@@ -191,7 +191,7 @@ function createConversationElement(title) {
         } else {
             // Trigger the GET request when the click is not on the "edit" or "delete" button
             const conversation_id = conversationElement.dataset.conversation_id;
-            load_conversation_messages(conversation_id);
+            await load_conversation_messages(conversation_id);
 
             // Move the conversation element to the top of the chat list
             moveConversationToTop(conversation_id);
@@ -199,7 +199,7 @@ function createConversationElement(title) {
     });
 
     // Handle Enter key press or click outside to stop editing
-    titleElement.addEventListener('keydown', function(event) {
+    titleElement.addEventListener('keydown', async function(event) {
         const conversation_id = conversationElement.dataset.conversation_id;
 
         if (event.key === 'Enter') {
@@ -215,7 +215,7 @@ function createConversationElement(title) {
             titleElement.classList.remove('editable'); // Remove the "editable" class
 
             // Trigger the GET request when the title is updated
-            load_conversation_messages(conversation_id);
+            await load_conversation_messages(conversation_id);
 
             // Move the conversation element to the top of the chat list
             moveConversationToTop(conversation_id);
@@ -238,42 +238,45 @@ function createConversationElement(title) {
 
     return conversationElement;
 }
+
 // Function to make a GET request for conversation details
-function load_conversation_messages(conversationId) {
+async function load_conversation_messages(conversationId) {
     const apiUrl = `/get_conversation_data?select_conversation_id=${conversationId}`;
     const chatMessages = document.querySelector(".msg-body ul");
 
-    fetch(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Clear messages first
-            chatMessages.innerHTML = ""
+    try {
+        const response = await fetch(apiUrl);
 
-            // Add messages
-            const messages = data.messages;
-            if (data.messages && data.messages.length > 0) {
-                for (const message of data.messages) {
-                    let text = message.text || null;
-                    let source = message.source;
-                    let msg_type = message.type;
-                    let time = message.time;
-                    let metadata = message.metadata || null;
-                    let images = message.images || null;
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
 
-                    // Add messages to the main chatbox area
-                    addMessageToChat(text, images, source, msg_type, false, metadata, time); // Adjust message parameters
-                }
+        const data = await response.json();
+
+        // Clear messages first
+        chatMessages.innerHTML = "";
+
+        // Add messages
+        const messages = data.messages;
+
+        if (data.messages && data.messages.length > 0) {
+            for (const message of data.messages) {
+                let text = message.text || null;
+                let source = message.source;
+                let msg_type = message.type;
+                let time = message.time;
+                let metadata = message.metadata || null;
+                let images = message.images || null;
+
+                // Add messages to the main chatbox area
+                await addMessageToChat(text, images, source, msg_type, false, metadata, time); // Adjust message parameters
             }
-        })
-        .catch(error => {
-            console.error('Error fetching conversation details:', error);
-        });
+        }
+    } catch (error) {
+        console.error('Error fetching conversation details:', error);
+    }
 }
+
 // Function to show the custom modal
 function showModal() {
     const modal = document.getElementById('confirmationModal');
@@ -322,7 +325,7 @@ function confirmDeleteConversation(conversation_id) {
     });
 }
 
-function deleteConversation(conversation_id) {
+async function deleteConversation(conversation_id) {
     // Find the conversation element with the given conversation_id
     const conversationElement = document.querySelector(`.conversations-list .conversation-element[data-conversation_id="${conversation_id}"]`);
 
@@ -333,7 +336,7 @@ function deleteConversation(conversation_id) {
 
         // Find first element in the list and load conversation
         const firstConversationElement = document.querySelector('.conversations-list .conversation-element');
-        load_conversation_messages(firstConversationElement.dataset.conversation_id);
+        await load_conversation_messages(firstConversationElement.dataset.conversation_id);
 
         // Send a post request to the server for conversation deletion
         const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Get CSRF token from the form

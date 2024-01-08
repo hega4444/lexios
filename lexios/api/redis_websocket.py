@@ -63,7 +63,7 @@ async def websocket_endpoint(
         update_user_data_in_db(session_data)
 
         # conversation history
-        session_manager.close_session(session_data.user_id)
+        session_manager.save_session(session_data.user_id)
 
         # Handle disconnect
         manager.disconnect(session_id)
