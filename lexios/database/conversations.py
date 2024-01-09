@@ -12,15 +12,11 @@ def get_user_conversations(user_id):
         # Query the database to retrieve conversations for the given user_id
         conversations = session.query(Conversation).filter_by(user_id=user_id).order_by(Conversation.last_updated.desc()).all()
 
-        # Unpickle messages data 
-        for conversation in conversations:
-            conversation.app_messages_content = json.loads(conversation.app_messages_content)
-
         return conversations
     
     except Exception as e:
         with CustomLogger("lexios") as log:
-            log.warning(f"Could not retrieve conversations data. {e}")
+            log.warning(f"Could not retrieve conversations data. Type returned: {c_type}, details: {e} ")
             
         session.rollback()  # Rollback changes in case of an error
         raise  # Re-raise the exception for proper error handling
@@ -32,9 +28,6 @@ def get_user_conversations(user_id):
 def save_conversation_in_db(conversation: Conversation):
     # Create a session
     session = Session()
-
-    # Picke mmesages data
-    conversation.app_messages_content = json.dumps(conversation.app_messages_content)
 
     try:
         # Query the database to check if the conversation already exists

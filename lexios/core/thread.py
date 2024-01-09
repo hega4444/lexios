@@ -1,17 +1,19 @@
 #thread.py
 import re
 import openai
+import asyncio
 
 from admin.verify_folder import find_project_folder
 
+from lexios.api.session_data import read_session_data_from_backend
 from lexios.database.models import Conversation 
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
 from lexios.database.users import get_user_data_by_user_id
 from lexios.core.lexi_base_tools import *
 from lexios.core.function_calling import ToolCall
 from lexios.core.toolbox import UserToolBox
-from lexios.api.session_data import read_session_data_from_backend
 from lexios.core.logger import CustomLogger
+from lexios.core.consent import ConsentScreen
 
 PROJECT_FOLDER = find_project_folder()
 
@@ -36,6 +38,7 @@ class LexiAssistantThread(LexiBaseTools):
         metrics = None,
         conversation_orm = None,
         title_generated = False,
+        session_id: str = None,
 
     ) -> None:
         # Call the __init__ methods of the base classes
@@ -147,6 +150,9 @@ class LexiAssistantThread(LexiBaseTools):
         self.title_generated = title_generated
         if restore_conversation:
             self.title_generated = True
+
+        # Consent dialog screen
+        self.consent_dialog = None
 
     async def new_user_message(self, user_message: str = None, filename:str = None):
         # Handles the execution of a run Thread 
@@ -317,7 +323,7 @@ class LexiAssistantThread(LexiBaseTools):
                     if run.status == "requires_action":
 
                             # Create required tool calls:
-                            self.create_tool_calls(run)
+                            await self.create_tool_calls(run)
 
                             # Attend calls generated:
                             await self.attend_tool_calls()
@@ -527,7 +533,7 @@ class LexiAssistantThread(LexiBaseTools):
 
                 raise ValueError(f"Problem attaching file {new_file} to Assistant. User {self.user_id}. Details: {e}")
                      
-    def create_tool_calls(self, run):
+    async def create_tool_calls(self, run):
         # Create a ToolCall for each required action:
         
         # Attend required action, an action can include more than a tool call:
@@ -540,62 +546,124 @@ class LexiAssistantThread(LexiBaseTools):
                 .get("tool_calls")
             )
         except Exception as e:
-            pass
+            with CustomLogger("lexios") as log:
+                log.error(f"Could not parse tool_calls from Run object. {e}")
         
-        # Create tool_calls:
+        requires_consent_screen = False
+
+        # Create Tool_calls:
         for call in calls:
+
+            # Retrieve the external command associated to the Call
             ext_command = self.lexi.toolbox.get(call["function"]["name"], None)
+
+            if ext_command:
+                
+                try:
+                    # Create ToolCall
+                    tool_call = ToolCall(
+                        lexi=self.lexi,
+                        thread=self.thread,
+                        user_id=self.user_id,
+                        conversation_id=self.conversation_id,
+                        id=call["id"],
+                        function_name=call["function"]["name"],
+                        function_arguments=call["function"]["arguments"],
+                        # Get the reference to the ext command:
+                        ext_command=ext_command,
+                    )
+
+                    self.tool_calls.append(tool_call)
+
+                    # Check if tool requires an scope request
+                    if not requires_consent_screen and ext_command.scopes:
+                        requires_consent_screen = True
+
+                except Exception as e:
+                    # Tool cannot be used (most probably wrong name):
+                    with CustomLogger("func_calls_err") as log:
+                        log.error(f"Tool '{call['function']['name']}' not found.")
+
+
+        # Check if the action requires a consent screen
+        if requires_consent_screen:
             try:
-                tool_call = ToolCall(
-                    lexi=self.lexi,
-                    thread=self.thread,
-                    user_id=self.user_id,
-                    conversation_id=self.conversation_id,
-                    id=call["id"],
-                    function_name=call["function"]["name"],
-                    function_arguments=call["function"]["arguments"],
-                    # Get the reference to the ext command:
-                    ext_command=ext_command,
-                )
-                self.tool_calls.append(tool_call)
+
+                # Create context for the screen
+                context = {
+                    'lexi' : self.lexi,
+                    'user_id': self.user_id,
+                    'conversation_id': self.conversation_id,
+                    'calls': self.tool_calls, 
+                    'timer': 60,
+                }
+
+                # Create consent screen verification
+                self.consent_dialog = ConsentScreen(**context)
+                
+                # Show to user
+                await self.consent_dialog.show_to_user()
+
             except Exception as e:
-                # Tool cannot be used (most probably wrong name):
-                with CustomLogger("func_calls_err") as log:
-                    log.error(f"Tool '{call['function']['name']}' not found.")
+                with CustomLogger("lexios") as log:
+                    log.warning(f"Could not verify consent screen due to {e}.")
+
 
     async def attend_tool_calls(self):
         # Execute tool actions:
-        self.status = "in_progress"
 
-        # Manage tasks pending to execute inside a required action:
-        for tool_call in self.tool_calls:
-            # Execute the actions if they are still pending
-            if tool_call.status == "queued":
+        while not self.consent_dialog or self.consent_dialog.status not in ["expired", "cancelled"]:
+
+            # Manage tasks pending to execute inside a required action:
+            for tool_call in self.tool_calls:
                 
-                # Each action
-                await tool_call.async_tool_run()
+                # Create a flag to control the call execution
+                ready_to_execute = False
 
-                # Check if the tool generated a custom output
-                if tool_call.custom_output:
+                # Verifiy if there is an active consent dialog
+                if self.consent_dialog:
+
+                # Validate the call with the dialog
+                    call_consent_status = self.consent_dialog.validate_call(tool_call)
+
+                    if call_consent_status == "granted":
+                        ready_to_execute = True
+
+                    elif call_consent_status == "denied":
+                        # Reject the tool call
+                        tool_call.reject()
+
+                else:
+                    # If there is no active dialog go ahead
+                    ready_to_execute = True
+
+                # Execute the actions if they are still pending
+                if ready_to_execute and tool_call.status == "queued":
                     
-                    # Update conversation ORM
-                    self.conversation_orm.app_messages_content.append({
-                                            'source':'system',
-                                            'time': self.format_datetime(str(datetime.now()))[:-3],
-                                            'text': tool_call.custom_output.get("text", None),
-                                            'images': tool_call.custom_output.get("images", None),
-                                        }                    
-                    )
+                    # Each action
+                    await tool_call.async_tool_run()
 
-        # Update required action statuses
-        if all(tool_action.status == "completed" for tool_action in self.tool_calls):
-            self.status = "completed"
+                    # Check if the tool generated a custom output
+                    if tool_call.custom_output:
+                        
+                        # Update conversation ORM
+                        self.conversation_orm.app_messages_content.append({
+                                                'source':'system',
+                                                'time': self.format_datetime(str(datetime.now()))[:-3],
+                                                'text': tool_call.custom_output.get("text", None),
+                                                'images': tool_call.custom_output.get("images", None),
+                                            }                    
+                        )
 
-        elif all(
-            tool_action.status == "completed" or tool_action.status == "failed"
-            for tool_action in self.tool_calls
-        ):
-            self.status = "with_exceptions"
+            # Update the status of the pending calls
+            if all(tool_action.status in ("completed", "failed", "rejected", "expired") \
+                   for tool_action in self.tool_calls):
+                
+                break
+
+            # Wait some time
+            await asyncio.sleep(1)
+
 
     def submit_function_outputs(self, run):
         # Create JSON output for function and submit to Run:

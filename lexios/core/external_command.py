@@ -1,13 +1,14 @@
 
-import asyncio
-import inspect
 import re
 import json
+import asyncio
+import inspect
+
+from typing import List
 from collections import OrderedDict
 
-
-# Tools
 from lexios.core.lexi_base_tools import *
+from lexios.core.logger import CustomLogger
 
 class LexiExternalCommand(LexiBaseTools):
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
@@ -22,7 +23,8 @@ class LexiExternalCommand(LexiBaseTools):
         before: str = None,
         after: str = None,
         printer: callable = None,
-        roles_required: str = None,
+        roles_required: List[str] = None,
+        scopes: List[str] = None,
         session_data_check: str = None,
         allowed_in_background = False,
     ):
@@ -54,6 +56,9 @@ class LexiExternalCommand(LexiBaseTools):
 
         # Security obj: code to register object and later access control
         self.roles_required = roles_required
+
+        # Scopes are specific confirmations the action may need. I.E. "Im about to send an email. Do you want me to proceed...?"
+        self.scopes = scopes 
         self.session_data_check = session_data_check
 
         # Define if the command can be executed by assistants running in background mode
@@ -370,6 +375,39 @@ class LexiExternalCommand(LexiBaseTools):
             result = self.func(**kwargs)
         
         return result
+    
+    def load_scope(self, scope_name: str, template: str, vars: List[str] = None):
+        # Customize an external command with a consent screen scope that uses parameters to form the string to show to the user
+
+        # Available vars: names of the arguments described in the external command 
+        # Validate Vars
+
+        for var in vars:
+            if not self.is_valid_parameter(var):
+                raise ValueError(f"{var} is not a valid parameter for {self.name}. Check your entry.")
+
+        if self.scopes is None:
+            self.scopes = {}
+
+        self.scopes[scope_name] = {
+                'template' : template, 
+                'args' : vars,
+                }
+        
+    
+    def is_valid_parameter(self, variable_name):
+        # Check if variable_name is a valid parameter in func_specs structure
+        if (
+            isinstance(variable_name, str) and
+            "function" in self.specs and
+            isinstance(self.specs["function"], dict) and
+            "parameters" in self.specs["function"] and
+            isinstance(self.specs["function"]["parameters"], dict) and
+            variable_name in self.specs["function"]["parameters"]["properties"]
+        ):
+            return True
+        else:
+            return False
 
 
 if __name__ == "__main__":

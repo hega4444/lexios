@@ -133,6 +133,7 @@ class LexiOS_Backend(LexiBaseTools):
 
     async def prepare_output(
             self, *args: str, 
+            session_id = None, 
             spell=True, 
             user_id=None,
             conversation_id=None, 
@@ -147,8 +148,9 @@ class LexiOS_Backend(LexiBaseTools):
         try:
             # Prepare outbound message
             session_id = self.users.get(user_id).session_id
+
             outbound_message = {
-                    "session_id": str(session_id),
+                    "session_id" : str(session_id),
                     "conversation_id": conversation_id,
                     "msg_type": msg_type,
                     "metadata": metadata,
@@ -165,7 +167,7 @@ class LexiOS_Backend(LexiBaseTools):
                 print(f"{self.lexi_prompt} {message}")
 
             outbound_message['content'] = message
-
+    
             # Images
             if images:
                 outbound_message['images']  = images
@@ -296,14 +298,22 @@ class LexiOS_Backend(LexiBaseTools):
             )
 
             # Send email
-            self.append_command(
-                LexiExternalCommand(
+            send_email_command = LexiExternalCommand(
                     GmailClient.send_email, 
                     requires_dynamic_object=GmailClient, 
                     show_return_to_user=False,
                     session_data_check="gmail_access",
                 )
+            
+            # Load a dynamic scope
+            send_email_command.load_scope(
+                scope_name= "send_email_response",
+                template= "Send automated e-mail to '{to_address}'.",
+                vars = ["to_address"],
             )
+
+            self.append_command(send_email_command)
+
             # Seacrh for a contact
             self.append_command(
                 LexiExternalCommand(
@@ -438,6 +448,7 @@ class LexiOS_Backend(LexiBaseTools):
     async def process_user_request(
         self, user_input: str = None, 
         user_id: int = None, 
+        session_id: str = None, 
         conversation_id: str = None,
         data = None, 
         filename = None, 
@@ -453,6 +464,11 @@ class LexiOS_Backend(LexiBaseTools):
             try:
                 # conversation_id
                 conversation_id = data['conversation_id']
+            except KeyError:
+                pass
+
+            # session_id
+                session_id = data['session_id']
             except KeyError:
                 pass
 
@@ -499,6 +515,7 @@ class LexiOS_Backend(LexiBaseTools):
                         conversation_id = conversation_id,
                         args = {
                             'conversation_id' : conversation_id,
+                            'session_id': session_id,
                             'user_id': user_id,
                             'model': self.model,
                             'tools': self.toolbox,

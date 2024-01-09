@@ -6,14 +6,13 @@ import uuid
 import json
 import asyncio
 import threading
+import tldextract
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from concurrent.futures import ThreadPoolExecutor
-
-from fastapi import BackgroundTasks
+from urllib.parse import urlparse
 
 from admin.verify_folder import find_project_folder
 from lexios.settings.main import DOWNLOAD_FOLDER
@@ -21,7 +20,6 @@ from lexios.database.users import retrieve_category_content, create_user_specifi
 from lexios.database.models import UserSpecificData
 from lexios.core.logger import CustomLogger
 
-background_tasks = BackgroundTasks()
 
 # Define a constant for internal system elements
 SYSTEM = 1
@@ -89,11 +87,17 @@ def update_cache_in_db():
         # Release the lock in a finally block to ensure it's released even if an exception occurs
         cache_lock.release()
     
-
 async def get_link_icon_and_title(url, preferred_size=(120, 120)):
+
+    # Acquire the lock
+    cache_lock.acquire()
+
     try:
 
-        # First check the cache 
+        # Remove break lines
+        url = url.replace("<br>", "")
+
+        # First check the cache
         if _cache.get(url):
             return _cache.get(url)
 
@@ -108,7 +112,7 @@ async def get_link_icon_and_title(url, preferred_size=(120, 120)):
         driver.get(url)
 
         # Wait for some time to let the page load (you may need to adjust this based on your needs)
-        driver.implicitly_wait(5)
+        driver.implicitly_wait(3)
 
         # Get page source after waiting
         page_source = driver.page_source
@@ -119,64 +123,93 @@ async def get_link_icon_and_title(url, preferred_size=(120, 120)):
         # Parse the page source with BeautifulSoup
         soup = BeautifulSoup(page_source, 'html.parser')
 
-        # Find apple-touch-icon with preferred size
-        apple_touch_icon = soup.find('link', rel='apple-touch-icon', sizes=f'{preferred_size[0]}x{preferred_size[1]}')
-        icon_url = urljoin(url, apple_touch_icon.get('href')) if apple_touch_icon else None
+        # Start an empty data structure
+        data = {}
 
-        # Find icon with preferred size
-        icon = soup.find('link', rel='icon', sizes=f'{preferred_size[0]}x{preferred_size[1]}')
-        icon_url = urljoin(url, icon.get('href')) if icon else icon_url
+        # Update title
+        data['title'] = soup.title.text.strip() if soup.title else None
 
-        # If preferred size not found, get any available icon
-        any_icon = soup.find('link', rel='apple-touch-icon') or soup.find('link', rel='icon')
-        icon_url = urljoin(url, any_icon.get('href')) if any_icon and not icon_url else icon_url
+        # Get main domain
+        main_domain = get_main_domain(url)
 
-        # Get title
-        title = soup.title.text.strip() if soup.title else None
+        # Check if there's already data for this domain in the cache
+        for cached_url, cached_data in _cache.items():
+            cached_domain = get_main_domain(cached_url)
+
+            if cached_domain == main_domain:
+
+                data['icon_url'] = cached_data['icon_url']
+                data['image_url'] = cached_data['image_url']
+        
+        if not data.get('icon_url', None):
+
+            # Fetch icon image
+
+            # Find apple-touch-icon with preferred size
+            apple_touch_icon = soup.find('link', rel='apple-touch-icon', sizes=f'{preferred_size[0]}x{preferred_size[1]}')
+            icon_url = urljoin(url, apple_touch_icon.get('href')) if apple_touch_icon else None
+
+            # Find icon with preferred size
+            icon = soup.find('link', rel='icon', sizes=f'{preferred_size[0]}x{preferred_size[1]}')
+            icon_url = urljoin(url, icon.get('href')) if icon else icon_url
+
+            # If preferred size not found, get any available icon
+            any_icon = soup.find('link', rel='apple-touch-icon') or soup.find('link', rel='icon')
+            icon_url = urljoin(url, any_icon.get('href')) if any_icon and not icon_url else icon_url
+
+            # Update the icon url
+            data['icon_url'] = icon_url
 
         # Download the image content
-        if icon_url:
-            image_response = requests.get(icon_url)
+        if not data.get('image_url', None):
+
+            image_response = requests.get(data['icon_url'])
             image_content = image_response.content
 
             # Extract the filename from the URL
-            image_filename = os.path.basename(icon_url)
+            image_filename = os.path.basename(data['icon_url'])
 
             project_folder = find_project_folder() or ""
 
             DOWNLOADS = os.path.join(project_folder, DOWNLOAD_FOLDER)
 
-            #Make sure the folder exists
+            # Make sure the folder exists
             os.makedirs(DOWNLOADS, exist_ok=True)
 
             image_path = os.path.join(DOWNLOADS, image_filename)  # Save in a 'static' folder
 
-            # Save the image locally (optional)
+            # Save the image locally 
             with open(image_path, 'wb') as f:
                 f.write(image_content)
 
             # Return the image URL
             image_url = f'/downloads/{image_filename}'  # Adjust the path based on your server setup
 
-            # Save results in cache to speed up next search
-            data = {
-                'icon_url': icon_url, 
-                'title': title, 
-                'image_url': image_url
-                }
-            
-            _cache[url] = data
+            # Complete data structure with the server-side path
+            data['image_url'] = image_url
+
+        # Update in-memory cache 
+        _cache[url] = data
+
+        # Trigger the extraction of the article content asynchronously
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, extract_visible_text_with_links, page_source, url)
+
+        return data
         
-            # Trigger the extraction of the article content asynchronously
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, extract_visible_text_with_links, page_source, url)
-
-            return data
-
-        return {'icon_url': None, 'title': title}
     except Exception as e:
-        return {'error': str(e)}
+        with CustomLogger("lexios") as log:
+            log.error(f"Error at fetching web proxy cache. {e}")
+    
+    finally:
+        # Release the lock in a finally block to ensure it's released even if an exception occurs
+        cache_lock.release()
 
+
+def get_main_domain(url):
+    parsed_url = urlparse(url)
+    domain_parts = tldextract.extract(parsed_url.netloc)
+    return f"{domain_parts.domain}.{domain_parts.suffix}"
 
 def extract_visible_text_with_links(page_source, base_url):
     try:
@@ -207,10 +240,10 @@ def extract_visible_text_with_links(page_source, base_url):
         }
 
         # Update caches
-        # Wildcard cache goes to DB
+        # Database
         update_cache_in_db()
 
-        # Stripped content remains in-memory just in case
+        # URL content and href's remains in-memory just in case
         _cache_content[base_url] = data
         
         return 

@@ -97,7 +97,11 @@ class ToolCall():
                     raise ValueError(f"Could not schedule action. {e}")
                
             else:
-                # Execute the external command
+
+            # Before        
+        #----------------------------------EXECUTE COMMAND ---------------------------------------------#
+                
+
                 try:
 
                     # Build the dynamic context for the command (some commands may need it)
@@ -109,13 +113,18 @@ class ToolCall():
                             'conversation_id' : self.conversation_id,
                         }
                     }
-
-                    self.ret_status = await self.ext_command.execute_command(context, **params)
                     
+                    
+                    self.ret_status = await self.ext_command.execute_command(context, **params)
+
                 except Exception as e:
                     raise ValueError(
                         f"Ext_command '{self.function_name}' execution error: ", e
-                    )
+                    )      
+
+        #----------------------------------EXECUTE COMMAND ---------------------------------------------#                    
+                                                                                            # After
+
 
             # Change tool_call status to completed
             self.status = "completed"
@@ -213,7 +222,7 @@ class ToolCall():
         # Prepare JSON to reply the AI model with the return from the external command
         # It prepares the structure but is actually the 'Required Action'
         # that collects all the tool outputs and sends them.
-        if self.status == "completed":
+        if self.status in ["completed", "rejected"]:
             self.output = {
                 "tool_call_id": self.id, 
                 "output": str(self.ret_status)
@@ -227,4 +236,11 @@ class ToolCall():
             }
 
         return self.output
+    
+    def reject(self):
+        # Reject a tool call, denied at the Consent dialog
+
+        self.status = "rejected"
+        self.ret_status = "The user denied the execution of this tool."
+
 

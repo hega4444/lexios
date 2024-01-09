@@ -266,3 +266,234 @@ function processPreview(preview, link_url, messageContainer) {
     messageContainer.appendChild(containerElement);
 }
 
+// Flag to check if the consent was submitted
+let consentSubmitted = false;
+
+async function createConsentScreen(title, metadata) {
+    // Creates the consent screen dialog
+
+    const consentToken = metadata.token;
+    const expiresAt = metadata.timer;
+
+    const chatMessages = document.querySelector(".msg-body ul");
+
+    // Create container div
+    const container = document.createElement("div");
+    container.className = "consent_screen";
+
+    // Create a container for the title
+    const titleContainer = document.createElement("div");
+    titleContainer.style.display = "flex";
+    titleContainer.style.alignItems = "center"; // Align items vertically at the center
+
+    // Create a paragraph element for the title (in bold)
+    const titleParagraph = document.createElement("p");
+    titleParagraph.style.fontSize = "14px"; // Adjust the font size as needed
+    titleParagraph.textContent = title;
+
+    // Append titleParagraph to the titleContainer
+    titleContainer.appendChild(titleParagraph);
+
+    // Append titleContainer to the container
+    container.appendChild(titleContainer);
+
+    // Create a list for user actions
+    const actionList = document.createElement("ul");
+
+    // Create checkbox items for each action in the metadata
+    metadata.scopes.forEach((scope, index) => {
+        const actionItem = document.createElement("li");
+
+        // Create checkbox input
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true; // Mark the checkbox as checked by default
+        checkbox.id = scope.id;
+        checkbox.style.marginRight = "4px"; // Adjust the margin as needed
+
+        // Create label for the checkbox
+        const label = document.createElement("label");
+        label.style.fontSize = "12px";
+        label.textContent = scope.text;
+
+        // Append checkbox and label to the actionItem
+        actionItem.appendChild(checkbox);
+        actionItem.appendChild(label);
+
+        // Append actionItem to the actionList
+        actionList.appendChild(actionItem);
+    });
+
+    // Append actionList to the container
+    container.appendChild(actionList);
+
+    // Create confirm_box div
+    const confirm_box = document.createElement("div");
+    confirm_box.style.display = "flex"; // Use flexbox to arrange items horizontally
+    confirm_box.style.alignItems = "center"; // Align items vertically at the center
+    confirm_box.style.justifyContent = "left"; // Align content to left horizontally
+    confirm_box.style.padding = "5px"; // Add padding for spacing inside the confirm_box
+
+    // Create a confirmation group
+    const confirmGroup = document.createElement("div");
+
+    // Create a confirmation icon
+    const confirmationIcon = document.createElement("img");
+    confirmationIcon.src = "static/images/confirm-button.png";
+    confirmationIcon.alt = "Confirm";
+    confirmationIcon.style.width = "15px";
+    confirmationIcon.style.height = "15px";
+    confirmationIcon.style.cursor = "pointer";
+    confirmationIcon.title = "Click to confirm";
+    confirmationIcon.classList.add("white-icon"); // Add the white-icon class to make it white
+    confirmationIcon.style.marginRight = "4px"; // Adjust the margin as needed
+
+    // Create a label for the confirmation icon
+    const confirmLabel = document.createElement("span");
+    confirmLabel.style.fontSize = "14px";
+    confirmLabel.style.marginRight ="10px";
+    confirmLabel.textContent = "Confirm choices";
+
+    // Append elements to the confirmation group
+    confirmGroup.appendChild(confirmationIcon);
+    confirmGroup.appendChild(confirmLabel);
+
+    // Create a cancel group
+    const cancelGroup = document.createElement("div");
+
+    // Create a cancel icon
+    const cancelIcon = document.createElement("img");
+    cancelIcon.src = "static/images/cancel.png"; // Set the path to your cancel icon
+    cancelIcon.alt = "Cancel";
+    cancelIcon.style.width = "16px";
+    cancelIcon.style.height = "16px";
+    cancelIcon.style.cursor = "pointer";
+    cancelIcon.title = "Cancel";
+    cancelIcon.classList.add("white-icon"); // Add the white-icon class to make it white
+    cancelIcon.style.marginRight = "4px"; // Adjust the margin as needed
+
+    // Create a label for the cancel icon
+    const cancelLabel = document.createElement("span");
+    cancelLabel.style.fontSize = "14px";
+    cancelLabel.textContent = "Cancel";
+
+    // Append elements to the cancel group
+    cancelGroup.appendChild(cancelIcon);
+    cancelGroup.appendChild(cancelLabel);
+
+    // Append confirmation and cancel groups to the confirm_box
+    confirm_box.appendChild(confirmGroup);
+    confirm_box.appendChild(cancelGroup);
+
+    // Append confirm_box to the container
+    container.appendChild(confirm_box);
+
+    // Append the container to the chatMessages
+    chatMessages.appendChild(container);
+
+    // Set the flag to false
+    consentSubmitted = false;
+
+
+    // Add event listener to confirm group
+    confirmGroup.addEventListener("click", async () => {
+        // Add logic to handle confirmation (e.g., submit the selected checkboxes)
+
+        const choicesConfirmed = Array.from(container.querySelectorAll('input[type="checkbox"]')).map((checkbox) => ({
+            id: checkbox.id,
+            checked: checkbox.checked,
+        }));
+
+        // Call the submitConsent function
+        await submitConsent(choicesConfirmed, consentToken, "submitted");
+
+        // Close consent dialog
+        container.remove();
+
+    });
+
+    // Add event listener to cancel group
+    cancelGroup.addEventListener("click", async () => {
+        // Send all IDs as false for cancellation
+        const choicesCancelled = Array.from(container.querySelectorAll('input[type="checkbox"]')).map((checkbox) => ({
+            id: checkbox.id,
+            checked: false,
+        }));
+
+        // Call the submitConsent function for cancellation
+        await submitConsent(choicesCancelled, consentToken, "cancelled");
+        
+        // Close consent dialog
+        container.remove();
+    });
+
+    // Set up a timer to automatically submit the consent as expired
+    setTimeout(async () => {
+        // Check if the consent was not already submitted
+        if (!consentSubmitted) {
+            const choicesExpired = Array.from(container.querySelectorAll('input[type="checkbox"]')).map((checkbox) => ({
+                id: checkbox.id,
+                checked: false,
+            }));
+
+            // Call the submitConsent function for expiration
+            await submitConsent(choicesExpired, consentToken, "expired");
+
+            // Close consent dialog
+            container.remove();
+        }
+    }, expiresAt * 1000); // Convert seconds to milliseconds
+
+}
+
+// Function to submit consent
+async function submitConsent(choicesConfirmed, consentToken, status) {
+    const formData = new FormData();
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Get CSRF token from the form
+
+    const choicesConfirmedStr = JSON.stringify(choicesConfirmed);
+    formData.append('choices', choicesConfirmedStr);
+
+    formData.append('consent_token', consentToken);
+    formData.append('status', status)
+
+    // Make a POST request to the "confirm_consent_screen" endpoint
+    try {
+        const response = await fetch("/confirm_consent_screen", {
+            method: "POST",
+            headers: {
+                'X-CSRF-Token': csrfToken,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("Confirmation result:", result);
+    } catch (error) {
+        console.error("Error during confirmation:", error);
+    }
+
+    console.log("Selected actions:", choicesConfirmed);
+
+    if (status === "submitted") {
+        consent_msg = "Your choices have been submitted."
+    }
+    else if (status === "cancelled") {
+        consent_msg = "Consent request was cancelled."
+    }
+    else if (status === "expired") {
+        consent_msg = "Consent request has expired."
+    }
+
+    await addMessageToChat(consent_msg, null, "system", "text", false, null, null)
+
+    // Set the flag to true
+    consentSubmitted = true;
+
+}
+
+

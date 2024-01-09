@@ -119,7 +119,6 @@ class GmailClient():
     async def send_email(self, to_address: str, subject: str, body: str):
         # SUMM: Send an email using the Gmail API
         # to_adsress 'description': email addresss
-
         # Replace name annotation
         body= body.replace("[Your Name]", ' '.join([self.user.name_first, self.user.name_last]))
 
@@ -266,7 +265,6 @@ class GmailClient():
                     # Extract names
                     names = connection.get('names', [])
                     for n in names:
-                        print(n.get("displayName"))
                         if 'displayName' in n and name.lower() in n['displayName'].lower():
             
                             # Check if email is directly under 'emailAddresses'

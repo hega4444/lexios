@@ -1,6 +1,10 @@
 # lexios/api/routes.py
 import os
 import asyncio
+import json
+from uuid import uuid4
+from pydantic import BaseModel
+from typing import List
 
 from fastapi import FastAPI, Request, Depends, Form, HTTPException, Body
 from fastapi import File, UploadFile, Query, Path
@@ -11,8 +15,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
 from fastapi.middleware.cors import CORSMiddleware
-from uuid import uuid4
-from pydantic import BaseModel
 
 from admin.verify_folder import find_project_folder
 PROJECT_FOLDER = find_project_folder()
@@ -26,6 +28,7 @@ from lexios.api.web_proxy import get_link_icon_and_title
 from lexios.database.conversations import get_user_conversations
 from lexios.database.users import update_user_data_in_db
 from lexios.integrations.make import get_lexi_backend_instance
+from lexios.core.consent import _consent_backend
 
 # set up lexi backend features
 frontend_active_users = {}
@@ -264,12 +267,19 @@ async def get_conversation_data(
             session_data.conversation_id_focus = select_conversation_id
             messages = session_manager.rerieve_conversation(session_data.user_id, select_conversation_id)
 
-            conversation_data = {
-                'messages': messages,
-            }
+            if messages:
+                if not isinstance(messages, list):
+                    messages = json.loads(messages)  # Temporal fix while debugging main cause of issue
 
-            # Return conversation messages
-            return JSONResponse(conversation_data)
+                conversation_data = {
+                    'messages': messages,
+                }
+
+                # Return conversation messages
+                return JSONResponse(conversation_data)
+            
+            else:
+                raise HTTPException(status_code=404)
 
         else:
             # Recover stored conversations too
@@ -479,6 +489,7 @@ async def process_input(
 
         # Send message to Lexi and get response
         await lexi.process_user_request(data=message)
+
         return JSONResponse(content={"status": "Message sent to Lexi."})
     
     except Exception as e:
@@ -653,3 +664,22 @@ async def proxy(url: str, request: Request):
         response = JSONResponse(data)
         
         return response
+    
+# Process a consent screen confirmation
+@app.post("/confirm_consent_screen", response_class=JSONResponse, dependencies=[Depends(cookie)])
+async def confirm_consent_screen(
+        choices: str = Form(...),
+        consent_token: str = Form(...),
+        status: str = Form(...),
+        csrf_protect: CsrfProtect = Depends(),
+        session_data: LexiSessionData = Depends(verifier),
+):
+    # Validate token
+
+    # Update the backend
+    _consent_backend[consent_token] = {
+        'status' : status,
+        'choices': json.loads(choices),
+        }
+    
+    return JSONResponse(content={"message": "Consent updated."})
