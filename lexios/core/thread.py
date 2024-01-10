@@ -208,20 +208,19 @@ class LexiAssistantThread(LexiBaseTools):
 
                 # Main loop to treat a Thread - Run
                 while run.status not in ["completed", "cancelled", "failed", "expired"]:
-                    with CustomLogger("run_status") as log:
-                        log.debug("run_status", details=run.model_dump_json)
+
 
                     # Await for Run to change status
-                        while run.status in ["queued", "in_progress"]:
+                    while run.status in ["queued", "in_progress"]:
 
-                            # Retrieve run status:
-                            run = openai.beta.threads.runs.retrieve(
-                                thread_id=self.thread.id, run_id=run.id
-                            )
+                        # Retrieve run status:
+                        run = openai.beta.threads.runs.retrieve(
+                            thread_id=self.thread.id, run_id=run.id
+                        )
 
-                    # After changes status, process
-                    with CustomLogger("run_status") as log:
-                        log.debug(f"User: {self.user_id} Status:{run.status} Message:{self.user_message} Last Error: {run.last_error}")
+                    # Log run status
+                    with CustomLogger("lexios") as log:
+                        log.info(f"run object status - User: {self.user_id} Status:{run.status} Message:{self.user_message} Last Error: {run.last_error}")
                     
                     # Check if the run failed
                     if run.status == 'failed':

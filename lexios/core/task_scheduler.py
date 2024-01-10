@@ -437,7 +437,11 @@ class LexiTaskScheduler(LexiBaseTools):
             if event.category == "reminder":
 
                # Instantiate a UserDataManager 
-               manager = UserDataManager(self.lexi, event.user_id, event.conversation_id)
+               manager = UserDataManager(
+                   lexi = self.lexi, 
+                   user_id = event.user_id, 
+                   conversation_id= event.conversation_id
+                   )
                
                # Trigger notification process
                await manager.notify_reminder(event.data_id)
