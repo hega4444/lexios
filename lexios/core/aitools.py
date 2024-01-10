@@ -36,7 +36,7 @@ async def ai_assistant_request(user_id: int, request: str, instructions: str, co
         }
         )
 
-    await thread.new_user_message(request)
+    await thread.process_input(request)
 
     # Retrieve output
     response = thread.response

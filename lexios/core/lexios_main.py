@@ -1,8 +1,8 @@
+# lexios_main.py
 import os
 import openai
-import aioredis
+
 import json
-from io import BytesIO
 from datetime import timedelta
 
 from lexios.settings.main import *
@@ -10,15 +10,9 @@ from lexios.api.session_manager import LexiSessionManager
 from lexios.core.lexi_base_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.task_scheduler import LexiTaskScheduler
+from lexios.core.lexios_builtin import append_basic_IO
+from lexios.core.logger import CustomLogger
 
-# Lexi's Engines 
-from lexios.core.builtin.engines.SQLEngine import LexiDatabase
-from lexios.core.builtin.engines.searchEngine import SearchEngine
-from lexios.core.builtin.engines.userDataEngine import UserDataManager
-
-# Built-in tools
-from lexios.core.builtin.functions.calendar import GoogleCalendar
-from lexios.core.builtin.functions.email import GmailClient 
 
 class LexiOS_Backend(LexiBaseTools):
     # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
@@ -104,7 +98,7 @@ class LexiOS_Backend(LexiBaseTools):
         self.scheduler = LexiTaskScheduler(lexi=self)
 
         # Add Lexi built- in functions:
-        self.append_basic_IO()
+        append_basic_IO(self)
 
         # Set up SQL Engine:
         # List of databases Lexi is connecting to
@@ -130,283 +124,6 @@ class LexiOS_Backend(LexiBaseTools):
             self.command_line = command_line
         if backend is not None:
             self.backend = backend
-
-    async def prepare_output(
-            self, *args: str, 
-            session_id = None, 
-            spell=True, 
-            user_id=None,
-            conversation_id=None, 
-            msg_type= "text", 
-            images = None,
-            metadata= None
-        ):
-        
-        # process outbound messages to the user interface
-        # msg_type : "text", "sys_notif", 
-
-        try:
-            # Prepare outbound message
-            session_id = self.users.get(user_id).session_id
-
-            outbound_message = {
-                    "session_id" : str(session_id),
-                    "conversation_id": conversation_id,
-                    "msg_type": msg_type,
-                    "metadata": metadata,
-                    "spell": spell,
-                }
-
-            # Convert all elements to strings
-            args = [str(arg) for arg in args]  
-            # Try to make a string with the args
-            message = " ".join(args)
-
-            # Command line output:
-            if self.command_line is True:
-                print(f"{self.lexi_prompt} {message}")
-
-            outbound_message['content'] = message
-    
-            # Images
-            if images:
-                outbound_message['images']  = images
-
-            # Send message using broker
-            async with aioredis.from_url(self.broker_url) as broker:
-                await broker.publish("fastapi_channel", json.dumps(outbound_message))
-
-        except Exception as e:
-            print("Problems with sending the message: ", e)
-
-    def append_basic_IO(self):
-
-        # Append internal basic I/O methods / protocols
-
-        # Time / Location:
-        self.append_command(
-            LexiExternalCommand(
-                func=SearchEngine.time_and_location,
-                show_return_to_user=False
-            )
-        )
-
-        if SEARCH_ENGINE:
-            # Search on the Internet:
-            self.append_command(
-                LexiExternalCommand(
-                    func=SearchEngine.bing_search,
-                    printer=SearchEngine.bing_search_printer,
-                    show_return_to_user=False,
-                )
-            )
-            # Extract URL content:
-            self.append_command(
-                LexiExternalCommand(
-                    SearchEngine.access_website_content, show_return_to_user=False
-                )
-            )
-            # Read a RSS channel:
-            self.append_command(
-                LexiExternalCommand(SearchEngine.read_rss, show_return_to_user=False)
-            )
-            # Check Stock prices:
-            self.append_command(
-                LexiExternalCommand(SearchEngine.get_stock_price_by_symbol, show_return_to_user=False)
-            )
-            # Check Weather Forecast:
-            self.append_command(
-                LexiExternalCommand(
-                    SearchEngine.get_weather_forecast, 
-                    show_return_to_user=False,
-                    before="Weather data by Open-Meteo.com")
-            )
-            # Schedule an action:
-            self.append_command(
-                LexiExternalCommand(
-                    LexiTaskScheduler.schedule_new_action, show_return_to_user=False
-                )
-            )
-        
-        if USER_DATA_MANAGER:
-            # Create reminders, alarms, alerts
-            create_reminder = LexiExternalCommand(
-                    UserDataManager.schedule_reminder,
-                    requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                )
-            self.append_command(create_reminder)
-
-            create_reminder.add_consent_scope(
-                scope_name="create_reminder",
-                template='Create reminder with subject "{subject}"',
-                vars=["subject"],
-            )
-
-            # Delete reminders, alarms, alerts
-            self.append_command(
-                LexiExternalCommand(
-                    UserDataManager.delete_reminder,
-                    requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                )
-            )
-            # Create other user specific data
-            self.append_command(
-                LexiExternalCommand(
-                    UserDataManager.add_user_specific_data,
-                    requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                )
-            )
-            # Retrieve the current categories for user_specific_data
-            self.append_command(
-                LexiExternalCommand(
-                    UserDataManager.retrieve_user_data_categories,
-                    requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                    allowed_in_background= True,
-                )
-            )
-            # Retrieve all the content related to a certain category
-            self.append_command(
-                LexiExternalCommand(
-                    UserDataManager.read_user_data_category_content, 
-                    requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                    allowed_in_background= True,
-                )
-            )
-            # Retrieve a specific data element by its data_id
-            self.append_command(
-                LexiExternalCommand(
-                    UserDataManager.retrieve_user_data_content_by_id, 
-                    requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                    allowed_in_background= True,
-                )
-            )
-           
-            # Create automated email responses 
-            create_email_rule = LexiExternalCommand(
-                    UserDataManager.create_automated_email_response_rule, 
-                    requires_dynamic_object=UserDataManager, 
-                    show_return_to_user=False,
-                    session_data_check="gmail_access",
-                    
-                )
-            self.append_command(create_email_rule)
-
-            create_email_rule.add_consent_scope(
-                scope_name="create_email_rules",
-                template="Generate automatic responses to emails from :{sender_email_address}.",
-                vars=["sender_email_address"]
-            )
-
-            # Send email
-            send_email_command = LexiExternalCommand(
-                    GmailClient.send_email, 
-                    requires_dynamic_object=GmailClient, 
-                    show_return_to_user=False,
-                    session_data_check="gmail_access",
-                )
-            
-            # Add a dynamic consent scope
-            send_email_command.add_consent_scope(
-                scope_name= "send_email_response",
-                template= "Send automated e-mail to '{to_address}'.",
-                vars = ["to_address"],
-            )
-
-            self.append_command(send_email_command)
-
-            # Seacrh for a contact
-            self.append_command(
-                LexiExternalCommand(
-                    GmailClient.search_email_by_name, 
-                    requires_dynamic_object=GmailClient, 
-                    show_return_to_user=False,
-                    session_data_check="gmail_access",
-                )
-            )
-            # Create automated email responses
-            new_event =  LexiExternalCommand(
-                    GoogleCalendar.create_google_calendar_event, 
-                    requires_dynamic_object=GoogleCalendar, 
-                    show_return_to_user=False,
-                    session_data_check="google_calendar_access",
-                )
-            self.append_command(new_event)
-
-            new_event.add_consent_scope(
-                scope_name="new_calendar_event",
-                template='Create a Google Calendar event with subject "{summary}" at: {start_datetime}',
-                vars=["summary", "start_datetime"],
-            )
-
-    def set_up_db_integration(self):
-        # Sets up the integration steps for exchanging data with a local database
-
-        if DATABASE_TOOLS:
-            try:
-
-                for db_connection in self.databases_list:
-                    self.sql_engine = LexiDatabase(**db_connection.settings)
-
-                if self.sql_engine:
-                # Get a Database Entity Relationship Diagram - ERD
-                    self.append_command(
-                        LexiExternalCommand(
-                            LexiDatabase.retrieve_database_erd,
-                            requires_object=self.sql_engine,
-                            show_return_to_user= False
-                        )
-                    )
-
-                    # Execute queries in the Database & exctract results
-                    self.append_command(
-                        LexiExternalCommand(
-                            LexiDatabase.execute_fetch_sql_query,
-                            requires_object=self.sql_engine,
-                            show_return_to_user= False
-                        )
-                    )
-
-                    if MINING_TOOLS:
-                        # Execute queries in the Database & exctract results
-                        self.append_command(
-                            LexiExternalCommand(
-                                LexiDatabase.show_predictive_models_for_table,
-                                requires_object=self.sql_engine,
-                                show_return_to_user= False
-                            )
-                        )
-                        
-                        # Run automated data analysis on tables
-                        if self.sql_engine.table_analyzer:
-                            # The SQL Engine provides a customized external command with additional content when executed
-                            self.append_command(
-                                self.sql_engine.table_analyzer
-                            )
-
-                        # Make predictions using a model
-                        self.append_command(
-                            LexiExternalCommand(
-                                LexiDatabase.make_prediction_using_model,
-                                requires_object=self.sql_engine,
-                                show_return_to_user= False
-                            )
-                        )   
-
-
-            except Exception as e:
-                print(f"Lexi- Problem setting up SQL / Mining features:{e}")
 
     def append_command(self, command: LexiExternalCommand) -> bool:
         # Append command to catalog
@@ -465,42 +182,24 @@ class LexiOS_Backend(LexiBaseTools):
     async def process_user_request(
         self, user_input: str = None, 
         user_id: int = None, 
-        session_id: str = None, 
         conversation_id: str = None,
         data = None, 
         filename = None, 
     ) -> str:
         
         if isinstance(data, dict):
-            try:
+  
                 # Data package overrides default user
-                user_id = data['user_id']
-            except KeyError:
-                pass
+                user_id = data.get('user_id', None)
 
-            try:
                 # conversation_id
-                conversation_id = data['conversation_id']
-            except KeyError:
-                pass
+                conversation_id = data.get('conversation_id', None)
 
-            # session_id
-                session_id = data['session_id']
-            except KeyError:
-                pass
-
-            try:
                 # Text input
-                user_input = data['user_input']
-            except KeyError:
-                pass
+                user_input = data.get('user_input', None)
 
-            try:
                 # File attachments
-                filename = data['filename']
-            except KeyError:
-                pass
-
+                filename = data.get('filename', None)
 
         try:
             # Check if admin assistant needs initialization
@@ -510,14 +209,18 @@ class LexiOS_Backend(LexiBaseTools):
             # Check if the user has an initiated Thread already:
             user_profile = self.users.get(user_id, None)
             if user_profile:
+
                 # Try to recover thread:
                 thread = self.session_manager.get_thread(user_id, conversation_id)
                 if thread:
+
                     # Thread found and ready, process new request
                     if thread.running_stat == "ready":
                         # Send the message to the corresponding Thread
-                        await thread.new_user_message(user_input, filename)
+                        await thread.process_input(user_input, filename)
+
                     else:
+
                     # Thread found but busy, inform the user on the chat interface
                         await self.prepare_output(
                             "I'm still processing your last request. Just a moment please...", 
@@ -532,7 +235,6 @@ class LexiOS_Backend(LexiBaseTools):
                         conversation_id = conversation_id,
                         args = {
                             'conversation_id' : conversation_id,
-                            'session_id': session_id,
                             'user_id': user_id,
                             'model': self.model,
                             'tools': self.toolbox,
@@ -542,7 +244,7 @@ class LexiOS_Backend(LexiBaseTools):
                     )
                     if thread.running_stat == "ready":
                         # Send the message to the initiated Thread
-                        await thread.new_user_message(user_input, filename)
+                        await thread.process_input(user_input, filename)
 
         except Exception as e:
             await self.prepare_output(

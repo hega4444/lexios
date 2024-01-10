@@ -8,47 +8,55 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
+from google.auth.exceptions import RefreshError
 
 from lexios.settings.main import *
+from lexios.core.logger import CustomLogger
 
 class GoogleCalendar():
 
     check_frequency = timedelta(minutes=30)
 
     def __init__(self, **kwargs) -> None:
+        try:
+            if "user" in kwargs:
+                self.user = kwargs.get("user")
 
-        if "user" in kwargs:
-            self.user = kwargs.get("user")
+            self.events = [] 
+            
+            if self.user.google_calendar_access:
+                # Check if a refresh token is available in the session
+                refresh_token = self.user.google_details.get('refresh_token')
 
-        self.events = [] 
-        
-        if self.user.google_calendar_access:
-            # Check if a refresh token is available in the session
-            refresh_token = self.user.google_details.get('refresh_token')
+                if not refresh_token:
+                    return JSONResponse({'error': 'Refresh token not found in session'}), 401
 
-            if not refresh_token:
-                return JSONResponse({'error': 'Refresh token not found in session'}), 401
+                # Load stored credentials with the specified scopes
+                credentials_info = {
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "scopes": ["https://www.googleapis.com/auth/calendar"],
+                }
 
-            # Load stored credentials with the specified scopes
-            credentials_info = {
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "refresh_token": refresh_token,
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "scopes": ["https://www.googleapis.com/auth/calendar"],
-            }
+                credentials = Credentials.from_authorized_user_info(credentials_info)
 
-            credentials = Credentials.from_authorized_user_info(credentials_info)
+                # If credentials are expired, refresh them
+                if credentials.expired:
+                    credentials.refresh(Request())
 
-            # If credentials are expired, refresh them
-            if credentials.expired:
-                credentials.refresh(Request())
-
-            # Build the Calendar API service
-            self.calendar_service = build('calendar', 'v3', credentials=credentials)
-        
-        else:
-            raise AttributeError('User has not granted permission to access calendar data.')
+                # Build the Calendar API service
+                self.calendar_service = build('calendar', 'v3', credentials=credentials)
+            
+            else:
+                raise AttributeError('User has not granted permission to access calendar data.')
+            
+        except RefreshError as e:
+            with CustomLogger("lexios") as log:
+                log.warning(f"Refresh credentials error: {e}")
+            
+            raise AttributeError("Could not refresh google credentials. {e}")
 
     def update_calendar_with(self, events):
         # Append retrieved events

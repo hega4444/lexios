@@ -22,7 +22,7 @@ PROJECT_FOLDER = find_project_folder()
 from lexios.settings.main import *
 from lexios.api.globals import Globals
 from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
-from lexios.api.redis_websocket import messages_router, listen_to_redis
+from lexios.api.redis_front import messages_router, listen_to_redis
 from lexios.api.google_routes import google_router, google_backend
 from lexios.api.web_proxy import get_link_icon_and_title
 from lexios.database.conversations import get_user_conversations

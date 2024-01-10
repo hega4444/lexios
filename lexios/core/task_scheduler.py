@@ -163,11 +163,11 @@ class LexiTaskScheduler(LexiBaseTools):
                 pass
         
         if function_name == REMINDER_FUNCTION:
-            raise ValueError(f"error: 'cannot schedule function {REMINDER_FUNCTION}(), call function directly instead.")
+            raise ValueError(f"Invalid access. Call tool {REMINDER_FUNCTION} directly.")
 
         if function_name not in self.lexi.toolbox:
             # Let know the assistant if the function name is not available.
-            raise ValueError("error : 'Function name not recognized.")
+            raise ValueError("Error : 'Function name not recognized.")
 
         # Try to use 'regex' validators in comments to prevent mistakes (only if 'regex' was defined):
         try:
@@ -245,12 +245,13 @@ class LexiTaskScheduler(LexiBaseTools):
 
             # Execute the ready tasks
             for task in ready_tasks:
-                if task.category == "external_command":
-                    await self.execute_scheduled_action(task)               
-                else:
-                    await self.attend_internal_event(task)
-
                 try:
+                    
+                    if task.category == "external_command":
+                        await self.execute_scheduled_action(task)               
+                    else:
+                        await self.attend_internal_event(task)
+
                     # Schedule next event 
                     if task.repeat_each:
 

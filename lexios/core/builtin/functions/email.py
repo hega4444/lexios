@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from google.auth.exceptions import RefreshError
 
 from lexios.core.aitools import ai_assistant_request
 from lexios.core.logger import CustomLogger
@@ -27,42 +28,49 @@ class GmailClient():
 
     def __init__(self, **kwargs) -> None:
 
-        if "user" in kwargs:
-            self.user = kwargs.get("user")
-        
-        if self.user.gmail_access and self.user.google_details:
+        try:
+            if "user" in kwargs:
+                self.user = kwargs.get("user")
+            
+            if self.user.gmail_access and self.user.google_details:
 
-            # Check if a refresh token is available in the session
-            refresh_token = self.user.google_details.get('refresh_token')
+                # Check if a refresh token is available in the session
+                refresh_token = self.user.google_details.get('refresh_token')
 
-            if not refresh_token:
-                return JSONResponse({'error': 'Refresh token not found in session'})
+                if not refresh_token:
+                    return JSONResponse({'error': 'Refresh token not found in session'})
 
-            # Load stored credentials with the specified scopes
-            credentials_info = {
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "refresh_token": refresh_token,
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "scopes": [
-                    "https://www.googleapis.com/auth/gmail.modify",
-                    "https://www.googleapis.com/auth/contacts.readonly",
-                ],
-            }
-            credentials = Credentials.from_authorized_user_info(credentials_info)
+                # Load stored credentials with the specified scopes
+                credentials_info = {
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "scopes": [
+                        "https://www.googleapis.com/auth/gmail.modify",
+                        "https://www.googleapis.com/auth/contacts.readonly",
+                    ],
+                }
+                credentials = Credentials.from_authorized_user_info(credentials_info)
 
-            # If credentials are expired, refresh them
-            if credentials.expired:
-                credentials.refresh(Request())
+                # If credentials are expired, refresh them
+                if credentials.expired:
+                    credentials.refresh(Request())
 
-            # Build the Gmail API service
-            self.gmail_service = build('gmail', 'v1', credentials=credentials)
+                # Build the Gmail API service
+                self.gmail_service = build('gmail', 'v1', credentials=credentials)
 
-            # Build the People API service
-            self.people_service = build('people', 'v1', credentials=credentials)
+                # Build the People API service
+                self.people_service = build('people', 'v1', credentials=credentials)
 
-        else:
-            raise AttributeError("User has not granted access to Gmail data.")
+            else:
+                raise AttributeError("User has not granted access to Gmail data.")
+            
+        except RefreshError as e:
+            with CustomLogger("lexios") as log:
+                log.warning(f"Refresh credentials error: {e}")
+            
+            raise AttributeError("Could not refresh google credentials. {e}")
 
     async def retrieve_unread_emails(self):
 

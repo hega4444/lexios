@@ -5,7 +5,7 @@ from lexios.database.users import validate_password, create_user_account_in_db
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.logger import CustomLogger
 from lexios.api.session_data import LexiSessionData
-
+from lexios.core.conversations import save_conversation, update_conversation_title, retrieve_messages, delete
 
 
 # Configs
@@ -89,19 +89,14 @@ class LexiSessionManager:
                         user_id = user_id,
                         conversation_id = conversation.conversation_id,
                         args = {
-                            'restore_conversation' : True,
-                            'conversation_id' : conversation.conversation_id,
+                            'restore_conversation' : conversation,
                             'user_id': user_id,
                             'user_message': '',
                             'model': self.lexi.model,
                             'tools': self.lexi.toolbox,
                             'files': None,
                             'lexi': self.lexi,
-                            'model_assistant_id': conversation.model_assistant_id,
-                            'model_thread_id': conversation.model_thread_id, 
-                            'metrics': conversation.metrics,
                             'instructions': self.lexi.instructions,
-                            'conversation_orm' : conversation,
                             'title_generated': True,  
                         }
                     )
@@ -121,7 +116,7 @@ class LexiSessionManager:
         # Handles the close of active connections
         try:
             for thread in self.active_connections[user_id].values():
-                thread.save_conversation()
+                save_conversation(thread)
         except Exception as e:
             with CustomLogger("lexios") as log:
                 log.warning(f"Could not save conersation data. User_id:{user_id}. Details:{e}")
@@ -137,7 +132,7 @@ class LexiSessionManager:
         # Handles the close of active connections
         try:
             for thread in self.active_connections[user_id].values():
-                thread.save_conversation()
+                save_conversation(thread)
         except Exception as e:
             with CustomLogger("lexios") as log:
                 log.warning(f"Could not save conersation data. User_id:{user_id}. Details:{e}")
@@ -148,7 +143,7 @@ class LexiSessionManager:
         if user_loaded:
             thread = user_loaded.get(conversation_id, None)
             if thread:
-                thread.update_conversation_title(new_title)
+                update_conversation_title(thread, new_title)
     
     def rerieve_conversation(self, user_id, conversation_id):
         # Retrieves the messages from a conversation
@@ -156,7 +151,7 @@ class LexiSessionManager:
         if user_loaded:
             thread = user_loaded.get(conversation_id, None)
             if thread:
-                return thread.retrieve_messages()
+                return retrieve_messages(thread)
             
     def delete_conversation(self, user_id, conversation_id):
         # Deletes the messages from a conversation
@@ -164,5 +159,5 @@ class LexiSessionManager:
         if user_loaded:
             thread = user_loaded.get(conversation_id, None)
             if thread:
-                return thread.delete()
+                delete(thread)
 

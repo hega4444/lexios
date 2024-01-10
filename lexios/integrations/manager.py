@@ -3,6 +3,7 @@ from typing import List, Callable, Union
 
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
+from lexios.core.lexios_builtin import set_up_db_integration
 
 class IntegrationsManager:
 
@@ -49,7 +50,7 @@ class IntegrationsManager:
             lexi.databases_list = self.databases
 
             # Integration setup (adding tools to interact w/db)
-            lexi.set_up_db_integration()
+            set_up_db_integration(lexi)
 
         return lexi
     
