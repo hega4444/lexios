@@ -230,14 +230,20 @@ class LexiOS_Backend(LexiBaseTools):
         
         if USER_DATA_MANAGER:
             # Create reminders, alarms, alerts
-            self.append_command(
-                LexiExternalCommand(
+            create_reminder = LexiExternalCommand(
                     UserDataManager.schedule_reminder,
                     requires_dynamic_object=UserDataManager,
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
                 )
+            self.append_command(create_reminder)
+
+            create_reminder.add_consent_scope(
+                scope_name="create_reminder",
+                template='Create reminder with subject "{subject}"',
+                vars=["subject"],
             )
+
             # Delete reminders, alarms, alerts
             self.append_command(
                 LexiExternalCommand(
@@ -288,13 +294,19 @@ class LexiOS_Backend(LexiBaseTools):
             )
            
             # Create automated email responses 
-            self.append_command(
-                LexiExternalCommand(
+            create_email_rule = LexiExternalCommand(
                     UserDataManager.create_automated_email_response_rule, 
                     requires_dynamic_object=UserDataManager, 
                     show_return_to_user=False,
                     session_data_check="gmail_access",
+                    
                 )
+            self.append_command(create_email_rule)
+
+            create_email_rule.add_consent_scope(
+                scope_name="create_email_rules",
+                template="Generate automatic responses to emails from :{sender_email_address}.",
+                vars=["sender_email_address"]
             )
 
             # Send email
@@ -305,8 +317,8 @@ class LexiOS_Backend(LexiBaseTools):
                     session_data_check="gmail_access",
                 )
             
-            # Load a dynamic scope
-            send_email_command.load_scope(
+            # Add a dynamic consent scope
+            send_email_command.add_consent_scope(
                 scope_name= "send_email_response",
                 template= "Send automated e-mail to '{to_address}'.",
                 vars = ["to_address"],
@@ -323,14 +335,19 @@ class LexiOS_Backend(LexiBaseTools):
                     session_data_check="gmail_access",
                 )
             )
-            # Create automated email responses 
-            self.append_command(
-                LexiExternalCommand(
+            # Create automated email responses
+            new_event =  LexiExternalCommand(
                     GoogleCalendar.create_google_calendar_event, 
                     requires_dynamic_object=GoogleCalendar, 
                     show_return_to_user=False,
                     session_data_check="google_calendar_access",
                 )
+            self.append_command(new_event)
+
+            new_event.add_consent_scope(
+                scope_name="new_calendar_event",
+                template='Create a Google Calendar event with subject "{summary}" at: {start_datetime}',
+                vars=["summary", "start_datetime"],
             )
 
     def set_up_db_integration(self):

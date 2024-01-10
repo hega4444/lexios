@@ -222,6 +222,8 @@ class ToolCall():
         # Prepare JSON to reply the AI model with the return from the external command
         # It prepares the structure but is actually the 'Required Action'
         # that collects all the tool outputs and sends them.
+        self.output = " "
+        
         if self.status in ["completed", "rejected"]:
             self.output = {
                 "tool_call_id": self.id, 

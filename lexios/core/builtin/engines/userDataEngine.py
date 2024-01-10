@@ -104,7 +104,7 @@ class UserDataManager():
                 return {'status': 'created', 'reminder_id': id}
             else:
                 # Else return the error details 
-                return id
+                raise ValueError("Could not create record. Try again.")
         except Exception as e:
             return {'error' : e}
     
@@ -184,12 +184,18 @@ class UserDataManager():
 
     def delete_reminder(self, data_id: str):
         # SUMM: Delete a reminder by its data_id.
+        
+        try:
+            # Delete from database
+            delete_user_specific_data(user_id=self.user_id, data_id= data_id)
 
-        # Delete from database
-        delete_user_specific_data(user_id=self.user_id, data_id= data_id)
+            # Notify the scheduler
+            self.lexi.scheduler.cancel_time_event(data_id = data_id)
 
-        # Notify the scheduler
-        self.lexi.scheduler.cancel_time_event(data_id = data_id)
+            return "record succesfully deleted"
+        
+        except Exception as e:
+            return f"error: {e}"
 
     def retrieve_user_data_categories(self):
         # SUMM: Find which data categories are already implemented for the user.

@@ -196,6 +196,8 @@ class LexiAssistantThread(LexiBaseTools):
                         model=self.model,
                         instructions= instructions,
                     )
+                    self.run = run
+
                 except Exception as e:
                     with CustomLogger("assistants") as log:
                         log.debug(f"Problem updating executing Thread for User_id: {self.user_id}. Details:{e}")
@@ -219,9 +221,13 @@ class LexiAssistantThread(LexiBaseTools):
 
                     # After changes status, process
                     with CustomLogger("run_status") as log:
-                        log.debug("run_status", details=run.model_dump_json)
+                        log.debug(f"User: {self.user_id} Status:{run.status} Message:{self.user_message} Last Error: {run.last_error}")
+                    
+                    # Check if the run failed
+                    if run.status == 'failed':
+                        raise ValueError(f"openai: {run.last_error}")
 
-                    # Recover meesages from the model to the user
+                    # Recover meesages from the model
                     messages = openai.beta.threads.messages.list(thread_id=self.thread.id)
 
                     # Update conversation_orm
@@ -315,10 +321,6 @@ class LexiAssistantThread(LexiBaseTools):
                                     }
                                 )
 
-                    # Exit the loop in case of failure
-                    if run.status == "failed":
-                        break
-
                     # Check for requested tools:
                     if run.status == "requires_action":
 
@@ -339,6 +341,7 @@ class LexiAssistantThread(LexiBaseTools):
                             self.tool_calls = []
 
         except Exception as e:
+                
                 # Inform the user about the problem:
                 if not self.run_in_background:
                     await self.lexi.prepare_output(
@@ -346,8 +349,11 @@ class LexiAssistantThread(LexiBaseTools):
                         user_id = self.user_id,
                         conversation_id=self.conversation_id
                     )
-                # Let know the LexiOS
-                raise ValueError(f"Problem running process_run. Details: {e}")
+                with CustomLogger("lexios") as log:
+                    log.error(f"At running thread. User:{self.user_id}. Details {e}")
+
+                # Let know the LexiOS component   
+                raise ValueError(f"Problem running thread. Details: {e}")
         
         finally:
             # Release the LexiAssistant to attend new requests    
@@ -398,7 +404,6 @@ class LexiAssistantThread(LexiBaseTools):
                     assistant_id=self.user_assistant.id, 
                     file_id=file_object.id
                 )
-
 
                 assistant_files = openai.beta.assistants.files.list(self.user_assistant.id)
                 
@@ -469,9 +474,27 @@ class LexiAssistantThread(LexiBaseTools):
 
                 try:
                     openai.beta.threads.messages.create(**message_data)
+                
+                except openai.error.BadResponseError as e:
+                     
+                    if self.run:
 
+                        # Cancel current run
+                        openai.beta.threads.runs.cancel(
+                            thread_id=self.thread.id,
+                            run_id=self.run.id,
+                        )
+
+                        # wait for a moment
+                        await asyncio.sleep(1)
+
+                        # Try again
+                        openai.beta.threads.messages.create(**message_data)
+                    
                 except Exception as e:
-                    raise ValueError(f"Problem updating thread. Message: {new_message}, Files: {new_file}. Details: {e}")
+                    with CustomLogger("lexios") as e:
+                        log.error(f"Thread remains blocked. {e}")
+
             else:
                 try:
                     # Starts a Thread with a new message:
@@ -581,8 +604,8 @@ class LexiAssistantThread(LexiBaseTools):
 
                 except Exception as e:
                     # Tool cannot be used (most probably wrong name):
-                    with CustomLogger("func_calls_err") as log:
-                        log.error(f"Tool '{call['function']['name']}' not found.")
+                    with CustomLogger("lexios") as log:
+                        log.error(f"Tool '{call['function']['name']}' could not be created. {e}")
 
 
         # Check if the action requires a consent screen
@@ -629,7 +652,7 @@ class LexiAssistantThread(LexiBaseTools):
                     if call_consent_status == "granted":
                         ready_to_execute = True
 
-                    elif call_consent_status == "denied":
+                    elif call_consent_status in ["denied", "expired", "cancelled"]:
                         # Reject the tool call
                         tool_call.reject()
 
@@ -663,6 +686,11 @@ class LexiAssistantThread(LexiBaseTools):
 
             # Wait some time
             await asyncio.sleep(1)
+
+        # Clear the consent token
+        if self.consent_dialog:
+            self.consent_dialog.clear()
+            self.consent_dialog = None
 
 
     def submit_function_outputs(self, run):
@@ -804,7 +832,7 @@ class LexiAssistantThread(LexiBaseTools):
         delete_conversation_in_db(self.conversation_id)
 
     def generate_conversation_name(self, content):
-        # Define the prompt for GPT-3
+        # Create automatic an automatic title for the conversation
 
         response = openai.chat.completions.create(
         model= LEXI_GPT_MODEL,

@@ -376,7 +376,7 @@ class LexiExternalCommand(LexiBaseTools):
         
         return result
     
-    def load_scope(self, scope_name: str, template: str, vars: List[str] = None):
+    def add_consent_scope(self, scope_name: str, template: str, vars: List[str] = None):
         # Customize an external command with a consent screen scope that uses parameters to form the string to show to the user
 
         # Available vars: names of the arguments described in the external command 

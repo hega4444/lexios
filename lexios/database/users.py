@@ -218,6 +218,10 @@ def delete_user_specific_data(user_id: int, data_id: str):
             session.delete(db_user_specific_data)
             session.commit()
         return db_user_specific_data
+    
+    except Exception as e:
+        raise ValueError("Not found.")
+
     finally:
         session.close()
 

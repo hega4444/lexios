@@ -175,7 +175,7 @@ class ConsentScreen():
                 # If all scopes were ok, grant tool call execution
                 return "granted"
 
-        # Validate if there is still time for the user to sumbit their answer   
+        # Validate if there is still time for the user to submit their answer   
         elif not self.expires_at or datetime.now() < self.expires_at:
 
             return "pending"
@@ -185,3 +185,10 @@ class ConsentScreen():
 
             self.status = "expired"
             return self.status
+        
+    def clear(self):
+        
+        # Clear the value from the cache
+        #_consent_backend.pop(self.token)
+        pass
+    
