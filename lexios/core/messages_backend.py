@@ -7,7 +7,6 @@ from lexios.core.logger import CustomLogger
 async def prepare_output(
     lexios, 
     *args: str, 
-    session_id = None, 
     spell=True, 
     user_id=None,
     conversation_id=None, 

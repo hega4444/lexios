@@ -5,7 +5,7 @@ from dateutil import parser
 from datetime import datetime
 
 
-from lexios.core.lexi_base_tools import *
+from lexios.core.common import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import ScheduledTaskPydantic
 from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
@@ -13,10 +13,11 @@ from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_i
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
+from lexios.core.messages_backend import prepare_output
 
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
 
-class LexiTaskScheduler(LexiBaseTools):
+class LexiTaskScheduler():
     # Manages the event loop, schedules actions and keeps a persistent state in database.
 
     def __init__(self, lexi = None):
@@ -92,7 +93,7 @@ class LexiTaskScheduler(LexiBaseTools):
                 if entered_action_time <= datetime.now():
                     raise ValueError(" Error: action time is in the past.")
 
-                action_time = self.format_datetime(original_action_time)
+                action_time = format_datetime(original_action_time)
             else:
                 action_time = None
             
@@ -200,7 +201,7 @@ class LexiTaskScheduler(LexiBaseTools):
                     params = json.loads(arguments)
                 except json.JSONDecodeError as e:
                     try:
-                        params = self.string_to_dict(arguments)
+                        params = custom_json_parser(arguments)
                     except Exception:
                         # Communicate with the AI model to check its input:
                         raise ValueError("Error - Arguments should be passed as dictionary.")
@@ -317,7 +318,8 @@ class LexiTaskScheduler(LexiBaseTools):
             # Inform in the interface
             hhmm = datetime.now().strftime('%H:%M')
 
-            await self.lexi.prepare_output(
+            await prepare_output(
+                self.lexi,
                 f"Scheduled action '{function_name}' executed at {hhmm}.",
                 user_id= action.user_id,
                 conversation_id= action.conversation_id,

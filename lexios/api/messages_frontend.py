@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from lexios.settings.main import BROKER_URL
 from lexios.api.session_data import backend
 from lexios.database.users import update_user_data_in_db
-from lexios.api.session_manager import LexiSessionManager
+from lexios.core.session_manager import LexiSessionManager
 
 messages_router = APIRouter()
 session_manager = LexiSessionManager()

@@ -17,7 +17,7 @@ async def ai_completion_request(prompt: str, details: str = None, instructions: 
 
 async def ai_assistant_request(user_id: int, request: str, instructions: str, conversation_id: str= None):
     
-    from lexios.api.session_manager import LexiSessionManager
+    from lexios.core.session_manager import LexiSessionManager
 
     session_manager = LexiSessionManager()
 

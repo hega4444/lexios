@@ -4,6 +4,7 @@ import openai
 
 from lexios.settings.main import *
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
+from lexios.core.messages_backend import prepare_output
 
 def update_conversation_title(thread, new_title):
     thread.conversation_orm.title = new_title
@@ -55,7 +56,8 @@ async def generate_conversation_name(thread):
     update_conversation_title(thread, new_title)
 
     # Notify the frontend
-    await thread.lexi.prepare_output(
+    await prepare_output(
+        thread.lexi,
         new_title,
         user_id = thread.user_id,
         conversation_id=thread.conversation_id,

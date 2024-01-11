@@ -5,11 +5,12 @@ from admin.verify_folder import find_project_folder
 
 from lexios.api.session_data import read_session_data_from_backend
 from lexios.database.users import get_user_data_by_user_id
-from lexios.core.lexi_base_tools import *
+from lexios.core.common import *
 from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
 from lexios.core.downloads import manage_downloads, manage_links
 from lexios.core.thread_messages import update_thread_messages, restore_conversation_data, render_annotations
 from lexios.core.conversations import generate_conversation_name
+from lexios.core.messages_backend import prepare_output
 
 from lexios.core.toolbox import UserToolBox
 from lexios.core.logger import CustomLogger
@@ -17,7 +18,7 @@ from lexios.core.logger import CustomLogger
 
 PROJECT_FOLDER = find_project_folder()
 
-class LexiAssistantThread(LexiBaseTools):
+class LexiAssistantThread():
     # Represents one conversation with the user
 
     def __init__(
@@ -45,6 +46,7 @@ class LexiAssistantThread(LexiBaseTools):
         self.thread = None
         self.user_id = user_id
         self.conversation_id = conversation_id
+        self.assistant = None
 
         # Reset signal, will create a new thread on the next Run execution
         self.reset_signal = False
@@ -79,8 +81,8 @@ class LexiAssistantThread(LexiBaseTools):
 
         self.conversation_orm = None
         # Load conversation data from DB if any
-        if restore_conversation:
-            restore_conversation_data(self, conversation=restore_conversation)
+
+        restore_conversation_data(self, restore_conversation)
         
         # Assistant files
         self.assistant_files = []
@@ -99,6 +101,9 @@ class LexiAssistantThread(LexiBaseTools):
 
         # Consent dialog screen
         self.consent_dialog = None
+
+        # Run
+        self.run = None
 
     async def process_input(self, message: str = None, file:str = None):
         # Handles the execution of an openai Run 
@@ -125,13 +130,12 @@ class LexiAssistantThread(LexiBaseTools):
                     instructions = str(self.metadata()) + self.instructions
 
                     # Run the thread
-                    run = openai.beta.threads.runs.create(
+                    self.run = openai.beta.threads.runs.create(
                         thread_id=self.thread.id,
                         assistant_id=self.user_assistant.id,
                         model=self.model,
                         instructions= instructions,
                     )
-                    self.run = run
 
                 except Exception as e:
                     with CustomLogger("assistants") as log:
@@ -142,24 +146,24 @@ class LexiAssistantThread(LexiBaseTools):
                     )
 
                 # Main loop to treat a Thread - Run
-                while run.status not in ["completed", "cancelled", "failed", "expired"]:
+                while self.run.status not in ["completed", "cancelled", "failed", "expired"]:
 
 
                     # Await for Run to change status
-                    while run.status in ["queued", "in_progress"]:
+                    while self.run.status in ["queued", "in_progress"]:
 
                         # Retrieve run status:
-                        run = openai.beta.threads.runs.retrieve(
-                            thread_id=self.thread.id, run_id=run.id
+                        self.run = openai.beta.threads.runs.retrieve(
+                            thread_id=self.thread.id, run_id=self.run.id
                         )
 
                     # Log run status
                     with CustomLogger("lexios") as log:
-                        log.info(f"run object status - User: {self.user_id} Status:{run.status} Message:{self.user_message} Last Error: {run.last_error}")
+                        log.info(f"run object status - User: {self.user_id} Status:{self.run.status} Message:{self.user_message} Last Error: {self.run.last_error}")
                     
                     # Check if the run failed
-                    if run.status == 'failed':
-                        raise ValueError(f"openai: {run.last_error}")
+                    if self.run.status == 'failed':
+                        raise ValueError(f"openai: {self.run.last_error}")
 
                     # Recover meesages from the model
                     messages = openai.beta.threads.messages.list(thread_id=self.thread.id)
@@ -185,7 +189,7 @@ class LexiAssistantThread(LexiBaseTools):
                         if (
                             self.lexi.filter_echo is True
                             and assistant_reply == message
-                            and run.status == "requires_action"
+                            and self.run.status == "requires_action"
                         ):
                             # Log entry
                             with CustomLogger("messages") as log:
@@ -198,14 +202,14 @@ class LexiAssistantThread(LexiBaseTools):
                             self.conversation_orm.app_messages_content.append({
                                     'source':'system',
                                     'type': 'text', 
-                                    'time': self.format_datetime(str(datetime.now()))[:-3],
+                                    'time': format_datetime(str(datetime.now()))[:-3],
                                     'text':assistant_reply,
                                 }
                             )
                             self.has_changed = True
                             
                             # Render text output
-                            await self.lexi.prepare_output(assistant_reply, user_id=self.user_id, conversation_id=self.conversation_id)
+                            await prepare_output(self.lexi, assistant_reply, user_id=self.user_id, conversation_id=self.conversation_id)
 
                             # Render annotations
                             await render_annotations(self, links, attachments)
@@ -216,7 +220,7 @@ class LexiAssistantThread(LexiBaseTools):
 
 
                     # Check for requested tools:
-                    if run.status == "requires_action":
+                    if self.run.status == "requires_action":
 
                             # Create required tool calls:
                             await create_tool_calls(self)
@@ -229,7 +233,7 @@ class LexiAssistantThread(LexiBaseTools):
 
                             # Update Run status:
                             self.run = openai.beta.threads.runs.retrieve(
-                                thread_id=self.thread.id, run_id=run.id
+                                thread_id=self.thread.id, run_id=self.run.id
                             )
                             # Clear to_dos:
                             self.tool_calls = []
@@ -238,7 +242,8 @@ class LexiAssistantThread(LexiBaseTools):
                 
                 # Inform the user about the problem:
                 if not self.run_in_background:
-                    await self.lexi.prepare_output(
+                    await prepare_output(
+                        self.lexi, 
                         "I'm sorry, there was a problem processing your last request. Please try again...", 
                         user_id = self.user_id,
                         conversation_id=self.conversation_id
@@ -254,7 +259,7 @@ class LexiAssistantThread(LexiBaseTools):
             self.running_stat = "ready"
         
         # Autogenerate conversation title
-        if run.status == "completed" and not self.title_generated and \
+        if self.run.status == "completed" and not self.title_generated and \
         not self.run_in_background:
 
             # Generate name, update title
@@ -264,19 +269,17 @@ class LexiAssistantThread(LexiBaseTools):
         # End of Run execution
         # Save the response generated, used for background tasks
 
-        if self.run_in_background and run.status in ["completed", "cancelled", "failed", "expired"]:
+        if self.run_in_background and self.run.status in ["completed", "cancelled", "failed", "expired"]:
 
             self.response = {
-                'status': run.status,
+                'status': self.run.status,
                 'output': assistant_reply,
             }
            
     def metadata(self):
         # Prepare metadata, information that can enhance the quality of the assistant replies:
-        week_day = self.curr_day_short()
-        date_time, tzcode = self.get_adjusted_time(
-            self.lexi.time_zone, self.lexi.time_delta
-        )
+        week_day = curr_day_short()
+        date_time, tzcode = get_adjusted_time()
         date_time = date_time.strftime("%Y-%m-%d %H:%M:%S")
         metadata = {
             "current_date_time": f"{week_day} {date_time}",

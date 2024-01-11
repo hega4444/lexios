@@ -1,3 +1,4 @@
+admin
 lexios
-new_project
+new_lexi_project
 tests

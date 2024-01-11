@@ -55,6 +55,8 @@ class GoogleCalendar():
         except RefreshError as e:
             with CustomLogger("lexios") as log:
                 log.warning(f"Refresh credentials error: {e}")
+
+            self.calendar_service = None
             
             raise AttributeError("Could not refresh google credentials. {e}")
 
@@ -66,6 +68,9 @@ class GoogleCalendar():
 
     async def get_calendar_data(self, days: int = 10):
         # Example: Retrieve the next 10 events from the user's primary calendar
+
+        if not self.calendar_service:
+            return "No access to GCloud Calendar service."
 
         events_result = self.calendar_service.events()
         events_result = self.calendar_service.events().list(
@@ -81,6 +86,9 @@ class GoogleCalendar():
         # SUMM: Create an event in google calendar
         # summary 'description': Name for the event
         # description 'description': A more detailed description of the event
+
+        if not self.calendar_service:
+            raise AttributeError("No access to GCloud Calendar service.")
 
         if not self.user.google_calendar_access:
             raise AttributeError('User has not granted permission to access calendar data.')

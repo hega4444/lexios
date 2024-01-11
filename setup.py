@@ -16,7 +16,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'new_lexios_project=admin.create_lexios_project:__main__',
+            'lexios-admin=admin.main:__main__',
         ],
     },
 )

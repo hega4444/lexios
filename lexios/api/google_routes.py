@@ -1,16 +1,15 @@
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
-from fastapi_csrf_protect import CsrfProtect
 
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport import requests as google_auth_request
 
+
+from googleapiclient.discovery import build
+
 from lexios.settings.main import *
-from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
-from lexios.core.builtin.functions.email import GmailClient
-from lexios.core.builtin.functions.calendar import GoogleCalendar
 
 # Define router and backend components
 google_router = APIRouter()

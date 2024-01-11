@@ -33,7 +33,7 @@ class GmailClient():
                 self.user = kwargs.get("user")
             
             if self.user.gmail_access and self.user.google_details:
-
+                
                 # Check if a refresh token is available in the session
                 refresh_token = self.user.google_details.get('refresh_token')
 
@@ -63,25 +63,36 @@ class GmailClient():
                 # Build the People API service
                 self.people_service = build('people', 'v1', credentials=credentials)
 
-            else:
+            else:        
                 raise AttributeError("User has not granted access to Gmail data.")
             
         except RefreshError as e:
             with CustomLogger("lexios") as log:
-                log.warning(f"Refresh credentials error: {e}")
+                log.warning(f"Could not refresh google credentials. {e}")
+
+            self.gmail_service = None
+            self.people_service = None
             
-            raise AttributeError("Could not refresh google credentials. {e}")
+            raise AttributeError(f"Could not refresh google credentials. {e}")
 
     async def retrieve_unread_emails(self):
 
+        if not self.gmail_service:
+            return "Gmail service could not be loaded." 
+        
         # Calculate the date 24 hours ago from the current time
         date_24_hours_ago = (datetime.utcnow() - timedelta(hours=24)).strftime('%Y/%m/%d')
 
         # List unread messages excluding promotions category from the last 24 hours
         # Exclude promotions
-        unread_messages = self.gmail_service.users().messages().list(userId='me', 
-                                                                     q=f'is:unread -category:promotions after:{date_24_hours_ago}',
-                                                                     ).execute()
+        
+        try:
+            unread_messages = self.gmail_service.users().messages().list(userId='me', 
+                                                                        q=f'is:unread -category:promotions after:{date_24_hours_ago}',
+                                                                        ).execute()
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.warning(f"Email access denied by GCloud. User:{self.user.user_id} {e}")
 
         # Get the list of unread message IDs
         unread_message_ids = [message['id'] for message in unread_messages.get('messages', [])]
@@ -128,6 +139,10 @@ class GmailClient():
         # SUMM: Send an email using the Gmail API
         # to_adsress 'description': email addresss
         # Replace name annotation
+
+        if not self.gmail_service:
+            return "Gmail service could not be loaded."
+
         body= body.replace("[Your Name]", ' '.join([self.user.name_first, self.user.name_last]))
 
         # Create a MIME message for sending
@@ -150,6 +165,10 @@ class GmailClient():
             return None
 
     async def reply_to_email(self, original_message_id, reply_body, reply_subject = None):
+
+        if not self.gmail_service:
+            raise ValueError ("Gmail service could not be loaded.") 
+
         # Step 1: Retrieve the original message
         original_message = self.gmail_service.users().messages().get(userId='me', id=original_message_id).execute()
 
@@ -175,6 +194,9 @@ class GmailClient():
         return sent_reply_message
 
     async def execute_applying_rules(self):
+
+        if not self.gmail_service:
+            return
 
         # Get already processed messages
         processed_emails = retrieve_category_content(self.user.user_id, "processed_emails")
@@ -252,6 +274,9 @@ class GmailClient():
 
     async def search_email_by_name(self, name: str):
         # SUMM: Search for an email address among the gmail contacts
+
+        if not self.people_service:
+            return "Could not connect to GCloud People Service."
 
         try:
             # Use the People API to search for contacts by name

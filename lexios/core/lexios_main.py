@@ -6,15 +6,16 @@ import json
 from datetime import timedelta
 
 from lexios.settings.main import *
-from lexios.api.session_manager import LexiSessionManager
-from lexios.core.lexi_base_tools import *
+from lexios.core.session_manager import LexiSessionManager
+from lexios.core.common import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.task_scheduler import LexiTaskScheduler
-from lexios.core.lexios_builtin import append_basic_IO
+from lexios.core.load_builtin import append_basic_IO
 from lexios.core.logger import CustomLogger
+from lexios.core.messages_backend import prepare_output
 
 
-class LexiOS_Backend(LexiBaseTools):
+class LexiOS_Backend():
     # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
     # and NLP capabilities.
 
@@ -222,7 +223,8 @@ class LexiOS_Backend(LexiBaseTools):
                     else:
 
                     # Thread found but busy, inform the user on the chat interface
-                        await self.prepare_output(
+                        await prepare_output(
+                            self, 
                             "I'm still processing your last request. Just a moment please...", 
                             user_id= user_id,
                             conversation_id= conversation_id
@@ -247,7 +249,8 @@ class LexiOS_Backend(LexiBaseTools):
                         await thread.process_input(user_input, filename)
 
         except Exception as e:
-            await self.prepare_output(
+            await prepare_output(
+                self,
                 f"Seems that there is a problem... {e}", 
                 user_id=user_id,
                 conversation_id=conversation_id

@@ -7,10 +7,10 @@ import inspect
 from typing import List
 from collections import OrderedDict
 
-from lexios.core.lexi_base_tools import *
+from lexios.core.common import *
 from lexios.core.logger import CustomLogger
 
-class LexiExternalCommand(LexiBaseTools):
+class LexiExternalCommand():
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
 
     def __init__(

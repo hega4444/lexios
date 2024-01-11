@@ -12,7 +12,7 @@ from retry_requests import retry
 from newspaper import Article
 from urllib.parse import urlparse, parse_qs, unquote
 
-from lexios.core.lexi_base_tools import *
+from lexios.core.common import *
 
 
 class SearchEngine():
@@ -29,8 +29,8 @@ class SearchEngine():
         # SUMM: Retrive current time / location
 
         # Prepare metadata, information that can enhance the quality of the assistant replies:
-        week_day = LexiBaseTools.curr_day_short()
-        date_time, tzcode = LexiBaseTools.get_adjusted_time()
+        week_day = curr_day_short()
+        date_time, tzcode = get_adjusted_time()
         date_time = date_time.strftime("%Y-%m-%d %H:%M:%S")
         time_location = {
             "current_date_time": f"{week_day} {date_time}",

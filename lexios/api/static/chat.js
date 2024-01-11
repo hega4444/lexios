@@ -137,22 +137,26 @@ document.addEventListener("DOMContentLoaded", function () {
                         // Sanitize and process the message as before
                         // no longer needed message = escapeHTML(message);
 
+                        // Add prompt for Lexi
+                        if (msg_type === "text") {
+                            message = "Lexi: " + message;
+                        }
+
                         // Consent screen creation
                         if (msg_type === "consent_screen") {
                             
                             // Verify with user on screen
                             const user_response = await createConsentScreen(message, metadata);   
                         }
-                        // Add prompt for Lexi
-                        else if (msg_type === "text") {
-                            message = "Lexi: " + message;
-                        
+                        else {
+                            
                             // Use the new function to add the message to the chat
                             await addMessageToChat(message, images, "system", msg_type, isSpell, metadata);
 
                             // Example: Set the animation mode to "breath"
                             setAnimationMode('breath');
                         }
+
                     }
                 } catch (error) {
                     console.error('Error:', error);

@@ -4,11 +4,12 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
-from lexios.core.lexi_base_tools import *
+from lexios.core.common import *
 from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.consent import ConsentScreen
 from lexios.api.session_data import read_session_data_from_backend 
+from lexios.core.messages_backend import prepare_output
 
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
@@ -82,7 +83,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await self.lexi.prepare_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await prepare_output(self.lexi, show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
 
             except Exception as e:
                 with CustomLogger("func_calls") as log:
@@ -167,12 +168,14 @@ class ToolCall():
                     }
                     
                     # Send to the frontend for rendering
-                    await self.lexi.prepare_output(message, 
-                                                   images=images, 
-                                                   user_id=self.user_id, 
-                                                   spell= False,
-                                                   conversation_id=self.conversation_id, 
-                                                   msg_type="text"
+                    await prepare_output(
+                                    self.lexi,
+                                    message, 
+                                    images=images, 
+                                    user_id=self.user_id, 
+                                    spell= False,
+                                    conversation_id=self.conversation_id, 
+                                    msg_type="text"
                     )   
                 
             except Exception as e:
@@ -187,7 +190,7 @@ class ToolCall():
                     data = self.ext_command.format_user_response(self.ret_status)
 
                     # Print results
-                    await self.lexi.prepare_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
+                    await prepare_output(self.lexi, data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
 
                 except Exception as e:
                     # Log warning
@@ -212,7 +215,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await self.lexi.prepare_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await prepare_output(self.lexi, show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
             except Exception:
                 pass
 
@@ -257,7 +260,7 @@ async def create_tool_calls(thread):
     requires_consent_screen = False
 
     # Attend required action, an action can include more than a tool call:
-    system_status = LexiBaseTools.string_to_dict(thread.run.model_dump_json()) 
+    system_status = custom_json_parser(thread.run.model_dump_json()) 
     try:
         # Recover tool calls made by the AI model:
         calls = (
@@ -368,7 +371,7 @@ async def attend_tool_calls(thread):
                     # Update conversation ORM
                     thread.conversation_orm.app_messages_content.append({
                                             'source':'system',
-                                            'time': thread.format_datetime(str(datetime.now()))[:-3],
+                                            'time': format_datetime(str(datetime.now()))[:-3],
                                             'text': tool_call.custom_output.get("text", None),
                                             'images': tool_call.custom_output.get("images", None),
                                         }                    

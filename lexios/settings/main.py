@@ -1,6 +1,7 @@
 #lexios.settings.main.py 
 #-----------------------------------------------------------------------------------#
 # Try to gather the local settings from the current working project
+import sys
 
 try:
 
@@ -10,6 +11,7 @@ try:
     
     # Build custom settings file path
     project_folder = find_project_folder()
+    
     module_name = "settings" 
     module_path = os.path.join(project_folder, "settings.py")
 
@@ -21,7 +23,7 @@ try:
         print(f"Failed to import {module_name}")
 
 except Exception as e:
-    print(f"Could not import custom settings. Details: {e}.")
 
     # Import the baseline settings as safety net
     from lexios.settings.settings_template import *
+
