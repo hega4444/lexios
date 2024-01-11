@@ -5,6 +5,7 @@ import json
 from uuid import uuid4
 from pydantic import BaseModel
 from typing import List
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Depends, Form, HTTPException, Body
 from fastapi import File, UploadFile, Query, Path
@@ -40,7 +41,31 @@ lexi = get_lexi_backend_instance(
 # Retrieve a reference to the session manager
 session_manager = lexi.session_manager
 
-app = FastAPI()
+# Define logic at startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+
+    # Start the listen_to_redis function as a background task on startup
+    app.redis_listener_task = asyncio.create_task(listen_to_redis())
+        
+    # Start LexiTaskScheduler listener
+    app.scheduler_task = asyncio.create_task(lexi.scheduler.check_pending_tasks())
+    
+    yield # Server running
+
+    # Cancel the background task when the FastAPI application is shutting down
+    app.redis_listener_task.cancel()
+    await app.redis_listener_task
+
+    await asyncio.sleep(0.1)
+    # Cancel TaskScheduler
+    app.scheduler_task.cancel()
+    await app.scheduler_task
+
+    print("Background tasks closed.")
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(messages_router)
 app.include_router(google_router)
 templates = Jinja2Templates(directory="lexios/api/templates")
@@ -53,13 +78,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-async def on_startup():
-    # Start the listen_to_redis function as a background task on startup
-    asyncio.create_task(listen_to_redis())
-
-# Assign event handler
-app.add_event_handler("startup", on_startup)
 
 # Set up session cookies settings
 class CsrfSettings(BaseModel):

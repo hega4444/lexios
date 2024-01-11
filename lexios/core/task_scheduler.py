@@ -65,10 +65,7 @@ class LexiTaskScheduler():
                     )
                 except Exception as e:
                     pass
-        
-        # Start the background coroutine to listen for tasks
-        asyncio.create_task(self.check_pending_tasks())
-    
+
     def load_scheduled_tasks_from_db(self):
         # Retrieve scheduled tasks from the database as ORM models
         stored_tasks = get_all_scheduled_tasks()
@@ -240,45 +237,54 @@ class LexiTaskScheduler():
         update_task_status(task_id, new_status)
 
     async def check_pending_tasks(self):
-        while True:
-            # Check for tasks that are ready to be executed
-            ready_tasks = [task for task in self.scheduled_tasks if self.is_task_ready(task)]
 
-            # Execute the ready tasks
-            for task in ready_tasks:
-                try:
-                    
-                    if task.category == "external_command":
-                        await self.execute_scheduled_action(task)               
-                    else:
-                        await self.attend_internal_event(task)
+        try:
+            while True:
+                # Check for tasks that are ready to be executed
+                ready_tasks = [task for task in self.scheduled_tasks if self.is_task_ready(task)]
 
-                    # Schedule next event 
-                    if task.repeat_each:
+                # Execute the ready tasks
+                for task in ready_tasks:
+                    try:
+                        
+                        if task.category == "external_command":
+                            await self.execute_scheduled_action(task)               
+                        else:
+                            await self.attend_internal_event(task)
 
-                        if (task.end_at and  task.end_at < datetime.now()):
-                            continue
+                        # Schedule next event 
+                        if task.repeat_each:
+
+                            if (task.end_at and  task.end_at < datetime.now()):
+                                continue
+            
+                            # Calculate new execution time and update in memory
+                            task.start_at = datetime.now().replace(microsecond=0) + timedelta(seconds=task.repeat_each)
+                            task.status = "scheduled"
+
+                            # Update in database
+                            update_task_status(
+                                task_id=task.task_id,
+                                new_start_at= task.start_at,
+                                new_status= task.status,
+                            )
+
+                    except asyncio.CancelledError:
+                        return
+
+                    except Exception as e:
+                        with CustomLogger("scheduled_tasks") as log:
+                            log.warning(f"Could not reschedule task '{task.task_id}'. {e}")
         
-                        # Calculate new execution time and update in memory
-                        task.start_at = datetime.now().replace(microsecond=0) + timedelta(seconds=task.repeat_each)
-                        task.status = "scheduled"
+                # Remove executed tasks from the list
+                self.scheduled_tasks = [task for task in self.scheduled_tasks if task.status != "completed"]
 
-                        # Update in database
-                        update_task_status(
-                            task_id=task.task_id,
-                            new_start_at= task.start_at,
-                            new_status= task.status,
-                        )
-                except Exception as e:
-                    with CustomLogger("scheduled_tasks") as log:
-                        log.warning(f"Could not reschedule task '{task.task_id}'. {e}")
+                # Sleep for a short duration before checking again
+                await asyncio.sleep(1)
 
-            # Remove executed tasks from the list
-            self.scheduled_tasks = [task for task in self.scheduled_tasks if task.status != "completed"]
+        except asyncio.CancelledError:
+            return
 
-            # Sleep for a short duration before checking again
-            await asyncio.sleep(1)
-    
     def is_task_ready(self, task: ScheduledTaskPydantic):
         # Return True if the task is ready, False otherwise
         current_time = datetime.now().replace(microsecond=0)

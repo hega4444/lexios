@@ -134,11 +134,11 @@ def run_project(project_name):
             os.chdir(project_dir)
             
         try:
-            print("Intiaging LexiOs...")
+            print(f"Starting '{project_name}'...")
 
             subprocess.run(["python", os.path.join(project_dir, "main.py")], cwd=base_dir)
         except KeyboardInterrupt:
-            print("Server closed.")
+            print(f"'{project_name}' finished.")
 
         else:
             print(f"Error: {path_main_file} does not exist.")

@@ -1,6 +1,7 @@
 # websocket_logic.py
 import aioredis
 import json
+import asyncio
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect, HTTPException
@@ -12,6 +13,7 @@ from lexios.settings.main import BROKER_URL
 from lexios.api.session_data import backend
 from lexios.database.users import update_user_data_in_db
 from lexios.core.session_manager import LexiSessionManager
+from lexios.core.logger import CustomLogger
 
 messages_router = APIRouter()
 session_manager = LexiSessionManager()
@@ -70,13 +72,13 @@ async def websocket_endpoint(
     
     return JSONResponse({'status':'connected'})
 
-# Active listen messages coming from broker
 async def listen_to_redis():
     # Listen to Redis messages and forward them to the corresponding WebSocket connections
     async with aioredis.from_url(BROKER_URL) as broker:
         channel = broker.pubsub()
         await channel.subscribe("fastapi_channel")
         print("Listening to messages from backend.")
+
         try:
             while True:
                 message = await channel.get_message(ignore_subscribe_messages=True)
@@ -86,12 +88,25 @@ async def listen_to_redis():
                     if session_id:
                         try:
                             await manager.send_json(
-                                session_id= session_id,
-                                message= message_data,
+                                session_id=session_id,
+                                message=message_data,
                             )
-                        except Exception as e:
+                        except WebSocketDisconnect:
+                            # Handle WebSocket disconnect here if needed
                             pass
-        except WebSocketDisconnect as e:
-            channel.close()
-            await channel.wait_closed()
+                        except Exception as e:
+                            # Handle other WebSocket-related exceptions
+                            print(f"WebSocket error: {e}")
+                    
+                await asyncio.sleep(0.1)
 
+        except asyncio.CancelledError:
+            # Additional cleanup logic if needed
+            pass
+        
+        finally:
+            await channel.close()
+
+
+
+          
