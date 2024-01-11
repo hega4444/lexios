@@ -1,7 +1,8 @@
 from typing import List
-from lexios.integrations.manager import IntegrationsManager
 
-class DatabaseConnection():
+from lexios.integrations.plugin import PluginTemplate
+
+class DatabaseConnection(PluginTemplate):
 
     def __init__( 
         self,
@@ -17,11 +18,7 @@ class DatabaseConnection():
         load_files: List[str] = None,
         force: bool = False,
     ):
-        self._plugin_identifier = "DatabaseConnection"
-
-        # Connect to the integrations manager
-        self.manager = IntegrationsManager()
-
+        
         # Save settings
         self.settings =  {
                     "test_mode" : test_mode,
@@ -39,8 +36,8 @@ class DatabaseConnection():
         # Keep a list of files to load in the database at startup
         self.files = load_files
 
-        # Add me 
-        self.manager.add_me(self)
+        # Call construtor of the PluginTemplate class
+        super().__init__(plugin_name= "DatabaseConnection")
 
     def load_file(self, filename, tablename):
         # Append file to inner state

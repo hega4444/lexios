@@ -7,7 +7,7 @@ import inspect
 from typing import List
 from collections import OrderedDict
 
-from lexios.core.common import *
+from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
 
 class LexiExternalCommand():
@@ -38,8 +38,6 @@ class LexiExternalCommand():
 
         self.json_string = None
         self.specs = None
-        # Complete the specs
-        self.generate_specs()  # This will populate self.json_string
         self.printer = printer
 
         # Custom parameters validation
@@ -64,82 +62,97 @@ class LexiExternalCommand():
         # Define if the command can be executed by assistants running in background mode
         self.allowed_in_background = allowed_in_background
 
+        # Additional key specifications
+        self.aditional_key_specs = []
+
+        # Complete the specs
+        self.generate_specs()  # This will populate self.json_string
+
     def generate_specs(self):
         
-        sig = inspect.signature(self.func)
-        det_annotation = self.func.__annotations__
+        try:
+            sig = inspect.signature(self.func)
+            det_annotation = self.func.__annotations__
 
-        params = OrderedDict()
-        required_params = []
+            params = OrderedDict()
+            required_params = []
 
-        for name, param in sig.parameters.items():
-            # Dont include self in parameters:
-            if name == "self":
-                continue
-            # If the variable type cannot be determined, becomes 'string' by default:
-            new_param = OrderedDict(
+            for name, param in sig.parameters.items():
+                # Dont include self in parameters:
+                if name == "self":
+                    continue
+                # If the variable type cannot be determined, becomes 'string' by default:
+                new_param = OrderedDict(
+                    [
+                        (
+                            "type",
+                            self.stringify_types(str(det_annotation.get(name, "string"))),
+                        )
+                    ]
+                )
+                if param.default == inspect.Parameter.empty:
+                    required_params.append(name)
+                params[name] = new_param
+
+            source_lines = inspect.getsource(self.func).split("\n")
+            comment_sections = self.parse_header_comments(source_lines)
+            description = self.ensure_period(comment_sections.get("SUMM", ""))
+            keys = comment_sections.get("KEYS", None)
+            if keys:
+                description += (
+                    " Keys/words related to this function: " + self.ensure_period(keys)
+                )
+
+            properties_dict = OrderedDict()
+            for param_name, param_info in params.items():
+                properties_dict[param_name] = param_info
+
+            # Process custom docstring tags
+            custom_tags = self.parse_custom_tags(source_lines)
+            for param_name, tags_info in custom_tags.items():
+                if param_name in properties_dict:
+                    for pair_value in tags_info:
+                        properties_dict[param_name].update(pair_value)
+            
+            # Additional custom specifications
+            for custom_spec in self.aditional_key_specs:
+                    properties_dict[custom_spec[0]].update([custom_spec[1:]])
+
+            func_specs = OrderedDict(
                 [
+                    ("type", "function"),
                     (
-                        "type",
-                        self.stringify_types(str(det_annotation.get(name, "string"))),
-                    )
+                        "function",
+                        OrderedDict(
+                            [
+                                ("name", self.name),
+                                ("description", description),
+                                (
+                                    "parameters",
+                                    OrderedDict(
+                                        [
+                                            ("type", "object"),
+                                            ("properties", properties_dict),
+                                        ]
+                                    ),
+                                ),
+                                ("required", required_params),
+                            ]
+                        ),
+                    ),
                 ]
             )
-            if param.default == inspect.Parameter.empty:
-                required_params.append(name)
-            params[name] = new_param
 
-        source_lines = inspect.getsource(self.func).split("\n")
-        comment_sections = self.parse_header_comments(source_lines)
-        description = self.ensure_period(comment_sections.get("SUMM", ""))
-        keys = comment_sections.get("KEYS", None)
-        if keys:
-            description += (
-                " Keys/words related to this function: " + self.ensure_period(keys)
-            )
+            # Manually construct the JSON string to ensure proper formatting
+            self.json_string = json.dumps(func_specs, separators=(",", ":"))
+            self.json_string = self.json_string.replace("}", " }")  # Remove white space
 
-        properties_dict = OrderedDict()
-        for param_name, param_info in params.items():
-            properties_dict[param_name] = param_info
+            # Save the specs
+            self.specs = func_specs
 
-        # Process custom docstring tags
-        custom_tags = self.parse_custom_tags(source_lines)
-        for param_name, tags_info in custom_tags.items():
-            if param_name in properties_dict:
-                for pair_value in tags_info:
-                    properties_dict[param_name].update(pair_value)
-
-        func_specs = OrderedDict(
-            [
-                ("type", "function"),
-                (
-                    "function",
-                    OrderedDict(
-                        [
-                            ("name", self.name),
-                            ("description", description),
-                            (
-                                "parameters",
-                                OrderedDict(
-                                    [
-                                        ("type", "object"),
-                                        ("properties", properties_dict),
-                                    ]
-                                ),
-                            ),
-                            ("required", required_params),
-                        ]
-                    ),
-                ),
-            ]
-        )
-
-        # Manually construct the JSON string to ensure proper formatting
-        self.json_string = json.dumps(func_specs, separators=(",", ":"))
-        self.json_string = self.json_string.replace("}", " }")  # Remove white space
-
-        # Save the specs
-        self.specs = func_specs
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.error(f"Could not parse the specs for function '{self.name}'. {e}")
 
     def parse_header_comments(self, source_lines):
         keys_pattern = re.compile(r"#\s*KEYS\s*:?\s*(.*)", re.IGNORECASE)
@@ -354,15 +367,20 @@ class LexiExternalCommand():
         # Check if the function requires an associated object
         if self.requires_object:
             method_to_call = getattr(self.requires_object, self.name)
-            result = method_to_call(**kwargs)
-        
+      
+            if asyncio.iscoroutinefunction(method_to_call):
+
+                result = await method_to_call(**kwargs)
+            else:
+                result = method_to_call(**kwargs)
+
         # Check if the function requires an object to be instantiated
         elif self.requires_dynamic_object:
             
-            # recover the values needed for the dynamic object
-            dynamic_context = context.get("dynamic_context")
-            required_object = self.requires_dynamic_object(**dynamic_context)
+            # create an instance of the dynamic object that handles the tool call
+            required_object = self.requires_dynamic_object(**context)
             method_to_call = getattr(required_object, self.name)
+
 
             if asyncio.iscoroutinefunction(method_to_call):
 
@@ -375,6 +393,17 @@ class LexiExternalCommand():
             result = self.func(**kwargs)
         
         return result
+    
+    def add_key_spec(self, param: str, tag: str, value: str):
+        # Add a specif tag to a parameter in the tool specs definition
+
+        if not self.aditional_key_specs:
+            self.aditional_key_specs = []
+
+        self.aditional_key_specs.append([param, tag, value])
+        
+        # Regenerate the specs
+        self.generate_specs()
     
     def add_consent_scope(self, scope_name: str, template: str, vars: List[str] = None):
         # Customize an external command with a consent screen scope that uses parameters to form the string to show to the user

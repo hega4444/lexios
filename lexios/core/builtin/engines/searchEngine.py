@@ -12,7 +12,7 @@ from retry_requests import retry
 from newspaper import Article
 from urllib.parse import urlparse, parse_qs, unquote
 
-from lexios.core.common import *
+from lexios.core.common_tools import *
 
 
 class SearchEngine():
@@ -145,30 +145,22 @@ class SearchEngine():
             raise ValueError(e)
 
     @classmethod
-    def access_website_content(cls, nid: str = None, url: str = None) -> str:
-        # KEYS: extract html article 
-        # SUMM: retrieves the text data from a nid_XXXX with article details, gives more detailed information.
-
-        if url is None:
-            if nid not in cls.news_dict:
-                raise ValueError(f"{nid} not found.")
-            # Retreieve the stored URL
-            url = cls.news_dict[nid]["url"]
+    def read_external_url_content(cls, url: str) -> str:
+        # SUMM: extract html content from an url 
 
         article = Article(url)
         article.download()
         article.parse()
 
         article_data = {
-            "nid": nid,
+
             "title": article.title,
             "text": article.text,
             "authors": article.authors,
             "publish_date": article.publish_date.isoformat()
-            if article.publish_date
-            else None,
+                if article.publish_date
+                else None,
             "top_image": article.top_image,
-            "movies": article.movies,
             "keywords": article.keywords,
             "summary": article.summary,
         }

@@ -57,7 +57,7 @@ class ConsentScreen():
                         raise ValueError("Please enter a list of 'scopes'.")
 
             # Default prompt to user
-            self.text_content = "The following actions I'm about to perform require an explicit authorization from you..."
+            self.text_content = "The following actions require an explicit authorization from you..."
 
             # Generate token for the consent screen
             self.token = str(uuid.uuid4())

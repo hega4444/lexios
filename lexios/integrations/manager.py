@@ -3,7 +3,7 @@ from typing import List, Callable, Union
 
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
-from lexios.core.load_builtin import set_up_db_integration
+from lexios.core.load_builtin import set_up_db_integration, set_up_virtual_agents
 
 class IntegrationsManager:
 
@@ -17,6 +17,7 @@ class IntegrationsManager:
             cls._instance = super(IntegrationsManager, cls).__new__(cls)
             cls._instance.commands = []
             cls._instance.databases = []
+            cls._instance.virtual_agents = []
 
         return cls._instance
 
@@ -36,6 +37,9 @@ class IntegrationsManager:
         if plugin._plugin_identifier == "DatabaseConnection":
             self.databases.append(plugin)
 
+        if plugin._plugin_identifier == "VirtualAgent":
+            self.virtual_agents.append(plugin)
+
     def make_lexi(self, **kwargs):
         # Create an instance of Lexi Backend 
         lexi = LexiOS_Backend(**kwargs)
@@ -51,6 +55,12 @@ class IntegrationsManager:
 
             # Integration setup (adding tools to interact w/db)
             set_up_db_integration(lexi)
+        
+        # Append the agents
+        if self.virtual_agents:
+            lexi.virtual_agents = self.virtual_agents
+
+            set_up_virtual_agents(lexi)
 
         return lexi
     

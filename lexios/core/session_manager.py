@@ -4,7 +4,7 @@ from cryptography.fernet import Fernet
 from lexios.database.users import validate_password, create_user_account_in_db
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.logger import CustomLogger
-from lexios.api.session_data import LexiSessionData
+from lexios.frontend.session_data import LexiSessionData
 from lexios.core.conversations import save_conversation, update_conversation_title, retrieve_messages, delete
 
 

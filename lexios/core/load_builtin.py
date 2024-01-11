@@ -1,5 +1,7 @@
 # lexios_builtin.py
 
+import json
+
 from lexios.settings.main import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.logger import CustomLogger
@@ -16,6 +18,8 @@ from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.builtin.functions.calendar import GoogleCalendar
 from lexios.core.builtin.functions.email import GmailClient 
 
+# Virtual Agents
+from lexios.integrations.virtual_agent import VirtualAgentsRouter
 
 def append_basic_IO(lexios):
 
@@ -43,7 +47,7 @@ def append_basic_IO(lexios):
             # Extract URL content:
             lexios.append_command(
                 LexiExternalCommand(
-                    SearchEngine.access_website_content, show_return_to_user=False
+                    SearchEngine.read_external_url_content, show_return_to_user=False
                 )
             )
             # Read a RSS channel:
@@ -251,3 +255,33 @@ def set_up_db_integration(lexios):
         except Exception as e:
             with CustomLogger("lexios") as log:
                 log.error(f"Problem setting up SQL / Mining features: {e}")
+
+def set_up_virtual_agents(lexi):
+
+    if lexi.virtual_agents:
+
+        # Define a router
+        lexi.agents_router = VirtualAgentsRouter(lexi.virtual_agents)
+
+        # Retrieve the agents names list
+        agent_names = lexi.agents_router._agent_names
+
+        # Route message command
+        route_message_to_agent = LexiExternalCommand(
+            VirtualAgentsRouter.route_to_virtual_agent,
+            requires_dynamic_object= VirtualAgentsRouter,
+        )
+
+        # Update command specs to include the agents names
+        route_message_to_agent.add_key_spec(
+            param="virtual_agent_name", 
+            tag="enum", 
+            value= agent_names,
+        )
+
+        # Append command
+        lexi.append_command(route_message_to_agent)
+
+        # Initate threads
+        for agent in lexi.virtual_agents:
+            agent.load_lexi_thread(lexi)

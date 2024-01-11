@@ -10,7 +10,7 @@ from stringcolor import cs
 
 from lexios.settings.main import *
 # Tools
-from lexios.core.common import *
+from lexios.core.common_tools import *
 
 from lexios.core.builtin.engines.miningEngine import ANN_MODEL, LINEAR_MODEL, SimpleMiner_ANN, SimpleMiner_Linear
 

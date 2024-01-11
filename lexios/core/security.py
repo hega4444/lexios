@@ -2,7 +2,7 @@
 from typing import List
 
 from lexios.database.roles import get_assigned_roles_by_user_id
-from lexios.api.session_data import LexiSessionData
+from lexios.frontend.session_data import LexiSessionData
 from lexios.core.logger import CustomLogger
 
 class LexiAccessControl():

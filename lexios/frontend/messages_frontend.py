@@ -10,7 +10,7 @@ from typing import Dict
 from fastapi import APIRouter
 
 from lexios.settings.main import BROKER_URL
-from lexios.api.session_data import backend
+from lexios.frontend.session_data import backend
 from lexios.database.users import update_user_data_in_db
 from lexios.core.session_manager import LexiSessionManager
 from lexios.core.logger import CustomLogger
@@ -103,7 +103,7 @@ async def listen_to_redis():
         except asyncio.CancelledError:
             # Additional cleanup logic if needed
             pass
-        
+
         finally:
             await channel.close()
 

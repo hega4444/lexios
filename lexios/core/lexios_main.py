@@ -2,12 +2,11 @@
 import os
 import openai
 
-import json
 from datetime import timedelta
 
 from lexios.settings.main import *
 from lexios.core.session_manager import LexiSessionManager
-from lexios.core.common import *
+from lexios.core.common_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.load_builtin import append_basic_IO
@@ -29,7 +28,6 @@ class LexiOS_Backend():
         super().__init__()
 
         self.model = model
-        self.lexi_instance_id = self.get_last_instance_id()
         self.toolbox = {}
         self.generated_prompt = None
 
@@ -89,8 +87,17 @@ class LexiOS_Backend():
         if api_key:
             # print("API key found!")
             openai.api_key = api_key
+
+        elif OPENAI_KEY != "YOUR_KEY_HERE": 
+            # Constant stored in settings comes second in priority
+            openai.api_key = OPENAI_KEY
+        
         else:
-            print("API key not found.")
+            # Not found - Shutdown
+            with CustomLogger("lexios") as log:
+                log.critical("API key not found.")
+            
+            sys.exit()
 
         # Define output methods:
         self.define_output_methods(command_line=True, backend=BROKER_PATH)
@@ -106,6 +113,8 @@ class LexiOS_Backend():
         self.databases_list = None
         self.sql_engine = None 
 
+        # List of virtual agents gathered by the Integrations Manager
+        self.virtual_agents = None
 
     def set_up_admin_assistant(self):
         # Create a list of available tools for the Assistant
@@ -130,34 +139,6 @@ class LexiOS_Backend():
         # Append command to catalog
         self.toolbox[command.name] = command
         
-    def get_last_instance_id(self):
-        sesid_file = "data/sesid.txt"
-
-        # Get the absolute path to the 'data' folder
-        data_folder = os.path.abspath("data")
-
-        # Ensure that the 'data' folder exists; create it if it doesn't
-        if not os.path.exists(data_folder):
-            os.makedirs(data_folder)
-
-        # Try to read the existing SESID from the file
-        try:
-            with open(sesid_file, "r") as file:
-                sesid = int(file.read().strip())
-        except FileNotFoundError:
-            # If the file does not exist, start with SESID 1
-            sesid = 1
-
-        # Perform any necessary operations with sesid
-        sesid += 1
-        # Save the updated SESID back to the file
-        with open(sesid_file, "w") as file:
-            file.write(str(sesid))
-
-        return sesid
-
-        return json.dumps({"table": data}, indent=4)
-
     def build_toolbox(self, code_interpreter=True, retrieval=True):
         # Create a list of tools available for the assistant:
         tools = []

@@ -2,7 +2,7 @@
 from typing import List
 
 from lexios.core.external_command import LexiExternalCommand
-from lexios.api.session_data import LexiSessionData
+from lexios.frontend.session_data import LexiSessionData
 from lexios.core.security import LexiAccessControl
 from lexios.core.logger import CustomLogger
 

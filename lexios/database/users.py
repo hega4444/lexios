@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import or_
 
 from lexios.settings.main import *
-from lexios.api.session_data import LexiSessionData
+from lexios.frontend.session_data import LexiSessionData
 from lexios.database.models import Session, User, UserSpecificData, UserSpecificDataORM
 
 def create_user_account_in_db(email, password, user_data = None , gmail_data = None):

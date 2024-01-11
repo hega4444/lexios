@@ -22,10 +22,10 @@ PROJECT_FOLDER = find_project_folder()
 
 from lexios.settings.main import *
 from lexios.globals import Globals
-from lexios.api.session_data import backend, cookie, verifier, LexiSessionData
-from lexios.api.messages_frontend import messages_router, listen_to_redis
-from lexios.api.google_routes import google_router, google_backend
-from lexios.api.web_proxy import get_link_icon_and_title
+from lexios.frontend.session_data import backend, cookie, verifier, LexiSessionData
+from lexios.frontend.messages_frontend import messages_router, listen_to_redis
+from lexios.frontend.google_routes import google_router, google_backend
+from lexios.frontend.web_proxy import get_link_icon_and_title
 from lexios.database.conversations import get_user_conversations
 from lexios.database.users import update_user_data_in_db
 from lexios.integrations.make import get_lexi_backend_instance
@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(messages_router)
 app.include_router(google_router)
-templates = Jinja2Templates(directory="lexios/api/templates")
+templates = Jinja2Templates(directory="lexios/frontend/templates")
 
 # CORS set up
 app.add_middleware(

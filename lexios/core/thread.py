@@ -3,9 +3,9 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
-from lexios.api.session_data import read_session_data_from_backend
+from lexios.frontend.session_data import read_session_data_from_backend
 from lexios.database.users import get_user_data_by_user_id
-from lexios.core.common import *
+from lexios.core.common_tools import *
 from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
 from lexios.core.downloads import manage_downloads, manage_links
 from lexios.core.thread_messages import update_thread_messages, restore_conversation_data, render_annotations

@@ -4,11 +4,11 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
-from lexios.core.common import *
+from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.consent import ConsentScreen
-from lexios.api.session_data import read_session_data_from_backend 
+from lexios.frontend.session_data import read_session_data_from_backend 
 from lexios.core.messages_backend import prepare_output
 
 
@@ -29,6 +29,7 @@ class ToolCall():
         function_name: str, 
         function_arguments: str, 
         ext_command,
+        user_message = None,
     ):
         super().__init__()
 
@@ -47,6 +48,7 @@ class ToolCall():
         self.function_arguments = function_arguments
         self.type = "function"
         self.error_details = None
+        self.user_message = user_message
 
         # Determine if it is a valid call
         if ext_command:
@@ -110,14 +112,12 @@ class ToolCall():
 
                     # Build the dynamic context for the command (some commands may need it)
                     context = {
-                        'dynamic_context' : {
                             'lexi': self.lexi,
                             'user_id' : self.user_id,
                             'user': read_session_data_from_backend(self.user_id),
                             'conversation_id' : self.conversation_id,
+                            'user_input': self.user_message,
                         }
-                    }
-                    
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)
 
@@ -293,6 +293,7 @@ async def create_tool_calls(thread):
                     function_arguments=call["function"]["arguments"],
                     # Get the reference to the ext command:
                     ext_command=ext_command,
+                    user_message=thread.user_message,
                 )
 
                 thread.tool_calls.append(tool_call)
