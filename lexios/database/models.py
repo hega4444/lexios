@@ -104,9 +104,8 @@ class User(Base):
     user_specific_data = relationship('UserSpecificDataORM', back_populates='user')
     roles = relationship('Role', back_populates='user')
 
-# Security roles
 class Role(Base):
-
+    # Roles assigned to an user_id
     __tablename__ = 'roles'
 
     role_id = Column(Integer, primary_key=True, autoincrement=True)
@@ -117,6 +116,13 @@ class Role(Base):
     execute = Column(Boolean, default=False)
 
     user = relationship('User', back_populates='roles')
+
+    def __init__(self, user_id, name, read=False, write=False, execute=False):
+        self.user_id = user_id
+        self.name = name
+        self.read = read
+        self.write = write
+        self.execute = execute
 
 
 # User conversations
@@ -129,22 +135,40 @@ class Conversation(Base):
     conversation_id = Column(String(6), unique=True)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     title = Column(String(255))
+    virtual_agent_name = Column(String(50), default=None, nullable=True)
     app_messages_content = Column(JSON)
-    model_assistant_id = Column(String(32), nullable=False)
-    model_thread_id = Column(String(32), nullable=False)
+    model_root_assistant_id = Column(String(32), nullable=False)
+    model_root_thread_id = Column(String(32), nullable=True)
+    model_loaded_assistant_id = Column(String(32), nullable=True)
+    model_loaded_thread_id = Column(String(32), nullable=True)
     model_messages = Column(LargeBinary)  # Use LargeBinary to store binary data
     metrics = Column(LargeBinary)  # Use LargeBinary to store binary data
 
     # Define the relationship to users
     user = relationship('User', back_populates='conversations')
 
-    def __init__(self, user_id, conversation_id, title, app_messages_content, model_assistant_id, model_thread_id, model_messages, metrics):
+    def __init__(
+            self, user_id, 
+            conversation_id, 
+            title, app_messages_content, 
+            root_assistant_id,
+            root_thread_id,
+            loaded_assistant_id, 
+            loaded_thread_id, 
+            model_messages, 
+            metrics,
+            virtual_agent_name,
+    ):
+        
         self.user_id = user_id
         self.conversation_id = conversation_id
         self.title = title
         self.app_messages_content = app_messages_content
-        self.model_assistant_id = model_assistant_id
-        self.model_thread_id = model_thread_id
+        self.virtual_agent_name = virtual_agent_name
+        self.model_root_assistant_id = root_assistant_id
+        self.model_root_thread_id = root_thread_id
+        self.model_loaded_assistant_id = loaded_assistant_id
+        self.model_loaded_thread_id = loaded_thread_id
         self.model_messages = model_messages
         self.metrics = metrics
 
@@ -231,18 +255,37 @@ def initial_database_setup():
         # Create models
         Base.metadata.create_all(engine)
 
-        # Create Admin user
-        admin_user = User(name_first='Admin', name_last='Login', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
-        session.add(admin_user)
-
+        # USER_ID 1 = SYSTEM USER
         # Create a new user and add it to the database
-        new_user = User(name_first='user', name_last='test', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
-        session.add(new_user)
-
-
+        root = User(name_first=LEXI_ALIAS, name_last=LEXI_ALIAS, username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+        session.add(root)
+        session.commit()
+        
+        # USER_ID 1 = SYSTEM USER / ROLE ROOT_ACCESS 
+        # Define / Assign a role for system use only
+        root_role = Role(user_id=root.user_id, name='root', read=True, write=True, execute=True)
+        session.add(root_role)
+        session.commit()
+        
+        # USER_ID 2 = VIRTUAL AGENT
+        # Create a new user and add it to the database
+        agent = User(name_first="virtual_agent", name_last="", username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+        session.add(agent)
         session.commit()
 
-        user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=True)
+        # USER_ID 2 = VIRTUAL AGENT / ROLE VIRTUAL_AGENT_ACCESS
+        # Define / Assign a role for system use only
+        agent_role = Role(user_id=agent.user_id, name='virtual_agent', read=True, write=True, execute=True)
+        session.add(agent_role)
+        session.commit()
+
+        # Test user
+        new_user = User(name_first='Hernan', name_last='Garcia', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
+        session.add(new_user)
+        session.commit()
+
+        # Define a baseline role for a user
+        user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=False)
         session.add(user_role)
         session.commit()
 
@@ -250,59 +293,15 @@ def initial_database_setup():
     session.close()
 
 
-# Initial setup of Lexi models here:
+
+# Lexi internal database set up -----------------------------------------------------------------------------------------------------#
+
 if __name__ == '__main__':
 
-    # WARNING !!!! RUN THIS ONLY WHEN RESETING THE MODELS !!!!
+    initial_database_setup()
 
-    # Lexi internal database set up -----------------------------------------------------------------------------------------------------#
-
-    session = Session()
-
-    options = {
-        "force" : TEST_MODE,
-        "db_name" : LEXI_DATABASE_NAME,
-        "user": LEXI_DB_ADMIN_USER,
-        "password" : LEXI_DB_ADMIN_PASS,
-        "port": LEXI_DB_ADMIN_PORT,
-        "load_setup_script": "",
-        "drop_after" : True,  # Set it True to wipe the database, False for creating the data model again
-    }
-
-    try:
-        if LEXI_AUTOMATIC_DB_SETUP or True: # Adjust if neccesary
-            # Connect to db using simpleSQL
-            with SimpleSQL(**options) as lexi_db:
-                # Check if table users exists
-                table_user_exists = lexi_db.check_table_exists(table_name="users")
-    except Exception:
-        pass
-
-    options['drop_after'] = False
-    if LEXI_AUTOMATIC_DB_SETUP or True: # Adjust if neccesary
-        # Connect to db using simpleSQL
-        with SimpleSQL(**options) as lexi_db:
-            # Check if table users exists
-            table_user_exists = lexi_db.check_table_exists(table_name="users")
-
-
-        if not table_user_exists:
-            
-            # Create models
-            Base.metadata.create_all(engine)
-
-            # Create a new user and add it to the database
-            new_user = User(name_first='Vane', name_last='Valdino', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
-            session.add(new_user)
-            session.commit()
-
-            user_role = Role(user_id=new_user.user_id, name='user_access', read=True, write=True, execute=True)
-            session.add(user_role)
-            session.commit()
-
-    # Close the session when you're done
-    session.close()
     print("models generated.")
-    # Lexi internal database set up -----------------------------------------------------------------------------------------------------#
+
+# Lexi internal database set up -----------------------------------------------------------------------------------------------------#
 
 

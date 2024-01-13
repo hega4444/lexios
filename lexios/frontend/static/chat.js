@@ -111,13 +111,14 @@ document.addEventListener("DOMContentLoaded", function () {
             // Listen and update messages:
             socket.addEventListener('message', async (event) => {
                 // Handle incoming Lexi messages
-                let data = JSON.parse(event.data)
+                let data = JSON.parse(event.data);
                 let message = data.content || "" ;
                 const isSpell = data.spell; // Check the 'spell' property
                 const msg_type = data.msg_type; // Check the msg_type
-                const metadata = data.metadata || null // Retrieve the metadata
+                const metadata = data.metadata || null; // Retrieve the metadata
                 const images = data.images || null; // Retrieve images
-                const conversation_id = data.conversation_id // Conversation_id 
+                const conversation_id = data.conversation_id; // Conversation_id 
+                const alias = data.alias || null; // Virtual Agent name
 
                 console.log("New Lexi message:", message);
 
@@ -139,7 +140,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         // Add prompt for Lexi
                         if (msg_type === "text") {
-                            message = "Lexi: " + message;
+                            if (alias){
+                                // Custom virtual agent name
+                                message = alias + ": " + message; 
+                            }
+                            else {
+                                // Default Lexi prompt
+                                message = "Lexi: " + message;
+                            }
                         }
 
                         // Consent screen creation

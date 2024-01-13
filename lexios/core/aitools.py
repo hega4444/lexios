@@ -28,7 +28,7 @@ async def ai_assistant_request(user_id: int, request: str, instructions: str, co
         conversation_id= conversation_id,
         args= {
             'user_id': user_id,
-            'tools': session_manager.lexi.toolbox,
+            'toolbox': session_manager.lexi.toolbox,
             'instructions': instructions,
             'model': LEXI_GPT_MODEL,
             'lexi': session_manager.lexi,

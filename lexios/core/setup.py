@@ -1,43 +1,39 @@
 # lexios_builtin.py
 
-import json
-
 from lexios.settings.main import *
-from lexios.core.external_command import LexiExternalCommand
 from lexios.core.logger import CustomLogger
+from lexios.core.lexios_main import LexiOS_Backend
 
 # Appends the builtin commands of lexi as baseline
 
-# Lexi's Engines 
-from lexios.core.builtin.engines.SQLEngine import LexiDatabase
-from lexios.core.builtin.engines.searchEngine import SearchEngine
-from lexios.core.builtin.engines.userDataEngine import UserDataManager
-from lexios.core.task_scheduler import LexiTaskScheduler
+def append_basic_IO(lexi: LexiOS_Backend):
 
-# Built-in tools
-from lexios.core.builtin.functions.calendar import GoogleCalendar
-from lexios.core.builtin.functions.email import GmailClient 
-
-# Virtual Agents
-from lexios.integrations.virtual_agent import VirtualAgentsRouter
-
-def append_basic_IO(lexios):
+    # External commands definition
+    from lexios.core.external_command import LexiExternalCommand
 
     # Append internal basic I/O methods / protocols
+
+    # Scheduler creates a clock for managing events, run tasks in background and support
+    # other components like reminders, automatic replies and automated actions.
+    from lexios.core.task_scheduler import LexiTaskScheduler
+
+    # Search Engine is the base component for creating context for the model
+    from lexios.core.builtin.engines.searchEngine import SearchEngine
 
     try:
 
         # Time / Location:
-        lexios.append_command(
+        lexi.append_command(
             LexiExternalCommand(
                 func=SearchEngine.time_and_location,
                 show_return_to_user=False
-            )
+            ),
+            required_by_lexi = True,
         )
 
         if SEARCH_ENGINE:
             # Search on the Internet:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     func=SearchEngine.bing_search,
                     printer=SearchEngine.bing_search_printer,
@@ -45,34 +41,45 @@ def append_basic_IO(lexios):
                 )
             )
             # Extract URL content:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     SearchEngine.read_external_url_content, show_return_to_user=False
                 )
             )
             # Read a RSS channel:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(SearchEngine.read_rss, show_return_to_user=False)
             )
             # Check Stock prices:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(SearchEngine.get_stock_price_by_symbol, show_return_to_user=False)
             )
             # Check Weather Forecast:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     SearchEngine.get_weather_forecast, 
                     show_return_to_user=False,
                     before="Weather data by Open-Meteo.com")
             )
             # Schedule an action:
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     LexiTaskScheduler.schedule_new_action, show_return_to_user=False
                 )
             )
         
         if USER_DATA_MANAGER:
+
+            # This component handles the user specif data, preferences, rules for
+            # automating their requests. It also supports other services built on 
+            # top of it, like reminders. It offers a safe storage place for new 
+            # functionalities to store user related data.
+            from lexios.core.builtin.engines.userDataEngine import UserDataManager
+
+            # Google suite for Email and Calendar built-in tools
+            from lexios.core.builtin.functions.calendar import GoogleCalendar
+            from lexios.core.builtin.functions.email import GmailClient 
+
             # Create reminders, alarms, alerts
             create_reminder = LexiExternalCommand(
                     UserDataManager.schedule_reminder,
@@ -80,7 +87,7 @@ def append_basic_IO(lexios):
                     show_return_to_user=False,
                     session_data_check="lexi_learns",
                 )
-            lexios.append_command(create_reminder)
+            lexi.append_command(create_reminder)
 
             create_reminder.add_consent_scope(
                 scope_name="create_reminder",
@@ -89,7 +96,7 @@ def append_basic_IO(lexios):
             )
 
             # Delete reminders, alarms, alerts
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     UserDataManager.delete_reminder,
                     requires_dynamic_object=UserDataManager,
@@ -98,7 +105,7 @@ def append_basic_IO(lexios):
                 )
             )
             # Create other user specific data
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     UserDataManager.add_user_specific_data,
                     requires_dynamic_object=UserDataManager,
@@ -107,7 +114,7 @@ def append_basic_IO(lexios):
                 )
             )
             # Retrieve the current categories for user_specific_data
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     UserDataManager.retrieve_user_data_categories,
                     requires_dynamic_object=UserDataManager, 
@@ -117,7 +124,7 @@ def append_basic_IO(lexios):
                 )
             )
             # Retrieve all the content related to a certain category
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     UserDataManager.read_user_data_category_content, 
                     requires_dynamic_object=UserDataManager, 
@@ -127,7 +134,7 @@ def append_basic_IO(lexios):
                 )
             )
             # Retrieve a specific data element by its data_id
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     UserDataManager.retrieve_user_data_content_by_id, 
                     requires_dynamic_object=UserDataManager, 
@@ -145,7 +152,7 @@ def append_basic_IO(lexios):
                     session_data_check="gmail_access",
                     
                 )
-            lexios.append_command(create_email_rule)
+            lexi.append_command(create_email_rule)
 
             create_email_rule.add_consent_scope(
                 scope_name="create_email_rules",
@@ -168,10 +175,10 @@ def append_basic_IO(lexios):
                 vars = ["to_address"],
             )
 
-            lexios.append_command(send_email_command)
+            lexi.append_command(send_email_command)
 
             # Seacrh for a contact
-            lexios.append_command(
+            lexi.append_command(
                 LexiExternalCommand(
                     GmailClient.search_email_by_name, 
                     requires_dynamic_object=GmailClient, 
@@ -186,7 +193,7 @@ def append_basic_IO(lexios):
                     show_return_to_user=False,
                     session_data_check="google_calendar_access",
                 )
-            lexios.append_command(new_event)
+            lexi.append_command(new_event)
 
             new_event.add_consent_scope(
                 scope_name="new_calendar_event",
@@ -198,13 +205,19 @@ def append_basic_IO(lexios):
         with CustomLogger("lexios") as log:
             log.error(f"Problem setting up builtin features: {e}")
 
-def set_up_db_integration(lexios):
+def set_up_db_integration(lexios: LexiOS_Backend):
     # Sets up the integration steps for exchanging data with a local database
 
+    from lexios.core.external_command import LexiExternalCommand
+
     if DATABASE_TOOLS:
+
+        # Include LexiDatabase - Full access to Postgress SQL and Linear Regression/ ML tools for DM 
+        from lexios.core.builtin.engines.SQLEngine import LexiDatabase
+
         try:
 
-            for db_connection in lexios.databases_list:
+            for db_connection in lexios.databases:
                 lexios.sql_engine = LexiDatabase(**db_connection.settings)
 
             if lexios.sql_engine:
@@ -256,32 +269,56 @@ def set_up_db_integration(lexios):
             with CustomLogger("lexios") as log:
                 log.error(f"Problem setting up SQL / Mining features: {e}")
 
-def set_up_virtual_agents(lexi):
+def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
+    # Set up the virtual agents functionality
+    # Automatic routing for switching between assistants
 
-    if lexi.virtual_agents:
+    try:
+        from lexios.core.external_command import LexiExternalCommand
 
-        # Define a router
-        lexi.agents_router = VirtualAgentsRouter(lexi.virtual_agents)
+        if lexi.virtual_agents:
 
-        # Retrieve the agents names list
-        agent_names = lexi.agents_router._agent_names
+            # Include Virtual Agents
+            from lexios.integrations.virtual_agents import VirtualAgentsRouter, VirtualAgent
 
-        # Route message command
-        route_message_to_agent = LexiExternalCommand(
-            VirtualAgentsRouter.route_to_virtual_agent,
-            requires_dynamic_object= VirtualAgentsRouter,
-        )
+            # Define a router
+            lexi.agents_router = VirtualAgentsRouter(lexi.virtual_agents)
 
-        # Update command specs to include the agents names
-        route_message_to_agent.add_key_spec(
-            param="virtual_agent_name", 
-            tag="enum", 
-            value= agent_names,
-        )
+            # Append routing to root assistand command
+            lexi.append_command(LexiExternalCommand(
+                VirtualAgentsRouter.route_to_main_assistant,
+                requires_dynamic_object= VirtualAgentsRouter,
+                ),
+                required_by_lexi= True,
+            )
 
-        # Append command
-        lexi.append_command(route_message_to_agent)
+            # Retrieve the agents names list
+            agent_names = lexi.agents_router._agent_names
 
-        # Initate threads
-        for agent in lexi.virtual_agents:
-            agent.load_lexi_thread(lexi)
+            # Route message command
+            route_message_to_agent = LexiExternalCommand(
+                VirtualAgentsRouter.route_to_virtual_agent,
+                requires_dynamic_object= VirtualAgentsRouter,
+            )
+
+            # Update command specs to include the agents names
+            route_message_to_agent.add_key_spec(
+                param="virtual_agent_name", 
+                tag="enum", 
+                value= agent_names,
+            )
+
+            # Append command
+            lexi.append_command(
+                command=route_message_to_agent,
+                required_by_lexi=True
+            )
+
+            agent: VirtualAgent
+            # Initate main instances for each agent
+            for agent in lexi.virtual_agents:
+                agent.start_agent_thread(lexi)
+        
+    except Exception as e:
+        with CustomLogger("lexios") as log:
+            log.error(f"Virtual Agents LexiOS setup: {e}")

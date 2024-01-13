@@ -8,10 +8,9 @@ from lexios.database.users import get_user_data_by_user_id
 from lexios.core.common_tools import *
 from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
 from lexios.core.downloads import manage_downloads, manage_links
-from lexios.core.thread_messages import update_thread_messages, restore_conversation_data, render_annotations
-from lexios.core.conversations import generate_conversation_name
-from lexios.core.messages_backend import prepare_output
-
+from lexios.core.conversations import generate_conversation_name, save_conversation
+from lexios.core.messages_backend import frontend_output
+from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
 from lexios.core.toolbox import UserToolBox
 from lexios.core.logger import CustomLogger
 
@@ -26,27 +25,55 @@ class LexiAssistantThread():
         lexi=None,
         user_id: str = None,
         user_message: str = None,
-        files=None,
-        model=None,
-        tools=None,
-        instructions = None,
-        conversation_id = None,
+        files: list= None,
+        model: str= None,
+        toolbox: dict=None,
+        instructions: str= None,
+        conversation_id= None,
         restore_conversation = None,
-        title_generated = False,
-        run_in_background= False,
+        title_generated: bool = False,
+        run_in_background: bool= False,
+        name: str = None,
+        virtual_agent_name: str = None,
+        can_be_replaced: bool = True,
+        retrieval: bool= False,
+        interpreter: bool = False,
 
     ) -> None:
         # Call the __init__ methods of the base classes
         super().__init__() 
 
+        from lexios.core.thread_messages import update_thread_messages, load_assistand_and_orm_data, render_annotations
+
         # Core object Lexi:
         self.lexi = lexi
-
-        # User thread
-        self.thread = None
+        
+        # Main identifiers 
         self.user_id = user_id
         self.conversation_id = conversation_id
-        self.assistant = None
+
+        # Root assistant
+        self.root_assistant = None
+        self.root_thread = None
+        
+        # Loaded thread
+        self.loaded_assistant = None
+        self.loaded_thread = None
+      
+        # Specify if the thread can be replaced for a more specific virtual agent 
+        self.can_be_replaced = can_be_replaced
+        
+        # Assistant name determination
+        if name:
+            # Set a specific name for this assistant
+            self._name_ = name
+        else:
+            self._name_ = self.lexi.name
+        
+        self.virtual_agent_name = virtual_agent_name
+        if virtual_agent_name:
+            self._name_ = virtual_agent_name
+
 
         # Reset signal, will create a new thread on the next Run execution
         self.reset_signal = False
@@ -61,28 +88,33 @@ class LexiAssistantThread():
         self.model = model
 
         # First try to get a fresh copy fronm the backend
-        session_data = read_session_data_from_backend(user_id)
-        if not session_data:
-            session_data = get_user_data_by_user_id(self.user_id)
+        self.session_data = read_session_data_from_backend(user_id)
+        if not self.session_data:
+            self.session_data = get_user_data_by_user_id(self.user_id)
 
-        # Create the toolbox for the thread
-        self.tools = UserToolBox(
-            user = session_data,
-            commands= tools,
+        # Decide on activating model-builin-tools
+        self.code_interpreter_active = interpreter
+        self.retrieval_active = retrieval
+
+        # Security: Validate tools authorized for this thread
+        self.root_tools = UserToolBox()(
+            lexi= self.lexi, 
+            user = self.session_data,
+            commands= toolbox,
+            background_thread= run_in_background,
             setup={
-                "run_in_background": run_in_background,
-                "code_interpreter": True,
-                "retrieval" : True,
+                "code_interpreter": self.code_interpreter_active,
+                "retrieval" : self.retrieval_active,
             }
-            )()
+            )
 
         # Thread specific instructions:
         self.instructions = instructions
 
         self.conversation_orm = None
+        
         # Load conversation data from DB if any
-
-        restore_conversation_data(self, restore_conversation)
+        load_assistand_and_orm_data(self, restore_conversation)
         
         # Assistant files
         self.assistant_files = []
@@ -105,16 +137,40 @@ class LexiAssistantThread():
         # Run
         self.run = None
 
-    async def process_input(self, message: str = None, file:str = None):
+    async def process_input(self, message: str = None, file:str = None, from_agent: MainAssistantRequested= None):
         # Handles the execution of an openai Run 
+
+        from lexios.core.thread_messages import update_thread_messages, render_annotations
 
         # clear the thread refrence if there is a reset signal request
         if self.reset_signal:
-            self.thread = None
+            self.loaded_thread = None
             self.reset_signal = False
 
         self.running_stat = "processing"
 
+        # Define scpecific instructions for the run
+        instructions = "\n".join(
+            (
+            f"Your name is {self._name_}.\n",
+            self.instructions,
+            str(self.metadata()),
+            )
+        )
+
+        # Give the context of a callback to the root assistant
+        if from_agent:
+            message_from_agent = (
+                f"\nIMPORTANT!:\n"
+                f"You are being summoned by virtual agent '{from_agent.name}' after failing to attend user request.\n"
+                f"User '{self.session_data.name_first}' original request: '{from_agent.user_message}'.\n"
+                f"Virtual agent metadata generated: '{from_agent.information}'.\n"
+                )
+            "\n".join((instructions, message_from_agent))
+
+            # Update with user message that originated the callback
+            message = from_agent.user_message           
+            
         # Process a new message (creates a Run)
         # Update messages in Thread:
         try:
@@ -126,13 +182,11 @@ class LexiAssistantThread():
             
             if message:
                 try:
-                    # Define scpecific instructions for the run
-                    instructions = str(self.metadata()) + self.instructions
 
                     # Run the thread
                     self.run = openai.beta.threads.runs.create(
-                        thread_id=self.thread.id,
-                        assistant_id=self.user_assistant.id,
+                        thread_id=self.loaded_thread.id,
+                        assistant_id=self.loaded_assistant.id,
                         model=self.model,
                         instructions= instructions,
                     )
@@ -154,7 +208,7 @@ class LexiAssistantThread():
 
                         # Retrieve run status:
                         self.run = openai.beta.threads.runs.retrieve(
-                            thread_id=self.thread.id, run_id=self.run.id
+                            thread_id=self.loaded_thread.id, run_id=self.run.id
                         )
 
                     # Log run status
@@ -166,7 +220,7 @@ class LexiAssistantThread():
                         raise ValueError(f"openai: {self.run.last_error}")
 
                     # Recover meesages from the model
-                    messages = openai.beta.threads.messages.list(thread_id=self.thread.id)
+                    messages = openai.beta.threads.messages.list(thread_id=self.loaded_thread.id)
 
                     # Update conversation_orm
                     try:
@@ -193,7 +247,7 @@ class LexiAssistantThread():
                         ):
                             # Log entry
                             with CustomLogger("messages") as log:
-                                log.debug("new message", details={"from": "lexi", "content": assistant_reply, "filtered": True})
+                                log.debug("new message", details={"from": self._name_, "content": assistant_reply, "filtered": True})
                         
                                 
                         elif not self.run_in_background:
@@ -209,14 +263,19 @@ class LexiAssistantThread():
                             self.has_changed = True
                             
                             # Render text output
-                            await prepare_output(self.lexi, assistant_reply, user_id=self.user_id, conversation_id=self.conversation_id)
+                            await frontend_output(
+                                content= assistant_reply, 
+                                user_id= self.user_id, 
+                                conversation_id= self.conversation_id,
+                                alias= self._name_
+                            )
 
                             # Render annotations
                             await render_annotations(self, links, attachments)
 
                             # Log entry
                             with CustomLogger("messages") as log:
-                                log.debug("new message", details={"from": "lexi", "content": assistant_reply, "filtered": False})
+                                log.debug("new message", details={"from": self._name_, "content": assistant_reply, "filtered": False})
 
 
                     # Check for requested tools:
@@ -233,17 +292,27 @@ class LexiAssistantThread():
 
                             # Update Run status:
                             self.run = openai.beta.threads.runs.retrieve(
-                                thread_id=self.thread.id, run_id=self.run.id
+                                thread_id=self.loaded_thread.id, run_id=self.run.id
                             )
                             # Clear to_dos:
                             self.tool_calls = []
+
+        # Virtual Agent was solicited 
+        except VirtualAgentRequested as agent:
+            if self.can_be_replaced:
+                # Propagate to lexios only after checking it can be replaced
+                self.has_changed = True
+                raise 
+        
+        # Reload root assistant
+        except MainAssistantRequested as from_agent:
+            self.load_root_assistant(from_agent)
 
         except Exception as e:
                 
                 # Inform the user about the problem:
                 if not self.run_in_background:
-                    await prepare_output(
-                        self.lexi, 
+                    await frontend_output(
                         "I'm sorry, there was a problem processing your last request. Please try again...", 
                         user_id = self.user_id,
                         conversation_id=self.conversation_id
@@ -287,3 +356,74 @@ class LexiAssistantThread():
         }
 
         return metadata  # Return as a dictionary, not as a JSON string
+    
+    def load_root_assistant(self, agent_request):
+        #load the root assistant
+
+        try:
+            self.running_stat = "loading"
+
+            # Root assistant name
+            self._name_ = self.lexi.name
+
+            # Reset virtual agent
+            self.virtual_agent_name = None
+            self.loaded_assistant = self.root_assistant
+            self.loaded_thread = self.root_thread
+            self.has_changed = True
+            
+            # Try to save conversation
+            save_conversation(self)
+        
+        except Exception as e:
+            pass
+
+        finally:
+            self.running_stat = "ready"
+
+        # Check if there is any information to start a new run 
+        if agent_request.information:
+            
+            # Notify lexiOs
+            raise agent_request
+
+    def load_virtual_agent(self, agent: 'LexiAssistantThread'):
+        # Load the context of a virtual agent
+        
+        try:
+            self.running_stat = "loading"
+
+            # Virtual agent name
+            self._name_ = agent.virtual_agent_name
+
+            # Overwrite assistant related data
+            self.virtual_agent_name = agent.virtual_agent_name
+            self.tools = agent.tools
+            self.loaded_thread = agent.loaded_thread
+            self.loaded_assistant = agent.loaded_assistant
+            self.run = agent.run
+            self.instructions = agent.instructions
+            self.assistant_files = agent.assistant_files
+            self.model = agent.model
+            self.can_be_replaced = agent.can_be_replaced
+
+            # Update fields in the ORM
+            self.conversation_orm.model_loaded_assistant_id = agent.loaded_assistant.id
+            self.conversation_orm.model_loaded_thread_id = agent.loaded_thread.id if agent.loaded_thread else None
+            self.conversation_orm.virtual_agent_name = agent.virtual_agent_name
+
+            # Try to save in changes db (there is a chance the conversation does not exist in DB yet, that is expected.)
+            try:
+                save_conversation(self)
+            except Exception as e:
+                pass
+
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.error(f"Routing agent: {e}")
+        
+        finally:
+            # Reset running status just in case
+            self.running_stat = "ready"
+
+

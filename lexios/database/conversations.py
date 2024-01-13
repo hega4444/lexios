@@ -37,9 +37,12 @@ def save_conversation_in_db(conversation: Conversation):
             # Update the existing conversation with the new data
             existing_conversation.title = conversation.title  # Update each column as needed
             existing_conversation.app_messages_content = conversation.app_messages_content
-            existing_conversation.model_assistant_id = conversation.model_assistant_id
-            existing_conversation.model_thread_id = conversation.model_thread_id
+            existing_conversation.model_root_assistant_id = conversation.model_root_assistant_id
+            existing_conversation.model_root_thread_id = conversation.model_root_thread_id
+            existing_conversation.model_loaded_assistant_id = conversation.model_loaded_assistant_id
+            existing_conversation.model_loaded_thread_id = conversation.model_loaded_thread_id
             existing_conversation.metrics = conversation.metrics 
+            existing_conversation.virtual_agent_name = conversation.virtual_agent_name
             # ...
 
             session.commit()  # Commit the changes
@@ -50,7 +53,7 @@ def save_conversation_in_db(conversation: Conversation):
 
     except Exception as e:
         with CustomLogger("lexios") as log:
-            log.warning(f"Could not retrieve conversations data. {e}")
+            log.warning(f"Could not save conversation data. {e}")
         session.rollback()  # Rollback changes in case of an error
         raise  # Re-raise the exception for proper error handling
 

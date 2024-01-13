@@ -48,7 +48,7 @@ def create_user_account_in_db(email, password, user_data = None , gmail_data = N
     finally:
         session.close()
 
-def validate_password(email, password):
+def validate_password_in_db(email, password):
     # Create a session
     session = Session()
     try:

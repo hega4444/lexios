@@ -9,7 +9,8 @@ from lexios.core.logger import CustomLogger
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.consent import ConsentScreen
 from lexios.frontend.session_data import read_session_data_from_backend 
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
+from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
 
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
@@ -85,7 +86,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await prepare_output(self.lexi, show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await frontend_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
 
             except Exception as e:
                 with CustomLogger("func_calls") as log:
@@ -116,15 +117,21 @@ class ToolCall():
                             'user_id' : self.user_id,
                             'user': read_session_data_from_backend(self.user_id),
                             'conversation_id' : self.conversation_id,
-                            'user_input': self.user_message,
+                            'user_message': self.user_message,
+                            'virtual_agent_name': self.thread.virtual_agent_name or None
                         }
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)
+                
+                # Routing to virtual agent
+                except VirtualAgentRequested as to_agent:
+                    raise to_agent
+                # Route to main assistant
+                except MainAssistantRequested as from_agent:
+                    raise from_agent
 
                 except Exception as e:
-                    raise ValueError(
-                        f"Ext_command '{self.function_name}' execution error: ", e
-                    )      
+                    raise ValueError("messages: ", e)    
 
         #----------------------------------EXECUTE COMMAND ---------------------------------------------#                    
                                                                                             # After
@@ -168,9 +175,8 @@ class ToolCall():
                     }
                     
                     # Send to the frontend for rendering
-                    await prepare_output(
-                                    self.lexi,
-                                    message, 
+                    await frontend_output(
+                                    content=message, 
                                     images=images, 
                                     user_id=self.user_id, 
                                     spell= False,
@@ -190,7 +196,7 @@ class ToolCall():
                     data = self.ext_command.format_user_response(self.ret_status)
 
                     # Print results
-                    await prepare_output(self.lexi, data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
+                    await frontend_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
 
                 except Exception as e:
                     # Log warning
@@ -203,7 +209,16 @@ class ToolCall():
                     log.info(f"Function '{self.function_name}' executed with parameters: {params}.")
 
             return self.ret_status
-
+        
+        except VirtualAgentRequested as to_agent:
+            self.status = "completed"
+            self.ret_status = f"Virtual agent {to_agent} will handle the request."
+            raise 
+        except MainAssistantRequested as from_agent:
+            self.status = "completed"
+            self.ret_status = "Routing to main assistant"
+            raise
+        
         except Exception as e:
             # Change status to "failed"
             self.status = "failed"
@@ -215,7 +230,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await prepare_output(self.lexi, show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await frontend_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
             except Exception:
                 pass
 
@@ -398,7 +413,7 @@ def submit_function_outputs(thread):
     outputs = [tool.submit_function_output() for tool in thread.tool_calls]
     try:
         openai.beta.threads.runs.submit_tool_outputs(
-            thread_id=thread.thread.id, run_id=thread.run.id, tool_outputs=outputs
+            thread_id=thread.loaded_thread.id, run_id=thread.run.id, tool_outputs=outputs
         )
     except Exception as e:
-        raise ValueError("Errors submitting tool outputs. ", e)
+        raise ValueError("Error at submit_function_outputs. ", e)

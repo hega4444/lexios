@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from admin.verify_folder import find_project_folder
 PROJECT_FOLDER = find_project_folder()
+GOOGLE_ID = 'GOOGLE_ID'
 
 from lexios.settings.main import *
 from lexios.globals import Globals
@@ -30,6 +31,7 @@ from lexios.database.conversations import get_user_conversations
 from lexios.database.users import update_user_data_in_db
 from lexios.integrations.make import get_lexi_backend_instance
 from lexios.core.consent import _consent_backend
+from lexios.core.security import UserValidation
 
 # set up lexi backend features
 frontend_active_users = {}
@@ -37,6 +39,9 @@ lexi = get_lexi_backend_instance(
 
     active_users= frontend_active_users
 )
+
+# Update lexi in Globals
+Globals(lexi=lexi)
 
 # Retrieve a reference to the session manager
 session_manager = lexi.session_manager
@@ -155,6 +160,11 @@ async def submit_login(
 
     # Check if the user exists and the password is correct
     user = session_manager.validate_user_profile(email, password)
+
+    try:
+        user = UserValidation()(email, password)
+    except PermissionError as e:
+        user = None
    
     if user:
 
@@ -212,12 +222,10 @@ async def google_submit_login(
 
             email = google_details.get('email')
 
-            # Try to recover profile from Lexi too
-            user = session_manager.validate_user_profile(
-                email= email, 
-                password= 'GOOGLE_ID',
-                gmail_data= google_details
-                )
+            try:
+                user = UserValidation()(email, GOOGLE_ID, google_details)
+            except PermissionError as e:
+                user = None
     
             if user:
 

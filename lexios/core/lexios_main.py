@@ -3,15 +3,16 @@ import os
 import openai
 
 from datetime import timedelta
-
+from lexios.globals import Globals
 from lexios.settings.main import *
 from lexios.core.session_manager import LexiSessionManager
 from lexios.core.common_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.task_scheduler import LexiTaskScheduler
-from lexios.core.load_builtin import append_basic_IO
 from lexios.core.logger import CustomLogger
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
+from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
+from lexios.core.thread import LexiAssistantThread
 
 
 class LexiOS_Backend():
@@ -23,9 +24,13 @@ class LexiOS_Backend():
             model: str = LEXI_GPT_MODEL, 
             instructions=None, 
             active_users=None,
+            virtual_agents= None,
+            databases = None,
     ):
         
         super().__init__()
+
+        Globals(lexi=self)
 
         self.model = model
         self.toolbox = {}
@@ -33,7 +38,7 @@ class LexiOS_Backend():
 
         # Adjust time settings:
         self.time_zone = TIME_ZONE
-        self.time_delta = timedelta(minutes= TIME_DELTA )
+        self.time_delta = timedelta(minutes= TIME_DELTA)
 
         # Admin Assistant True / False 
         # Use it to define an assistant role that manages the user Threads
@@ -105,16 +110,28 @@ class LexiOS_Backend():
         # Set up LexiScheduler:
         self.scheduler = LexiTaskScheduler(lexi=self)
 
+        # Commands needed for the system, creates the minimun toolbox
+        self.required_commands = {}
+
         # Add Lexi built- in functions:
+        from lexios.core.setup import append_basic_IO
         append_basic_IO(self)
 
-        # Set up SQL Engine:
-        # List of databases Lexi is connecting to
-        self.databases_list = None
-        self.sql_engine = None 
+        # Setup Virtual Agents
+        self.virtual_agents = virtual_agents
+        from lexios.core.setup import set_up_virtual_agents_and_routing
+        set_up_virtual_agents_and_routing(self)
 
-        # List of virtual agents gathered by the Integrations Manager
-        self.virtual_agents = None
+        # Setup SQL Engine:
+
+        # List of databases Lexi is connecting to
+        self.databases = databases
+
+        # SQL Engine
+        self.sql_engine = None
+
+        from lexios.core.setup import set_up_db_integration
+        set_up_db_integration(self)
 
     def set_up_admin_assistant(self):
         # Create a list of available tools for the Assistant
@@ -135,10 +152,14 @@ class LexiOS_Backend():
         if backend is not None:
             self.backend = backend
 
-    def append_command(self, command: LexiExternalCommand) -> bool:
-        # Append command to catalog
+    def append_command(self, command: LexiExternalCommand, required_by_lexi: bool = False) -> bool:
+        # Add key for the command to catalog
         self.toolbox[command.name] = command
-        
+
+        if required_by_lexi:
+            # Save in separate toolbox
+            self.required_commands[command.name] = command
+    
     def build_toolbox(self, code_interpreter=True, retrieval=True):
         # Create a list of tools available for the assistant:
         tools = []
@@ -173,13 +194,10 @@ class LexiOS_Backend():
   
                 # Data package overrides default user
                 user_id = data.get('user_id', None)
-
                 # conversation_id
                 conversation_id = data.get('conversation_id', None)
-
                 # Text input
                 user_input = data.get('user_input', None)
-
                 # File attachments
                 filename = data.get('filename', None)
 
@@ -204,38 +222,32 @@ class LexiOS_Backend():
                     else:
 
                     # Thread found but busy, inform the user on the chat interface
-                        await prepare_output(
-                            self, 
+                        await frontend_output(
                             "I'm still processing your last request. Just a moment please...", 
                             user_id= user_id,
                             conversation_id= conversation_id
                         )
                 
                 else:
-                    # No thread found, create the first one
-                    thread = self.session_manager.new_lexi_thread(
+                    # No thread found, create one
+                    thread = self.build_thread(
                         user_id = user_id,
                         conversation_id = conversation_id,
-                        args = {
-                            'conversation_id' : conversation_id,
-                            'user_id': user_id,
-                            'model': self.model,
-                            'tools': self.toolbox,
-                            'lexi': self,
-                            'instructions': self.instructions
-                        }
                     )
-                    if thread.running_stat == "ready":
-                        # Send the message to the initiated Thread
-                        await thread.process_input(user_input, filename)
+
+                    # Send the message to the initiated Thread as background task
+                    await thread.process_input(user_input, filename)
+        
+        except MainAssistantRequested as request:
+                await thread.process_input(from_agent=request)
+
+        except VirtualAgentRequested as agent:
+            # Route a thread to a Virtual Agent
+            self.route_virtual_agent(thread, agent)
 
         except Exception as e:
-            await prepare_output(
-                self,
-                f"Seems that there is a problem... {e}", 
-                user_id=user_id,
-                conversation_id=conversation_id
-            )
+            with CustomLogger("lexios") as log:
+                log.error(f"At process_user_request: {e}")
 
     def reset_user_thread_request(self, user_id: str ='default', conversation_id='default') ->str:
         # Resets the user thread 
@@ -251,4 +263,55 @@ class LexiOS_Backend():
         except Exception:
             pass
     
+    def route_virtual_agent(self, thread: LexiAssistantThread, agent: MainAssistantRequested):
+        # Load an instance of a virtual agent
+        
+        # Find the agent
+            agent = self.agents_router.by_name(agent.name)
+            if agent:
+                # Get a blank slate of a virtual agent
+                cloned_virtual_agent = agent.clone(lexi=self)
 
+                # Request the session manager to handle the transition
+                thread.load_virtual_agent(cloned_virtual_agent)
+    
+    def build_thread(
+            self, 
+            user_id:int, 
+            conversation_id:str, 
+            virtual_agent = None,
+            restore_conversation = None,
+    ):
+        # Builds a new thread
+        try:
+            # Baseline 
+            thread_context = {
+                        'lexi': self,
+                        'user_id': user_id,
+                        'conversation_id' : conversation_id,
+                        'restore_conversation': restore_conversation,
+                        'model': self.model,
+                        'toolbox': self.toolbox,
+                        'instructions': self.instructions,
+                    }
+            
+            # Virtual Agent Setup
+            if virtual_agent:  
+                # Update with the agent context
+                thread_context['virtual_agent_name']= virtual_agent.name
+                thread_context['instructions'] = virtual_agent.instructions
+                thread_context['toolbox'] = virtual_agent.toolbox
+                thread_context['retrieval'] = virtual_agent.retrieval
+                thread_context['interpreter'] = virtual_agent.interpreter
+                thread_context['run_in_background'] = True
+            
+            # Restore conversation Setup
+            if restore_conversation:
+                thread_context['title_generated'] = True,
+            
+            # Return thread
+            return LexiAssistantThread(**thread_context)
+            
+        except Exception as e:
+            with CustomLogger("lexios") as log:
+                log.error(f"at build_thread: {e}.")

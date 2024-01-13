@@ -1,54 +1,69 @@
-# redis_back.py
+# messages_backend.py
+
 import aioredis
 import json
 
+from lexios.globals import Globals, GENERAL_VIRTUAL_AGENT
 from lexios.core.logger import CustomLogger
 
-async def prepare_output(
-    lexios, 
-    *args: str, 
-    spell=True, 
-    user_id=None,
-    conversation_id=None, 
-    msg_type= "text", 
-    images = None,
-    metadata= None
+lexi_instance = None
+
+async def frontend_output(
+    # Send a message to the frontend
+
+    content: str, 
+    spell: bool = True, 
+    user_id: int = None,
+    conversation_id: str= None, 
+    msg_type: str = "text", 
+    images: dict = None,
+    metadata: dict = None,
+    alias: str = None
 ):
-        
-    # process outbound messages to the user interface
-    # msg_type : "text", "sys_notif", 
+    
+    global lexi_instance
+
+    # process outbound messages to the frontend
+    # msg_type : "text", "sys_notif", "title_update"
 
     try:
+
+        # Load lexi instance
+        if not lexi_instance:
+            lexi_instance = Globals().lexi
+
+        # Log virtual agents messages
+        if user_id == GENERAL_VIRTUAL_AGENT:
+            with CustomLogger("lexios") as log:
+                log.info(f"Virtual Agent message: {content}")
+
         # Recover session id from session data backend
-        session_id = lexios.users.get(user_id).session_id
+        session_id = lexi_instance.users.get(user_id).session_id
 
-        outbound_message = {
-                "session_id" : str(session_id),
-                "conversation_id": conversation_id,
-                "msg_type": msg_type,
-                "metadata": metadata,
-                "spell": spell,
-            }
+        if session_id:
+            outbound_message = {
+                    "session_id" : str(session_id),
+                    "conversation_id": conversation_id,
+                    "msg_type": msg_type,
+                    "metadata": metadata,
+                    "spell": spell,
+                    "alias": alias,
+                }
 
-        # Convert all elements to strings
-        args = [str(arg) for arg in args]  
-        # Try to make a string with the args
-        message = " ".join(args)
+            # Command line output:
+            if lexi_instance.command_line is True:
+                print(f"{lexi_instance.lexi_prompt} {content}")
 
-        # Command line output:
-        if lexios.command_line is True:
-            print(f"{lexios.lexi_prompt} {message}")
+            outbound_message['content'] = str(content)
 
-        outbound_message['content'] = message
+            # Images
+            if images:
+                outbound_message['images']  = images
 
-        # Images
-        if images:
-            outbound_message['images']  = images
-
-        # Send message using broker
-        async with aioredis.from_url(lexios.broker_url) as broker:
-            await broker.publish("fastapi_channel", json.dumps(outbound_message))
+            # Send message using broker
+            async with aioredis.from_url(lexi_instance.broker_url) as broker:
+                await broker.publish("fastapi_channel", json.dumps(outbound_message))
 
     except Exception as e:
         with CustomLogger("lexios") as log:
-            log.error("Problems with sending the message: ", e)
+            log.error("Backend At send message: ", e)

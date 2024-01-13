@@ -7,7 +7,7 @@ from lexios.globals import Globals
 from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import UserSpecificData
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
 from lexios.database.users import (
     create_user_specific_data, 
     update_user_specific_data, 
@@ -168,11 +168,10 @@ class UserDataManager():
             message = f"\nReminder for you... \n\nSubject: {data['subject']}\n Details: {data['content']}"
 
             # Send a message to user
-            await prepare_output(
-                self.lexi,
-                message, 
-                user_id=self.user_id, 
-                conversation_id=self.conversation_id,
+            await frontend_output(
+                content= message, 
+                user_id= self.user_id, 
+                conversation_id= self.conversation_id,
             )
 
             # Log activity

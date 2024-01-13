@@ -237,7 +237,7 @@ class LexiExternalCommand():
         elif "float" in text:
             return "float"
         elif "bool" in text:
-            return "bool"
+            return "boolean"
 
     def __str__(self) -> str:
         # Manually construct the JSON string

@@ -8,10 +8,11 @@ from datetime import datetime
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import Conversation 
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
+from lexios.core.thread import LexiAssistantThread
 
-
-def restore_conversation_data(thread, conversation):
+def load_assistand_and_orm_data(thread: LexiAssistantThread, conversation):
+    # Handles the load of both the assistant and the thread if possible
 
     # Check if there is a conversation to restore
     if conversation:
@@ -19,10 +20,10 @@ def restore_conversation_data(thread, conversation):
         # Restore the conversation_id 
         thread.conversation_id = conversation.conversation_id
 
-        # Try to retrieve assistant and thread data
+        # Try to retrieve preset assistant and thread data
         try:
-            restore_assistant_failed = False
-            assistant = openai.beta.assistants.retrieve(conversation.model_assistant_id)
+            restore_loaded_assistant_failed = False
+            assistant = openai.beta.assistants.retrieve(conversation.model_loaded_assistant_id)
 
             # if assistant is retrieved, update tools
             if assistant:
@@ -31,34 +32,41 @@ def restore_conversation_data(thread, conversation):
                     tools= thread.tools,
                 )
 
-            thread.user_assistant = assistant
+            thread.loaded_assistant = assistant
         except Exception as e:
-            restore_assistant_failed = True  
+            restore_loaded_assistant_failed = True  
              
         
         # Try to recover the thread
         try:
-            restore_thread_failed = False
-            restored_thread = openai.beta.threads.retrieve(conversation.model_thread_id)
-            thread.thread = restored_thread
+            restore_loaded_thread_failed = False
+            restored_thread = openai.beta.threads.retrieve(conversation.model_loaded_thread_id)
+            thread.loaded_thread = restored_thread
 
         except Exception as e:
-            restore_thread_failed = True
+            restore_loaded_thread_failed = True
         
         # Restore messages from database
-        if not restore_assistant_failed and not restore_thread_failed:
+        if not restore_loaded_assistant_failed and not restore_loaded_thread_failed:
             thread.conversation_orm = conversation
         
     if not conversation or \
-        restore_assistant_failed or restore_thread_failed:
+        restore_loaded_assistant_failed or restore_loaded_thread_failed:
+
+            try:
+                # Create root assistant
+                thread.root_assistant = openai.beta.assistants.create(
+                    instructions=thread.instructions,
+                    name=thread._name_,
+                    tools=thread.tools,   
+                    model=thread.lexi.model,
+                )
                 
-            # Create the user_assistant role
-            thread.user_assistant = openai.beta.assistants.create(
-                instructions=thread.instructions,
-                name=thread.lexi.name,
-                tools=thread.tools,   
-                model=thread.lexi.model,
-            )
+                # Load the root assistant as default
+                thread.loaded_assistant = thread.root_assistant
+            except Exception as e:
+                with CustomLogger("lexios") as log:
+                    log.error("At assistant create: {e}")
 
             if not thread.run_in_background:
 
@@ -68,14 +76,17 @@ def restore_conversation_data(thread, conversation):
                                             conversation_id= thread.conversation_id,
                                             title = "new chat..",
                                             app_messages_content=[],
-                                            model_assistant_id= thread.user_assistant.id,
-                                            model_thread_id= None,
+                                            root_assistant_id= thread.root_assistant.id,
+                                            root_thread_id= None,
+                                            loaded_assistant_id= thread.root_assistant.id,
+                                            loaded_thread_id= None,
                                             model_messages= None,
                                             metrics= None,
+                                            virtual_agent_name=None,
                                         )           
+                
 
-
-async def update_thread_messages(thread, new_message = None, new_file = None):
+async def update_thread_messages(thread: LexiAssistantThread, new_message = None, new_file = None):
     # Appends messages and attachments to the current user_thread
 
     if new_file:
@@ -102,8 +113,7 @@ async def update_thread_messages(thread, new_message = None, new_file = None):
             filename = os.path.basename(new_file)
 
             #Notify the user:
-            await prepare_output(
-                thread.lexi,
+            await frontend_output(
                 f'File "{filename}" uploaded', 
                 user_id=thread.user_id, 
                 conversation_id=thread.conversation_id,
@@ -147,11 +157,11 @@ async def update_thread_messages(thread, new_message = None, new_file = None):
         except Exception:
             file_ref = None
 
-        if thread.thread:
+        if thread.loaded_thread:
         # Check if the thread was already initiated.
             # If so, update messages:
             message_data = {
-                "thread_id": thread.thread.id,
+                "thread_id": thread.loaded_thread.id,
                 "role": "user",
                 "content": new_message,
                 "metadata": thread.metadata(),
@@ -169,7 +179,7 @@ async def update_thread_messages(thread, new_message = None, new_file = None):
 
                     # Cancel current run
                     openai.beta.threads.runs.cancel(
-                        thread_id=thread.thread.id,
+                        thread_id=thread.loaded_thread.id,
                         run_id=thread.run.id,
                     )
 
@@ -194,14 +204,14 @@ async def update_thread_messages(thread, new_message = None, new_file = None):
                 if file_ref is not None:
                     user_msg["file_ids"] = [file_ref]
 
-                thread.thread = openai.beta.threads.create(
+                thread.loaded_thread = openai.beta.threads.create(
                     messages=[user_msg], 
                     metadata=thread.metadata()
                 )
 
                 if not thread.run_in_background:
                     # Register thread in conversation ORM
-                    thread.conversation_orm.model_thread_id = thread.thread.id
+                    thread.conversation_orm.model_loaded_thread_id = thread.loaded_thread.id
 
             except Exception as e:
                 raise ValueError(f"Problem creating thread. Message: {new_message}, Files: {new_file}. Details: {e}")
@@ -217,14 +227,14 @@ async def update_thread_messages(thread, new_message = None, new_file = None):
         # Append message to Thread
         try:
             # Create a thread if there is no active one yet:
-            if thread.thread is None:
+            if thread.loaded_thread is None:
                 try:
                     msg_with_file = {
                         "role" : "user",
                         "files_id" : [file_ref],
                     }
                     # API call
-                    thread.thread = openai.beta.threads.create(
+                    thread.loaded_thread = openai.beta.threads.create(
                         messages= msg_with_file,
                         metadata= thread.metadata()
                         )
@@ -249,9 +259,8 @@ async def render_annotations(thread, links, attachments):
 
     # Handle links
     if links:
-        await prepare_output(
-                thread.lexi,
-                links.get("text"),
+        await frontend_output(
+                content = links.get("text"),
                 user_id = thread.user_id,
                 conversation_id=thread.conversation_id,
                 msg_type = "sys_notif",
@@ -273,8 +282,7 @@ async def render_annotations(thread, links, attachments):
     if attachments:
         for filename in attachments:
 
-            await prepare_output(
-                thread.lexi,
+            await frontend_output(
                 f'Download "{filename}"',
                 user_id = thread.user_id,
                 conversation_id=thread.conversation_id,

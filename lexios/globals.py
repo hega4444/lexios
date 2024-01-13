@@ -1,11 +1,15 @@
 # api.globals.py
 
+ROOT_ID = 1
+GENERAL_VIRTUAL_AGENT = 2
+
 class Globals:
     _instance = None
 
     def __new__(
             cls, 
             user_input:str = None,
+            lexi = None
 
         ):
 
@@ -14,5 +18,8 @@ class Globals:
         
         if user_input:
             cls._instance.user_input = user_input
+        
+        if lexi:
+            cls._instance.lexi = lexi
 
         return cls._instance

@@ -13,7 +13,7 @@ from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_i
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
 
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
 
@@ -324,8 +324,7 @@ class LexiTaskScheduler():
             # Inform in the interface
             hhmm = datetime.now().strftime('%H:%M')
 
-            await prepare_output(
-                self.lexi,
+            await frontend_output(
                 f"Scheduled action '{function_name}' executed at {hhmm}.",
                 user_id= action.user_id,
                 conversation_id= action.conversation_id,

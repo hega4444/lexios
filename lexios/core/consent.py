@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from lexios.core.logger import CustomLogger
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
 
 _consent_backend = {}
 
@@ -73,11 +73,12 @@ class ConsentScreen():
         # Perform the verification
 
         # Send the details for the consent screen to the frontend
-        await prepare_output(
-            self.lexi,
-            self.text_content,
+        await frontend_output(
+            content = self.text_content,
+            
             user_id = self.user_id,
             conversation_id = self.conversation_id,
+
             msg_type = "consent_screen",
             metadata={
                 'scopes': self.generate_dynamic_scopes(),

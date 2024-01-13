@@ -7,11 +7,12 @@ class PluginTemplate():
         from lexios.integrations.manager import IntegrationsManager    
 
         # Set an identifier
-        self._plugin_identifier = plugin_name
+        self.identifier = plugin_name
 
          # Connect to the integrations manager
         self.manager = IntegrationsManager()
 
         # Call the inegrations manager to append this plugin
-        self.manager.add_me(self)
+        self.manager.add_plugin(self)
+
 

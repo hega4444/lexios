@@ -3,7 +3,8 @@ from typing import List, Callable, Union
 
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
-from lexios.core.load_builtin import set_up_db_integration, set_up_virtual_agents
+from lexios.core.setup import set_up_db_integration, set_up_virtual_agents_and_routing
+from lexios.integrations.plugin import PluginTemplate
 
 class IntegrationsManager:
 
@@ -30,17 +31,26 @@ class IntegrationsManager:
         except Exception as e:
             print("Integrations: ", e)
 
-    def add_me(self, plugin):
+    def add_plugin(self, plugin: PluginTemplate):
         # Add a plugin to the integrations setup
 
         # Databases 
-        if plugin._plugin_identifier == "DatabaseConnection":
+        if plugin.identifier == "DatabaseConnection":
             self.databases.append(plugin)
 
-        if plugin._plugin_identifier == "VirtualAgent":
+        if plugin.identifier == "VirtualAgent":
             self.virtual_agents.append(plugin)
 
     def make_lexi(self, **kwargs):
+        
+        # Append the virtual agents
+        if self.virtual_agents:
+            kwargs['virtual_agents'] = self.virtual_agents
+
+        # Append databases 
+        if self.databases:
+            kwargs['databases'] = self.databases
+
         # Create an instance of Lexi Backend 
         lexi = LexiOS_Backend(**kwargs)
 
@@ -48,19 +58,6 @@ class IntegrationsManager:
         for command in self.commands:
             new_command = LexiExternalCommand(command)
             lexi.append_command(new_command)
-
-        # Append databases 
-        if self.databases:
-            lexi.databases_list = self.databases
-
-            # Integration setup (adding tools to interact w/db)
-            set_up_db_integration(lexi)
-        
-        # Append the agents
-        if self.virtual_agents:
-            lexi.virtual_agents = self.virtual_agents
-
-            set_up_virtual_agents(lexi)
 
         return lexi
     

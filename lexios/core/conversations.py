@@ -4,7 +4,7 @@ import openai
 
 from lexios.settings.main import *
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
-from lexios.core.messages_backend import prepare_output
+from lexios.core.messages_backend import frontend_output
 
 def update_conversation_title(thread, new_title):
     thread.conversation_orm.title = new_title
@@ -13,10 +13,9 @@ def update_conversation_title(thread, new_title):
 
 def save_conversation(thread):
     # Save conversation orm
-    # Serialize the binary data
+
     if thread.has_changed:
         try:
-            #thread.conversation_orm.model_messages = pickle.dumps(thread.conversation_orm.model_messages)
             thread.conversation_orm.model_messages = None # for now
         except Exception as e:
             pass
@@ -56,9 +55,8 @@ async def generate_conversation_name(thread):
     update_conversation_title(thread, new_title)
 
     # Notify the frontend
-    await prepare_output(
-        thread.lexi,
-        new_title,
+    await frontend_output(
+        content = new_title,
         user_id = thread.user_id,
         conversation_id=thread.conversation_id,
         msg_type = "title_update",
