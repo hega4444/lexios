@@ -140,21 +140,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         // Add prompt for Lexi
                         if (msg_type === "text") {
-                            if (alias){
-                                // Custom virtual agent name
-                                message = alias + ": " + message; 
-                            }
-                            else {
-                                // Default Lexi prompt
-                                message = "Lexi: " + message;
-                            }
+                            // Update alias for the message
+                            message = alias ? `${alias}: ${message}` : `Lexi: ${message}`;
                         }
 
                         // Consent screen creation
                         if (msg_type === "consent_screen") {
                             
                             // Verify with user on screen
-                            const user_response = await createConsentScreen(message, metadata);   
+                            await createConsentScreen(message, metadata);   
                         }
                         else {
                             

@@ -118,7 +118,8 @@ class ToolCall():
                             'user': read_session_data_from_backend(self.user_id),
                             'conversation_id' : self.conversation_id,
                             'user_message': self.user_message,
-                            'virtual_agent_name': self.thread.virtual_agent_name or None
+                            'virtual_agent_name': self.thread.virtual_agent_name or None,
+                            'can_be_replaced': self.thread.can_be_replaced or False,
                         }
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)

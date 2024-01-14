@@ -3,14 +3,13 @@ import asyncio
 from typing import List
 
 from lexios.settings.main import LEXI_GPT_MODEL
+from lexios.core.signatures import _LexiOS_Backend
 from lexios.core.external_command import LexiExternalCommand
-from lexios.core.thread import LexiAssistantThread
 from lexios.integrations.plugin import PluginTemplate
-from lexios.core.logger import CustomLogger
+from lexios.core.logger import CustomLogger, DEBUG, ERROR, WARNING
 from lexios.core.messages_backend import frontend_output
-from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
+from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
 from lexios.globals import GENERAL_VIRTUAL_AGENT
-from lexios.core.lexios_main import LexiOS_Backend
 
 _internal_id = 400
 
@@ -25,17 +24,22 @@ class VirtualAgent(PluginTemplate):
             hidden: bool = False,
             full_access = False,
             can_be_cloned = False,
+            can_be_replaced = True,
             roles : List[str] = None,
             retrieval: bool = False,
             interpreter: bool = False,
             
         ) -> None:
 
+        self.status = "initiated"
+
         self.commands = None
         self.resources = None
         self.instructions = instructions
         self.name = name
         self.hidden = hidden
+        self.lexi_thread = None
+
 
         # Open AI Assistant Builtin Tools
         self.retrieval = retrieval
@@ -44,10 +48,21 @@ class VirtualAgent(PluginTemplate):
         # Custom toolbox for agent
         self.toolbox = {}
 
+        # Asks for the complete toolbox available in lexios
         self.full_access = full_access
-        self.status = "initiated"
-        self.lexi_thread = None
+
+        # Can be cloned:
         self.can_be_cloned = can_be_cloned
+        # Defines whether the agent can have multiple instances, meaning an assistant will be created
+        # with the agent specifications and loaded into the user thread.
+        # False = The agent takes requests sequentially and acts as a single identity.
+        # True = The agent loads in each thread that requests it ans creates new specific context to append in the conversation.
+        
+        # Can be replaced:
+        self.can_be_replaced = can_be_replaced
+        # Defines whether the agent can be overwritten by other agents 
+        # False = The agent is loaded in the thread permanently
+        # True = The agent can be overwritten by a subsequent routing command
 
         # Roles it will act on behalf
         self.roles = roles or ['virtual_agent_access']
@@ -135,7 +150,7 @@ class VirtualAgent(PluginTemplate):
     def unhide(self):
         self.hidden = False
 
-    def start_agent_thread(self, lexi: LexiOS_Backend):
+    def start_agent_thread(self, lexi: _LexiOS_Backend):
         # Start virtual agent
         try:
             # Build the LexiThread 
@@ -144,13 +159,11 @@ class VirtualAgent(PluginTemplate):
             # Change status
             self.status = "ready"
         
-        except Exception as e:
+        except LexiException as e:
             self.status = "load_failed"
 
-            with CustomLogger("lexios") as log:
-                log.error(f"Could not load virtual agent '{self.name}'. {e}")
 
-    def build(self, lexi: LexiOS_Backend):
+    def build(self, lexi: _LexiOS_Backend):
 
         global _internal_id
 
@@ -173,20 +186,22 @@ class VirtualAgent(PluginTemplate):
             return thread
         
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.error("Build virtual agent: {e} ")
-        
+            raise LexiException(f"Building virtual agent: {e}.")
+
   
-    def clone(self, lexi: LexiOS_Backend):
+    def clone(self, lexi):
         # Check if cloning feature is allowed
 
         if not self.can_be_cloned:
-            raise ValueError("can_be_cloned is set to False, change to True for enabling cloning.")
-
-        # Creates an instance of the assiatance to attend a specific conversation 
-        return self.build(lexi)
-
-class VirtualAgentsRouter:
+            raise AttributeError("can_be_cloned is set to False, change to True for enabling cloning.")
+        
+        # Clone the thread by passing its reference or building a new model
+        if self.lexi_thread:
+            return self.lexi_thread
+        else:
+            return self.build(lexi)
+        
+class VirtualAgentsRouter():
 
     _virtual_agents = None
     _agent_names = None
@@ -205,6 +220,7 @@ class VirtualAgentsRouter:
         self.user_message = kwargs.get('user_message')
         self.session_data = kwargs.get('user')
         self.src_virtual_agent = kwargs.get('virtual_agent_name', None)
+        self.can_be_replaced = kwargs.get('can_be_replaced', False)
 
     async def route_to_virtual_agent(self, virtual_agent_name: str, message: str, no_callback: bool = True):
         # SUMM: Forward the user input to another virtual assistant listed on the available options.
@@ -227,7 +243,8 @@ class VirtualAgentsRouter:
                 )
 
                 # Request for the virtual agent to take over
-                if no_callback:
+                if no_callback and self.can_be_replaced and agent.can_be_cloned:
+
                     with CustomLogger("lexios") as log:
                         log.debug(f"Routing user_id {self.user_id} to virtual agent {agent.name}.")
 
@@ -249,11 +266,11 @@ class VirtualAgentsRouter:
             log.debug(f"Routing user_id {self.user_id} to root assistant.")
 
         # Raise Exception
-        raise MainAssistantRequested("Routing to main assistant.", 
-                                     agent=self.src_virtual_agent,
-                                     information= information,
-                                     user_message= self.user_message,
-                                     )
+        raise MainAssistantRequested(
+                                agent=self.src_virtual_agent,
+                                information= information,
+                                user_message= self.user_message,
+        )
 
 
     def by_name(self, agent_name: str) -> VirtualAgent:

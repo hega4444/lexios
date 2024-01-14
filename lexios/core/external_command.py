@@ -4,20 +4,22 @@ import json
 import asyncio
 import inspect
 
-from typing import List
+from typing import List, Any
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger
 
 class LexiExternalCommand():
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
 
+    
+    from lexios.core.logger import CustomLogger
+
     def __init__(
         self,
         func: callable,
-        requires_object = None,
-        requires_dynamic_object = None,
+        requires_object: Any = None,
+        requires_dynamic_object: Any = None,
         show_return_to_user: bool = False,
         if_error: str = None,
         before: str = None,
@@ -26,7 +28,7 @@ class LexiExternalCommand():
         roles_required: List[str] = None,
         scopes: List[str] = None,
         session_data_check: str = None,
-        allowed_in_background = False,
+        allowed_in_background: bool = False,
     ):
         # Tool settings
         self.func = func

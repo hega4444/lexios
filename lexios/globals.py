@@ -2,6 +2,7 @@
 
 ROOT_ID = 1
 GENERAL_VIRTUAL_AGENT = 2
+VIRTUAL_AGENT = "VIRTUAL AGENT"
 
 class Globals:
     _instance = None

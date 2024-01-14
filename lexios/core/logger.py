@@ -14,10 +14,10 @@ class CustomLogger:
         # Check if handlers already exist
         if not self.logger.handlers:
 
-            file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_formatter = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
 
             console_formatter = colorlog.ColoredFormatter(
-                '%(log_color)s%(asctime)s - %(levelname)s - %(message)s',
+                '%(log_color)s%(levelname)s - %(asctime)s - %(message)s',
                 datefmt=None,
                 reset=True,
                 log_colors={

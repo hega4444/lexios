@@ -1,21 +1,20 @@
 # lexios_main.py
 import os
 import openai
-
+from typing import ForwardRef
 from datetime import timedelta
+
 from lexios.globals import Globals
 from lexios.settings.main import *
-from lexios.core.session_manager import LexiSessionManager
 from lexios.core.common_tools import *
+from lexios.core.signatures import _LexiOS_Backend
 from lexios.core.external_command import LexiExternalCommand
-from lexios.core.task_scheduler import LexiTaskScheduler
-from lexios.core.logger import CustomLogger
+from lexios.core.thread import LexiAssistantThread
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.core.thread import LexiAssistantThread
+from lexios.core.logger import CustomLogger
 
-
-class LexiOS_Backend():
+class LexiOS_Backend(_LexiOS_Backend):
     # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
     # and NLP capabilities.
 
@@ -54,6 +53,7 @@ class LexiOS_Backend():
         self.broker_url = BROKER_URL
 
         # Session Manager
+        from lexios.core.session_manager import LexiSessionManager
         self.session_manager = LexiSessionManager(self)
 
         # Settings for output messages:
@@ -108,6 +108,7 @@ class LexiOS_Backend():
         self.define_output_methods(command_line=True, backend=BROKER_PATH)
 
         # Set up LexiScheduler:
+        from lexios.core.task_scheduler import LexiTaskScheduler
         self.scheduler = LexiTaskScheduler(lexi=self)
 
         # Commands needed for the system, creates the minimun toolbox
@@ -230,13 +231,15 @@ class LexiOS_Backend():
                 
                 else:
                     # No thread found, create one
-                    thread = self.build_thread(
+                    new_thread = self.build_thread(
                         user_id = user_id,
                         conversation_id = conversation_id,
                     )
+                    # Update session manager reference
+                    self.session_manager.register_thread(new_thread)
 
                     # Send the message to the initiated Thread as background task
-                    await thread.process_input(user_input, filename)
+                    await new_thread.process_input(user_input, filename)
         
         except MainAssistantRequested as request:
                 await thread.process_input(from_agent=request)
@@ -268,7 +271,7 @@ class LexiOS_Backend():
         
         # Find the agent
             agent = self.agents_router.by_name(agent.name)
-            if agent:
+            if agent.can_be_cloned:
                 # Get a blank slate of a virtual agent
                 cloned_virtual_agent = agent.clone(lexi=self)
 
@@ -280,9 +283,12 @@ class LexiOS_Backend():
             user_id:int, 
             conversation_id:str, 
             virtual_agent = None,
+            instructions:str = None,
             restore_conversation = None,
+            run_in_background: bool = False,
     ):
         # Builds a new thread
+    
         try:
             # Baseline 
             thread_context = {
@@ -292,7 +298,11 @@ class LexiOS_Backend():
                         'restore_conversation': restore_conversation,
                         'model': self.model,
                         'toolbox': self.toolbox,
-                        'instructions': self.instructions,
+                        'instructions': instructions or self.instructions,
+                        'can_be_replaced': True,
+                        'run_in_background': run_in_background,
+                        'retrieval': True,
+                        'interpreter': True
                     }
             
             # Virtual Agent Setup
@@ -303,6 +313,7 @@ class LexiOS_Backend():
                 thread_context['toolbox'] = virtual_agent.toolbox
                 thread_context['retrieval'] = virtual_agent.retrieval
                 thread_context['interpreter'] = virtual_agent.interpreter
+                thread_context['can_be_replaced'] = virtual_agent.can_be_replaced
                 thread_context['run_in_background'] = True
             
             # Restore conversation Setup

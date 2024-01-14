@@ -2,91 +2,106 @@
 import os
 import asyncio
 import openai
-
-from datetime import datetime
+from logging import DEBUG
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
-from lexios.database.models import Conversation 
+from lexios.database.models import Conversation
+from lexios.core.signatures import _LexiAssistantThread
 from lexios.core.messages_backend import frontend_output
-from lexios.core.thread import LexiAssistantThread
+from lexios.core.exceptions import LoadAssistantFailed, LoadThreadFailed, LoadConversationFailed, CreateAssistantFailed, LexiException
 
-def load_assistand_and_orm_data(thread: LexiAssistantThread, conversation):
+def load_assistand_and_orm_data(thread: _LexiAssistantThread, conversation: Conversation):
     # Handles the load of both the assistant and the thread if possible
 
     # Check if there is a conversation to restore
     if conversation:
-
-        # Restore the conversation_id 
-        thread.conversation_id = conversation.conversation_id
-
-        # Try to retrieve preset assistant and thread data
         try:
-            restore_loaded_assistant_failed = False
-            assistant = openai.beta.assistants.retrieve(conversation.model_loaded_assistant_id)
+            # Restore the conversation_id 
+            thread.conversation_id = conversation.conversation_id
 
-            # if assistant is retrieved, update tools
-            if assistant:
-                assistant = openai.beta.assistants.update(
-                    assistant_id= assistant.id,
-                    tools= thread.tools,
-                )
+            # Try to retrieve preset assistant and thread data
+            try:
+                saved_assistant_id = conversation.model_loaded_assistant_id
+                if saved_assistant_id:
+                    assistant = openai.beta.assistants.retrieve(saved_assistant_id)
 
-            thread.loaded_assistant = assistant
-        except Exception as e:
-            restore_loaded_assistant_failed = True  
-             
-        
-        # Try to recover the thread
-        try:
-            restore_loaded_thread_failed = False
-            restored_thread = openai.beta.threads.retrieve(conversation.model_loaded_thread_id)
-            thread.loaded_thread = restored_thread
+                    # Update tools
+                    if assistant:
+                        assistant = openai.beta.assistants.update(
+                            assistant_id= saved_assistant_id,
+                            tools= thread.loaded_tools,
+                        )
+                    thread.loaded_assistant = assistant
+                else:
+                    raise LexiException("No assistant id saved in the conversation.", DEBUG)
+            except Exception as e:
+                raise LoadAssistantFailed(e)
+                
+            # Try to recover the thread
+            try:
+                saved_thread_id = conversation.model_loaded_thread_id
 
-        except Exception as e:
-            restore_loaded_thread_failed = True
-        
-        # Restore messages from database
-        if not restore_loaded_assistant_failed and not restore_loaded_thread_failed:
+                if saved_thread_id:
+                    restored_thread = openai.beta.threads.retrieve(saved_thread_id)
+                    thread.loaded_thread = restored_thread
+                else:
+                    raise ValueError("No thread id saved in the conversation.")
+                
+            except Exception as e:
+                raise LoadThreadFailed(e)
+            
+            # Restore messages from database
             thread.conversation_orm = conversation
-        
-    if not conversation or \
-        restore_loaded_assistant_failed or restore_loaded_thread_failed:
 
+            return
+        
+        except (LoadAssistantFailed, LoadThreadFailed) as e:
+            new_assistant_required = True
+        
+        except Exception as e:
+            raise LoadConversationFailed(e)
+
+    if not conversation or new_assistant_required:
+            
             try:
                 # Create root assistant
                 thread.root_assistant = openai.beta.assistants.create(
                     instructions=thread.instructions,
                     name=thread._name_,
-                    tools=thread.tools,   
+                    tools=thread.root_tools,   
                     model=thread.lexi.model,
                 )
                 
-                # Load the root assistant as default
+                # Load the root assistant 
                 thread.loaded_assistant = thread.root_assistant
+
+                # Create conversation data only for foreground threads
+                if not thread.run_in_background:
+
+                    if conversation :
+                        # Restore messages from database
+                        thread.conversation_orm = conversation
+                    
+                    else:
+                        # Create new conversation model for the db
+                        thread.conversation_orm = Conversation(
+                                                    user_id= thread.user_id,
+                                                    conversation_id= thread.conversation_id,
+                                                    title = "new chat..",
+                                                    app_messages_content=[],
+                                                    root_assistant_id= thread.root_assistant.id,
+                                                    root_thread_id= None,
+                                                    loaded_assistant_id= thread.root_assistant.id,
+                                                    loaded_thread_id= None,
+                                                    model_messages= None,
+                                                    metrics= None,
+                                                    virtual_agent_name=None,
+                                                )      
             except Exception as e:
-                with CustomLogger("lexios") as log:
-                    log.error("At assistant create: {e}")
-
-            if not thread.run_in_background:
-
-                # Create new conversation model for the db
-                thread.conversation_orm = Conversation(
-                                            user_id= thread.user_id,
-                                            conversation_id= thread.conversation_id,
-                                            title = "new chat..",
-                                            app_messages_content=[],
-                                            root_assistant_id= thread.root_assistant.id,
-                                            root_thread_id= None,
-                                            loaded_assistant_id= thread.root_assistant.id,
-                                            loaded_thread_id= None,
-                                            model_messages= None,
-                                            metrics= None,
-                                            virtual_agent_name=None,
-                                        )           
+                raise CreateAssistantFailed(e, e.args)
                 
-
-async def update_thread_messages(thread: LexiAssistantThread, new_message = None, new_file = None):
+async def update_thread_messages(thread: _LexiAssistantThread, new_message = None, new_file = None):
     # Appends messages and attachments to the current user_thread
 
     if new_file:
@@ -122,16 +137,9 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
             )
 
             # Update conversation messages
-            thread.conversation_orm.app_messages_content.append(
-                {
-                    'text': f'File "{filename}" uploaded',
-                    'source': "system",
-                    'type':'sys_notif',
-                    'time': format_datetime(str(datetime.now()))[:-3],
-                }
-            )
+            thread.save_message(f'File "{filename}" uploaded', type="sys_notif")
 
-        except FileNotFoundError as e:
+        except Exception as e:
             # Log error
             with CustomLogger("file_uploads") as log:
                 log.error(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}")   
@@ -140,16 +148,9 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
     if new_message:
 
         if not thread.run_in_background:
-
+            
             # Update conversation ORM
-            thread.conversation_orm.app_messages_content.append({
-                                    'source':'user',
-                                    'type': 'text',
-                                    'time': format_datetime(str(datetime.now()))[:-3],
-                                    'text':new_message,
-                                }                    
-            )
-        thread.has_changed = True
+            thread.save_message(new_message, "user")
 
         # Check if message includes attachment:
         try:
@@ -255,7 +256,7 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
             raise ValueError(f"Problem attaching file {new_file} to Assistant. User {thread.user_id}. Details: {e}")
 
 
-async def render_annotations(thread, links, attachments):
+async def render_annotations(thread: _LexiAssistantThread, links, attachments):
 
     # Handle links
     if links:
@@ -269,14 +270,7 @@ async def render_annotations(thread, links, attachments):
         )
 
         # Update conversation ORM
-        thread.conversation_orm.app_messages_content.append({
-                    'text': links.get("text"),
-                    'source': "system",
-                    'type':'sys_notif',
-                    'time': format_datetime(str(datetime.now()))[:-3],
-                    'metadata': {"attachment" : links },
-                }
-        )
+        thread.save_message(links.get("text"), type="sys_notif", metadata={"attachment" : links })
 
     # Handle attachments
     if attachments:
@@ -292,12 +286,6 @@ async def render_annotations(thread, links, attachments):
             )
 
             # Update conversation ORM
-            thread.conversation_orm.app_messages_content.append({
-                    'text': f'Download "{filename}"',
-                    'source': "system",
-                    'type':'sys_notif',
-                    'time': format_datetime(str(datetime.now()))[:-3],
-                    'metadata': {"attachment" : attachments[filename]},
-                }
-            )
+            thread.save_message(f'Download "{filename}"', type="sys_notif", metadata= {"attachment" : attachments[filename]})
+
 

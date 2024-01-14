@@ -7,7 +7,6 @@ from uuid import UUID
 from fastapi import WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Dict
-from fastapi import APIRouter
 
 from lexios.settings.main import BROKER_URL
 from lexios.frontend.session_data import backend
@@ -15,8 +14,10 @@ from lexios.database.users import update_user_data_in_db
 from lexios.core.session_manager import LexiSessionManager
 from lexios.core.logger import CustomLogger
 
-messages_router = APIRouter()
 session_manager = LexiSessionManager()
+
+from .service import messages_router
+
 
 class ConnectionManager:
     def __init__(self):
@@ -64,7 +65,7 @@ async def websocket_endpoint(
         # Save in database
         update_user_data_in_db(session_data)
 
-        # conversation history
+        # Save conversations
         session_manager.save_session(session_data.user_id)
 
         # Handle disconnect

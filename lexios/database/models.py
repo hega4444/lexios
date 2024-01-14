@@ -3,14 +3,14 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, field_validator
-from typing import Optional, Dict, Any
+from typing import Optional
 import bcrypt
 import json
 
-
+from lexios.globals import VIRTUAL_AGENT
 from lexios.settings.main import *
 from lexios.core.builtin.engines.SQLEngine import SimpleSQL
 
@@ -230,7 +230,7 @@ class ScheduledTaskPydantic(BaseModel):
     end_at: Optional[datetime] = None
 
 # This function is called by the admin tool when creating a new project to have a separate database
-def initial_database_setup():
+def initial_database_setup(remake: bool = False):
     # This function is called by the admin tool when creating a new project to have a separate database
     
     session = Session()
@@ -242,52 +242,55 @@ def initial_database_setup():
         "password" : LEXI_DB_ADMIN_PASS,
         "port": LEXI_DB_ADMIN_PORT,
         "load_setup_script": "",
-        "drop_after" : False,  # Set it True to wipe the database, False for creating the data model again
+        "drop_after" : remake,  # Set it True to wipe the database, False for creating the data model again
     }
 
-    # Connect to db using simpleSQL
-    with SimpleSQL(**options) as lexi_db:
-        # Check if table users exists
-        table_user_exists = lexi_db.check_table_exists(table_name="users")
+    # load simple sql with the settings, if remake is true wipes the database
+    with SimpleSQL(**options):
+        pass
 
-    if not table_user_exists:
+    if remake:
+        # Run again for creation
+        options['drop_after'] = False
+        with SimpleSQL(**options):
+            pass  
         
-        # Create models
-        Base.metadata.create_all(engine)
+    # Create models
+    Base.metadata.create_all(engine)
 
-        # USER_ID 1 = SYSTEM USER
-        # Create a new user and add it to the database
-        root = User(name_first=LEXI_ALIAS, name_last=LEXI_ALIAS, username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
-        session.add(root)
-        session.commit()
-        
-        # USER_ID 1 = SYSTEM USER / ROLE ROOT_ACCESS 
-        # Define / Assign a role for system use only
-        root_role = Role(user_id=root.user_id, name='root', read=True, write=True, execute=True)
-        session.add(root_role)
-        session.commit()
-        
-        # USER_ID 2 = VIRTUAL AGENT
-        # Create a new user and add it to the database
-        agent = User(name_first="virtual_agent", name_last="", username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
-        session.add(agent)
-        session.commit()
+    # USER_ID 1 = SYSTEM USER
+    # Create a new user and add it to the database
+    root = User(name_first=LEXI_ALIAS, name_last=LEXI_ALIAS, username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+    session.add(root)
+    session.commit()
+    
+    # USER_ID 1 = SYSTEM USER / ROLE ROOT_ACCESS 
+    # Define / Assign a role for system use only
+    root_role = Role(user_id=root.user_id, name='root', read=True, write=True, execute=True)
+    session.add(root_role)
+    session.commit()
+    
+    # USER_ID 2 = VIRTUAL AGENT
+    # Create a new user and add it to the database
+    agent = User(name_first="virtual_agent", name_last="", username=VIRTUAL_AGENT, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+    session.add(agent)
+    session.commit()
 
-        # USER_ID 2 = VIRTUAL AGENT / ROLE VIRTUAL_AGENT_ACCESS
-        # Define / Assign a role for system use only
-        agent_role = Role(user_id=agent.user_id, name='virtual_agent', read=True, write=True, execute=True)
-        session.add(agent_role)
-        session.commit()
+    # USER_ID 2 = VIRTUAL AGENT / ROLE VIRTUAL_AGENT_ACCESS
+    # Define / Assign a role for system use only
+    agent_role = Role(user_id=agent.user_id, name='virtual_agent', read=True, write=True, execute=True)
+    session.add(agent_role)
+    session.commit()
 
-        # Test user
-        new_user = User(name_first='Hernan', name_last='Garcia', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
-        session.add(new_user)
-        session.commit()
+    # Test user
+    new_user = User(name_first='Hernan', name_last='Garcia', username=TEST_LOGIN_USER, password=TEST_LOGIN_PASS, birth_date=date(1987, 2, 22), conversation_index=0)
+    session.add(new_user)
+    session.commit()
 
-        # Define a baseline role for a user
-        user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=False)
-        session.add(user_role)
-        session.commit()
+    # Define a baseline role for a user
+    user_role = Role(user_id=new_user.user_id, name='user', read=True, write=True, execute=False)
+    session.add(user_role)
+    session.commit()
 
     # Close the session when you're done
     session.close()
@@ -298,7 +301,7 @@ def initial_database_setup():
 
 if __name__ == '__main__':
 
-    initial_database_setup()
+    initial_database_setup(remake=True)
 
     print("models generated.")
 

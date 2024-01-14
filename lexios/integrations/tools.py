@@ -6,7 +6,7 @@ from lexios.integrations.virtual_agents import VirtualAgent
 collector = IntegrationsManager()
 
 # Define a decorator for appending functions to Lexi
-def external_command(func):
+def external_command(func: callable):
     return collector.add_command(func)
 
 

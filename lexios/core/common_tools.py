@@ -1,6 +1,5 @@
 from datetime import timedelta, datetime
 from dateutil import parser
-import threading
 import json
 import pytz
 

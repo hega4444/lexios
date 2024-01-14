@@ -16,9 +16,9 @@ class IntegrationsManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(IntegrationsManager, cls).__new__(cls)
-            cls._instance.commands = []
-            cls._instance.databases = []
-            cls._instance.virtual_agents = []
+            cls._instance.commands : List[Callable] = []
+            cls._instance.databases : List[PluginTemplate]= []
+            cls._instance.virtual_agents : List[PluginTemplate] = []
 
         return cls._instance
 
