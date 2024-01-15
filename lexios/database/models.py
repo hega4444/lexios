@@ -137,7 +137,7 @@ class Conversation(Base):
     title = Column(String(255))
     virtual_agent_name = Column(String(50), default=None, nullable=True)
     app_messages_content = Column(JSON)
-    model_root_assistant_id = Column(String(32), nullable=False)
+    model_root_assistant_id = Column(String(32), nullable=True)
     model_root_thread_id = Column(String(32), nullable=True)
     model_loaded_assistant_id = Column(String(32), nullable=True)
     model_loaded_thread_id = Column(String(32), nullable=True)
@@ -150,14 +150,14 @@ class Conversation(Base):
     def __init__(
             self, user_id, 
             conversation_id, 
-            title, app_messages_content, 
-            root_assistant_id,
-            root_thread_id,
-            loaded_assistant_id, 
-            loaded_thread_id, 
-            model_messages, 
-            metrics,
-            virtual_agent_name,
+            title, app_messages_content = [], 
+            root_assistant_id = None,
+            root_thread_id = None,
+            loaded_assistant_id = None, 
+            loaded_thread_id = None, 
+            model_messages = None, 
+            metrics = None,
+            virtual_agent_name = None,
     ):
         
         self.user_id = user_id

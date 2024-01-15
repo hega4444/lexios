@@ -12,7 +12,7 @@ class lexiOS():
         ensure_redis_running()
         
         settings = {
-            'app': "lexios.frontend.frontend_server:app", 
+            'app': "lexios.frontend.server:app", 
             'host': SERVER_IP, 
             'port': SERVER_PORT, 
             'reload': DEBUG_MODE,

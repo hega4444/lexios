@@ -236,7 +236,7 @@ class LexiOS_Backend(_LexiOS_Backend):
                         conversation_id = conversation_id,
                     )
                     # Update session manager reference
-                    self.session_manager.register_thread(new_thread)
+                    self.session_manager.register_conversation(new_thread)
 
                     # Send the message to the initiated Thread as background task
                     await new_thread.process_input(user_input, filename)
@@ -325,4 +325,4 @@ class LexiOS_Backend(_LexiOS_Backend):
             
         except Exception as e:
             with CustomLogger("lexios") as log:
-                log.error(f"at build_thread: {e}.")
+                log.error(f"lexios. at build_thread: {e}.")

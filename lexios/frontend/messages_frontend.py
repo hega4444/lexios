@@ -4,7 +4,7 @@ import json
 import asyncio
 from uuid import UUID
 
-from fastapi import WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import WebSocket, WebSocketDisconnect, HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from typing import Dict
 
@@ -16,8 +16,11 @@ from lexios.core.logger import CustomLogger
 
 session_manager = LexiSessionManager()
 
-from .service import messages_router
+# Websocket connections, both for message exchange and session login / logout events
+messages_router = APIRouter()
 
+# Websocket connections, both for message exchange and session login / logout events
+messages_router = APIRouter()
 
 class ConnectionManager:
     def __init__(self):

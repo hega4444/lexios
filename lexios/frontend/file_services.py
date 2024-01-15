@@ -1,14 +1,17 @@
 # file_exchange.py
-from .service import files_router, PROJECT_FOLDER
-
 import os
 
-from fastapi import Path, Depends
+from fastapi import Path, Depends, APIRouter
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse
 
+from lexios.frontend.service import PROJECT_FOLDER
+
 from lexios.settings.main import DOWNLOAD_FOLDER
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie
+
+# Uploads / Downloads
+files_router = APIRouter()
 
 # Make temporal downloads available to user
 @files_router.get('/temporal_downloads/{user_id}/{filename}')

@@ -3,12 +3,12 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
-from lexios.core.signatures import _LexiAssistantThread
 from lexios.frontend.session_data import read_session_data_from_backend
 from lexios.database.users import get_user_data_by_user_id
+from lexios.core.signatures import _LexiAssistantThread
 from lexios.core.common_tools import *
 from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
-from lexios.core.thread_messages import update_thread_messages, load_assistand_and_orm_data, render_annotations
+from lexios.core.thread_loading import load_assistant_and_orm_data
 from lexios.core.downloads import manage_downloads, manage_links
 from lexios.core.conversations import generate_conversation_name, save_conversation
 from lexios.core.messages_backend import frontend_output
@@ -76,6 +76,7 @@ class LexiAssistantThread(_LexiAssistantThread):
         else:
             self._name_ = self.lexi.name
         
+        # Virtual Agent Name means this is a system created thread
         self.virtual_agent_name = virtual_agent_name
         if virtual_agent_name:
             self._name_ = virtual_agent_name
@@ -106,8 +107,7 @@ class LexiAssistantThread(_LexiAssistantThread):
         self.toolbox = toolbox
         
         # Security: Validate tools authorized for this thread
-        self.root_tools = MakeToolBox()(self)
-
+        self.root_tools  = MakeToolBox()(self)
         # Load tools
         self.loaded_tools = self.root_tools
 
@@ -117,7 +117,7 @@ class LexiAssistantThread(_LexiAssistantThread):
         self.conversation_orm = None
         
         # Load conversation data from DB if any
-        load_assistand_and_orm_data(self, restore_conversation)
+        load_assistant_and_orm_data(self, restore_conversation)
         
         # Assistant files
         self.assistant_files = []
@@ -157,15 +157,22 @@ class LexiAssistantThread(_LexiAssistantThread):
     async def process_input(self, message: str = None, file:str = None, from_agent: MainAssistantRequested= None):
         # Handles the execution of an openai Run 
 
-        from lexios.core.thread_messages import update_thread_messages, render_annotations
+        from lexios.core.thread_loading import update_thread_messages, render_annotations
+        
+        # Signal its busy attending a request
+        self.running_stat = "processing"
+
+        # Verifiy assistant is loaded
+        if not self.root_assistant:
+            pass
+
 
         # clear the thread refrence if there is a reset signal request
         if self.reset_signal:
             self.loaded_thread = None
             self.reset_signal = False
 
-        self.running_stat = "processing"
-
+    
         # Define scpecific instructions for the run
         instructions = "\n".join(
             (
@@ -369,27 +376,33 @@ class LexiAssistantThread(_LexiAssistantThread):
                 'output': assistant_reply,
             }
     
-        # Update conversation ORM
+    # Update conversation ORM
     def save_message(self, message: str, source: str= "system",type: str = "text", metadata: any = None):
-    
-        record = {
-            'source': source,
-            'type': type, 
-            'time': format_datetime(str(datetime.now()))[:-3],
-            'text': message,
-        }
 
-        if metadata:
-            record['metadata'] = str(metadata)
+        if not self.run_in_background:
+            try:
+                record = {
+                    'source': source,
+                    'type': type, 
+                    'time': format_datetime(str(datetime.now()))[:-3],
+                    'text': message,
+                }
 
-        if source == "system":
-            record['alias'] = self._name_
+                if metadata:
+                    record['metadata'] = str(metadata)
 
-        self.conversation_orm.app_messages_content.append(record)
+                if source == "system":
+                    record['alias'] = self._name_
 
-        # Flag for saving
-        self.has_changed = True
-    
+                self.conversation_orm.app_messages_content.append(record)
+
+            except Exception as e:
+                raise LexiException(f"Thread.save_message() {e}")
+
+            finally:
+                # Flag for saving
+                self.has_changed = True
+
     def load_root_assistant(self, agent_request):
         #load the root assistant
 

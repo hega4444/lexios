@@ -1,9 +1,9 @@
 
 # login_router.py
-from .service import login_router, templates, frontend_active_users
+from .service import templates, frontend_active_users, GOOGLE_ID
 from uuid import uuid4
 
-from fastapi import Query, Depends, Form, Request
+from fastapi import Query, Depends, Form, Request, APIRouter
 from fastapi_csrf_protect import CsrfProtect
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.exceptions import HTTPException
@@ -22,6 +22,9 @@ from lexios.database.users import update_user_data_in_db
 # Define router and backend components
 
 google_backend = {} # Backend data storage for managing user authentication
+
+# Google cloud services
+login_router = APIRouter()
 
 # Endpoint to render the HTML form
 @login_router.get("/", response_class=HTMLResponse)

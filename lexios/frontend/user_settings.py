@@ -1,10 +1,14 @@
-from .service import settings_router, templates
+# user_settings.py
 
-from fastapi import Depends, Form, Request, Query
+from fastapi import Depends, Form, Request, Query, APIRouter
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi_csrf_protect import CsrfProtect
 
+from lexios.frontend.service import templates
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie
+
+# Settings
+settings_router = APIRouter()
 
 # Endpoint to render the main Dashboard
 @settings_router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(cookie)])

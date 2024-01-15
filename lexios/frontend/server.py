@@ -1,12 +1,12 @@
 # lexios/api/routes.py
 import os
-import asyncio
 import json
+import asyncio
 
 from pydantic import BaseModel
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
+from contextlib import asynccontextmanager
 from fastapi import File, UploadFile, Path
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -17,24 +17,21 @@ from fastapi_csrf_protect.exceptions import CsrfProtectError
 from fastapi.middleware.cors import CORSMiddleware
 
 from lexios.frontend.session_data import cookie, verifier, LexiSessionData
-from lexios.frontend.messages_frontend import listen_to_redis
 from lexios.frontend.web_proxy import get_link_icon_and_title
-
+from lexios.frontend.messages_frontend import listen_to_redis
 from lexios.core.consent import _consent_backend
 
-# Import Routers
-from .service import (
-    messages_router, 
-    conversations_router, 
-    login_router, 
-    settings_router,
-    files_router,
-    templates,
-    lexi,
-    PROJECT_FOLDER,
-)
+from lexios.frontend.service import PROJECT_FOLDER, lexi, templates
+
+from lexios.frontend.login_routes import login_router
+from lexios.frontend.messages_frontend import messages_router
+from lexios.frontend.user_settings import settings_router
+from lexios.frontend.conversations import conversations_router
+from lexios.frontend.file_services import files_router
+
 
 # Define logic at startup and shutdown
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -62,12 +59,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Include routes to sub-modules
-app.include_router(messages_router)
 app.include_router(login_router)
+app.include_router(messages_router)
 app.include_router(conversations_router)
 app.include_router(settings_router)
 app.include_router(files_router)
+
 
 # CORS set up
 app.add_middleware(

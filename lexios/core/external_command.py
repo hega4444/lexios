@@ -8,12 +8,11 @@ from typing import List, Any
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
+from lexios.core.logger import CustomLogger
+from lexios.integrations.context import Context
 
 class LexiExternalCommand():
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
-
-    
-    from lexios.core.logger import CustomLogger
 
     def __init__(
         self,
@@ -43,7 +42,7 @@ class LexiExternalCommand():
         self.printer = printer
 
         # Custom parameters validation
-        self.custom_validation = None
+        self._custom_validation = None
 
         # Protocol settings
         self.custom_messages = {}
@@ -336,54 +335,57 @@ class LexiExternalCommand():
         # Use for example to restrict the access of users to resources,
         # or prevent issues caused by wrong input data.
 
-        self.custom_validation = val_function
+        self._custom_validation = val_function
 
-    def __custom_params_validation(self, context, **params) -> bool:
+    def __custom_params_validation(self, context: Context, **params) -> bool:
         # Defines a custom validations over the input parameters of the external command
         # <val_function> must return None or a Str with error details.
         # <context> is a dict with user_id metadata about the action 
       
-        if self.custom_validation:
+        if self._custom_validation:
             check = None
             try:
-                if callable(self.custom_validation):
-                    check = self.custom_validation(context, **params)
+                if callable(self._custom_validation):
+                    check = self._custom_validation(context, **params)
                     return check
             except Exception:
                 return None
         return check
 
-    async def execute_command(self, context = None, **kwargs):
+    async def execute_command(self, context: Context = None, **kwargs):
         # Executes the external command 
 
         # Check for custom external command validation
-        if self.custom_validation:
+        if self._custom_validation:
             check = None
             try:
                 check = self.__custom_params_validation(context, **kwargs)
             except Exception:
                 pass
             if check:
-                    raise ValueError("Error: {check}")
+                    # Raise message setting the output of the command as failed and returning the details.
+                    raise ValueError(f"Error: {check}")
 
         # Check if the function requires an associated object
         if self.requires_object:
             method_to_call = getattr(self.requires_object, self.name)
-      
+
+            # Check whether the function needs a sync or async call
             if asyncio.iscoroutinefunction(method_to_call):
 
                 result = await method_to_call(**kwargs)
             else:
                 result = method_to_call(**kwargs)
 
-        # Check if the function requires an object to be instantiated
+        # Check if the function requires an object to be called and check the 
+        # Context 
         elif self.requires_dynamic_object:
             
             # create an instance of the dynamic object that handles the tool call
-            required_object = self.requires_dynamic_object(**context)
+            required_object = self.requires_dynamic_object(context)
             method_to_call = getattr(required_object, self.name)
 
-
+            # Check whether the function needs a sync or async call
             if asyncio.iscoroutinefunction(method_to_call):
 
                 result = await method_to_call(**kwargs)

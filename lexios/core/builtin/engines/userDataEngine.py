@@ -27,21 +27,22 @@ class UserSpecificData(BaseModel):
     created_at: datetime
 """
 # User data manager creates a level of abstraction allowing the ai model save user prefrences and specific data
+from lexios.integrations.context import Context
+
 class UserDataManager():
+    def __init__(self, context: Context = None) -> None:
 
-    def __init__(self, **kwargs) -> None:
+        if context:
 
-        # Load parameters
-        if "lexi" in kwargs:
-            self.lexi = kwargs.get("lexi")
-        if "user_id" in kwargs:
-            self.user_id = kwargs.get("user_id")
-        if "conversation_id" in kwargs:
-            self.conversation_id = kwargs.get("conversation_id")
+            self.lexi = context.lexi
+            self.user_id = context.user_id
+            self.conversation_id = context.conversation_id
+            self.context = context
 
+        # Define base categories (These are shown to the model as existing from the beginning)
         self.base_categories = ['reminders', 'preferences', 'memories']
         
-        # Define hidden categories (these wont be accesible for the AI model)
+        # Define hidden categories (These wont be accesible for the AI model)
         self.hidden_categories = ["processed_emails"]
 
     def schedule_reminder(self, start_at: str, subject:str, repeat_each: str = None, end_at:str = None, content: str = None):
@@ -121,7 +122,7 @@ class UserDataManager():
                 data_content= {
                     'rule_id': str(uuid.uuid4())[:4],
                     'sender' : sender_email_address,
-                    'original_user_request': Globals().user_input,
+                    'original_user_request': self.context.user_message,
                 },
                 internal_call = True,
             )

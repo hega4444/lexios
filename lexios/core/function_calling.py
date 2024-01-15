@@ -11,6 +11,7 @@ from lexios.core.consent import ConsentScreen
 from lexios.frontend.session_data import read_session_data_from_backend 
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
+from lexios.integrations.context import Context
 
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
@@ -110,17 +111,17 @@ class ToolCall():
                 
 
                 try:
+                    # Create a snapshot of the current context to share with the service that executes the command
+                    context = Context(
 
-                    # Build the dynamic context for the command (some commands may need it)
-                    context = {
-                            'lexi': self.lexi,
-                            'user_id' : self.user_id,
-                            'user': read_session_data_from_backend(self.user_id),
-                            'conversation_id' : self.conversation_id,
-                            'user_message': self.user_message,
-                            'virtual_agent_name': self.thread.virtual_agent_name or None,
-                            'can_be_replaced': self.thread.can_be_replaced or False,
-                        }
+                        lexi=self.lexi,
+                        user_id=self.user_id,
+                        user=read_session_data_from_backend(self.user_id),
+                        conversation_id=self.conversation_id,
+                        user_message=self.user_message,
+                        virtual_agent_name=self.thread.virtual_agent_name or None,
+                        can_be_replaced=self.thread.can_be_replaced or False,
+                    )
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)
                 
@@ -217,7 +218,7 @@ class ToolCall():
             raise 
         except MainAssistantRequested as from_agent:
             self.status = "completed"
-            self.ret_status = "Routing to main assistant"
+            self.ret_status = "Routing to main assistant."
             raise
         
         except Exception as e:

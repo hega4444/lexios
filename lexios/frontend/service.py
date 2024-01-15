@@ -1,5 +1,4 @@
 # service.py
-from fastapi import APIRouter
 from fastapi.templating import Jinja2Templates
 
 from admin.verify_folder import find_project_folder
@@ -24,6 +23,7 @@ Globals(lexi=lexi)
 session_manager :_LexiSessionManager = lexi.session_manager
 
 PROJECT_FOLDER = find_project_folder()
+
 GOOGLE_ID = 'GOOGLE_ID'
 
 lexi: _LexiOS_Backend = get_lexi_backend_instance(
@@ -37,32 +37,8 @@ Globals(lexi=lexi)
 # Retrieve a reference to the session manager
 session_manager :_LexiSessionManager = lexi.session_manager
 
-# FRONTEND SETUP #
-
-
-# ROUTERS #
-
-# Google cloud services
-login_router = APIRouter()
-
-# Websocket connections, both for message exchange and session login / logout events
-messages_router = APIRouter()
-
-# Conversations routes
-conversations_router = APIRouter() 
-
-# Settings
-settings_router = APIRouter()
-
-# Uploads / Downloads
-files_router = APIRouter()
-
 # Define a directory for templates
 templates = Jinja2Templates(directory="lexios/frontend/templates")
-
-
-
-
 
 
 

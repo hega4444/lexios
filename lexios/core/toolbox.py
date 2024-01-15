@@ -34,29 +34,29 @@ class MakeToolBox():
             
             try:
 
-                # Exceptions or more specific rules
-
-                # Filter routing commands for agents that cannot be replaced
-                if thread.can_be_replaced is False and (
-                    command.name == Router.route_to_main_assistant.__name__ or
-                    command.name == Router.route_to_virtual_agent.__name__
-                ):
-                    continue # skip command
-
-                # For background assistants, filter commands not allowed in background 
-                if thread.run_in_background and not command.allowed_in_background:
-                    
-                    continue # skip command
-
                 # Verify if the command is required at lexios level
                 required = command.name in thread.lexi.required_commands
-        
-                if not required:
 
+                if required:
+                # Exceptions or more specific rules
+
+                    # Filter routing commands for agents that cannot be replaced
+                    if thread.can_be_replaced is False and (
+                        command.name == Router.route_to_main_assistant.__name__ or
+                        command.name == Router.route_to_virtual_agent.__name__
+                    ):
+                        continue # skip command
+
+                # For background assistants, filter commands not allowed in background 
+                elif thread.run_in_background and not command.allowed_in_background:
+                    
+                    continue # skip command
+    
+                else:
                     # Run verification
                     try:
                         verified = RolesVerification()(
-                            user= thread.user_id, 
+                            user= thread.session_data, 
                             roles_required=command.roles_required,
                             session_data_check=command.session_data_check,
                         )
@@ -68,7 +68,7 @@ class MakeToolBox():
                     tools.append(dict(command.specs))
                     
             except Exception as e:
-                with CustomLogger("security") as log:
-                    log.error(f"Security: User {thread.user_id} {e}")
+                with CustomLogger("lexios") as log:
+                    log.error(f"At Toolbox: User {thread.user_id} Details: {e}")
         
         return tools

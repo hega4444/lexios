@@ -1,16 +1,16 @@
 # conversations.py 
-
 import json
 
-from .service import conversations_router
-
+from fastapi import Query, Depends, Form, APIRouter
 from fastapi_csrf_protect import CsrfProtect
-from fastapi import Query, Depends, Form
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie
 from lexios.core.session_manager import LexiSessionManager
 from lexios.database.conversations import get_user_conversations
+
+# Conversations routes
+conversations_router = APIRouter() 
 
 # Retrieve the conversation data and focus:
 @conversations_router.get("/get_conversation_data", response_class=JSONResponse, dependencies=[Depends(cookie)])

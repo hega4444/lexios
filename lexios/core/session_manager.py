@@ -15,7 +15,7 @@ class LexiSessionManager():
 
     _instance = None
 
-    def __new__(cls, lexi = None):
+    def __new__(cls, lexi: _LexiOS_Backend = None):
 
         if not cls._instance:
             cls._instance = super(LexiSessionManager, cls).__new__(cls)
@@ -61,7 +61,7 @@ class LexiSessionManager():
         # Recovers the thread object for a user/conversation
         return self.active_connections.get((user_id, conversation_id))
     
-    def register_thread(self, thread: _LexiAssistantThread):
+    def register_conversation(self, thread: _LexiAssistantThread):
         if thread.user_id and thread.conversation_id:
             self.active_connections[(thread.user_id, thread.conversation_id)] = thread
 
