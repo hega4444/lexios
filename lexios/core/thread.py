@@ -159,6 +159,9 @@ class LexiAssistantThread(_LexiAssistantThread):
 
         from lexios.core.thread_loading import update_thread_messages, render_annotations
         
+        # Update user message
+        self.user_message = message
+
         # Signal its busy attending a request
         self.running_stat = "processing"
 
@@ -202,7 +205,7 @@ class LexiAssistantThread(_LexiAssistantThread):
                 try:
                     await update_thread_messages(self, message, file)
                 except ValueError as e:
-                    raise ValueError("Could not update messages in Thread.")
+                    raise LexiException("Could not update messages in Thread.")
             
             if message:
                 try:
@@ -217,7 +220,8 @@ class LexiAssistantThread(_LexiAssistantThread):
 
                 except Exception as e:
                     with CustomLogger("assistants") as log:
-                        log.debug(f"Problem updating executing Thread foself.buffered_last_message r User_id: {self.user_id}. Details:{e}")
+                        log.debug(f"Problem updating executing Thread for {self.buffered_last_message} "
+                                  f"User_id: {self.user_id}. Details:{e}")
 
                     raise ValueError(
                         f"'process_run' could not execute this Run. Details: {e}"
@@ -237,7 +241,8 @@ class LexiAssistantThread(_LexiAssistantThread):
 
                     # Log run status
                     with CustomLogger("lexios") as log:
-                        log.info(f"run object status - User: {self.user_id} Status:{self.run.status} Message:{self.user_message} Last Error: {self.run.last_error}")
+                        log.info(f"run object status - User: {self.user_id} Status:{self.run.status} "
+                                 f"Message:{self.user_message} Last Error: {self.run.last_error}")
                     
                     # Check if the run failed
                     if self.run.status == 'failed':
@@ -273,7 +278,8 @@ class LexiAssistantThread(_LexiAssistantThread):
                             if not self.run_in_background:
                                 # Log entry
                                 with CustomLogger("messages") as log:
-                                    log.debug("System", details={"from": self._name_, "content": assistant_reply, "filtered": True})
+                                    log.debug("System", details={"from": self._name_, 
+                                        "content": assistant_reply, "filtered": True})
                             
                                 
                         elif not self.run_in_background:
@@ -302,22 +308,17 @@ class LexiAssistantThread(_LexiAssistantThread):
                             self.buffered_last_message = assistant_reply
 
                     # Check for requested tools:
-                    if self.run.status == "requires_action":
+                    if (self.run.status == "requires_action" and 
+                        self.run.required_action.type == "submit_tool_outputs"):
 
                             # Create required tool calls:
                             await create_tool_calls(self)
 
-                            try:
-                                # Attend calls generated:
-                                await attend_tool_calls(self)
+                            # Attend calls generated:
+                            await attend_tool_calls(self)
 
                             # Root assistant requested
-                            except MainAssistantRequested as from_agent:
-                                if self.virtual_agent_name and self.can_be_replaced:
-                                    # Cancel run
-                                    self.cancel_run()
-                                    # Load root assistant
-                                    self.load_root_assistant(from_agent)
+        
 
                             # When all calls are completed, submit tool_function_outputs:
                             submit_function_outputs(self)
@@ -329,6 +330,7 @@ class LexiAssistantThread(_LexiAssistantThread):
                             # Clear to_dos:
                             self.tool_calls = []
 
+
         # Virtual Agent was solicited 
         except VirtualAgentRequested as agent:
             if self.can_be_replaced:
@@ -337,7 +339,15 @@ class LexiAssistantThread(_LexiAssistantThread):
                 # Mark as changed to save in db
                 self.has_changed = True
                 # Propagate to lexios only after checking it can be replaced
-                raise         
+                raise
+
+
+        except MainAssistantRequested as from_agent:
+            if self.virtual_agent_name and self.can_be_replaced:
+                # Cancel run
+                self.cancel_run()
+                # Load root assistant
+                self.load_root_assistant(from_agent)
 
         except Exception as e:
                 
@@ -346,36 +356,45 @@ class LexiAssistantThread(_LexiAssistantThread):
                     await frontend_output(
                         "I'm sorry, there was a problem processing your last request. Please try again...", 
                         user_id = self.user_id,
-                        conversation_id=self.conversation_id
+                        conversation_id=self.conversation_id,
+                        alias= self._name_
                     )
-                with CustomLogger("lexios") as log:
-                    log.error(f"At running thread. User:{self.user_id}. Details {e}")
 
                 # Let know the LexiOS component   
-                raise ValueError(f"Problem running thread. Details: {e}")
+                raise LexiException(f"Problem running thread. Details: {e}", WARNING)
         
         finally:
-            # Release the LexiAssistant to attend new requests    
-            self.running_stat = "ready"
-        
-        # Autogenerate conversation title
-        if self.run.status == "completed" and not self.title_generated and \
-        not self.run_in_background:
+            if self.run.status in ['required_action', 'in_progress']:
+                # Keep on hold
+                self.running_stat = "on_hold"
+                # Cancel run
+                try:
+                    self.cancel_run()
+                except Exception as e:
+                    self.running_stat = "reload_needed"
+                
+            elif self.run.status in ["completed", "cancelled", "failed", "expired"]:
+                # Release the LexiAssistant to attend new requests    
+                self.running_stat = "ready"
+                
+                # Autogenerate conversation title
+                if self.run.status == "completed" and not self.title_generated and \
+                not self.run_in_background:
 
-            # Generate name, update title
-            await generate_conversation_name(self)
+                    # Generate name, update title
+                    await generate_conversation_name(self)
 
 
-        # End of Run execution
-        # Save the response generated, used for background tasks
+                # End of Run execution
+                # Save the response generated, used for background tasks
 
-        if self.run_in_background and self.run.status in ["completed", "cancelled", "failed", "expired"]:
+                if self.run_in_background and self.run.status in ["completed", "cancelled", "failed", "expired"]:
 
-            self.response = {
-                'status': self.run.status,
-                'output': assistant_reply,
-            }
-    
+                    self.response = {
+                        'status': self.run.status,
+                        'output': assistant_reply,
+                    }
+            
     # Update conversation ORM
     def save_message(self, message: str, source: str= "system",type: str = "text", metadata: any = None):
 

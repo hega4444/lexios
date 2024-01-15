@@ -21,6 +21,10 @@ def __main__():
     elif  sys.argv[1] == "run":
 
         run_project(project_name)
+    
+    elif sys.argv[1] == "rebuild":
+
+        rebuild_project(project_name)
 
 
 # Create a new project
@@ -147,6 +151,23 @@ def run_project(project_name):
         print(f"Error: {e}")
 
 
+def rebuild_project(project_name):
+    try:
+        confirmation = input(f"This action will rebuild the models and erase the database. Please be cautious..\n"
+                             f"Are you sure you want to rebuild the project '{project_name}'? (yes/no)").lower()
+
+        if confirmation == 'yes':
+            from lexios.database.models import initial_database_setup
+            initial_database_setup(name= project_name, remake= True)
+            print(f"Database for '{project_name}' was created.")
+        else:
+            print("Update canceled.")
+    except Exception as e:
+        print(f"Could not create database models for {project_name}. Details: {e}")
+
 if __name__ == "__main__":
-    
-    run_project("new_lexi_project")
+    project_name = input("Enter the project name: ")
+    rebuild_project(project_name)
+
+
+

@@ -4,21 +4,19 @@ import asyncio
 import openai
 from logging import DEBUG
 
+from lexios.core.conversations import NEW_CHAT_PROMPT
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger, DEBUG, ERROR
 from lexios.database.models import Conversation
 from lexios.core.signatures import _LexiAssistantThread
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import LoadAssistantFailed, LoadThreadFailed, LoadConversationFailed, CreateAssistantFailed, LexiException
-
-NEW_CHAT_PROMPT = "new chat.."
-
+from lexios.core.conversations import save_conversation
 
 def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conversation):
     # Handles the load of both the assistant and the thread if possible
     try:
         loaded = False
-        new_conversation = None
 
         # Restore conversation
         if conversation: 
@@ -27,9 +25,8 @@ def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conv
             # Load messages
             thread.conversation_orm = conversation
 
-        elif not thread.run_in_background:
-
-            # Create new conversation model for the db
+        # Create new conversation model for the db
+        else:
             new_conversation = Conversation(
 
                 user_id= thread.user_id,
@@ -50,7 +47,7 @@ def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conv
                 
                 # Raise an exception to alert for possible settings mistakes at virtual agent (or lexi ;)
                 if source and source == "agent" and not thread.can_be_replaced:    
-                    raise LoadConversationFailed(e, )
+                    raise LoadConversationFailed(e)
             
                 # Set False to start new conversation orm
                 loaded = False
@@ -58,13 +55,18 @@ def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conv
             except LoadThreadFailed:
                 # It will be created on the next message
                 pass
+            
+            finally:
+                if loaded:
+                    # Refresh the references to assistants for any change
+                    refresh_assistant_references(thread, conversation)
         
-        # Load new assistant
-        elif not loaded:            
-                load_assistants(thread, new_conversation, new= True)
+        # Register new assistants
+        elif not loaded: 
+            load_assistants(thread, new_conversation, True)
 
     except Exception as e:
-        raise LexiException(f"Thread. At load_assistantand_orm_data {e}",ERROR, e.args)
+        raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}",ERROR, e.args)
     
                 
 async def update_thread_messages(thread: _LexiAssistantThread, new_message = None, new_file = None):
@@ -257,16 +259,34 @@ async def render_annotations(thread: _LexiAssistantThread, links, attachments):
 
 def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, new: bool = False):
     # Validate consistency and load assistant / virtual agents on thread
-    
-    # Flag that gets updated along the verifications
-    start_new = False
 
-    # 1 # Root assistant # 
+    # Define target # 
     
-    # Verify if it is a virtual agent
+    # Verify if whether it's a virtual agent
     agent = thread.lexi.agents_router.by_name(thread._name_, None)
+
+    # Define the target, meaning the assistant most relevant for loading (root / agent)
+    if agent and agent.name == LEXI_ALIAS:
+      
+        target = "root"
+
+        thread.main_agent = True
     
-    # If it is not an irreplaceable virtual agent, always load root assistant first
+    elif agent:
+        target = "agent"
+        
+        # Determine if the agent is a main instance or clone
+        thread.main_agent= thread.user_id == agent.as_user_id 
+             
+    else:
+        target = "root"
+
+        thread.main_agent = False
+    
+   
+    # Try to load from db #
+    update_thread = False
+    # If it's not an irreplaceable virtual agent, always load root assistant first
     if not (agent and not agent.can_be_replaced):
 
         # Load the root assistant id stored in the conversation
@@ -284,13 +304,12 @@ def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, ne
                     tools= thread.loaded_tools,
                 )
                 # Just to follow the setup sequence, also load root assistant 
-                thread.loaded_assistant = thread.root_assistant
-                # Define a target for building the thread later
-                target = "root"
+                thread.loaded_assistant = thread.root_assistant   
+                update_thread = True
 
             elif not saved_root_assistant_id:
                 raise LexiException("No root assistant id saved in the conversation.", DEBUG)
-            
+
         except Exception as e:
             # If the recovery failed, try to create a new instance of the assistant
         
@@ -307,103 +326,125 @@ def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, ne
                 # Just to follow the setup sequence, also load root assistant 
                 thread.loaded_assistant = thread.root_assistant
 
-                # Define a target for building the thread later
-                target = "root"
-                start_new = True
-
             except Exception as e:
                 raise CreateAssistantFailed(f"Recovering Root assistant from DB : {e}", DEBUG, source="root")
     
-    # 2 # Pre loaded Virtual Agent #
-    
-    # If the thread name and agent are the same it means this is a main virtual agent thread, not a clone
-    # works as a deamon service to attend new requests
-    if agent and agent.name == thread.virtual_agent_name and new:
+        
+    # Other virtual agents or failed cases at loading from db #
+    if target == 'agent':     
+        
 
         # Try to retrieve loaded assistant and thread data
         if conversation:
             agent_assistant_id = conversation.model_loaded_assistant_id
 
-            # Only if the saved assistant differs from the root
-            if agent_assistant_id and agent_assistant_id != thread.root_assistant.id:
-
-                # Retrieve
-                agent_assistant = openai.beta.assistants.retrieve(agent_assistant_id)
-
-                # Update tools
-                if agent_assistant:
-                    updated_agent_assistant = openai.beta.assistants.update(
-                        assistant_id= agent_assistant_id,
-                        tools= thread.loaded_tools,
-                    )
-                # Load virtual agent assistant
-                thread.loaded_assistant = updated_agent_assistant
-
-                # Overwrite the target
-                target = "agent"
-        
-        else:
             try:
-                # Create agent assistant again
-                thread.loaded_assistant = openai.beta.assistants.create(
+                # Only if the saved assistant differs from the root
+                if agent_assistant_id and agent_assistant_id != thread.root_assistant.id:
 
-                    instructions= agent.instructions,
-                    name= agent.name,
-                    tools=thread.loaded_tools,   
-                    model=thread.lexi.model,
-                )
-                
-                # Define a target for building the thread later
-                target = "agent"
-                start_new = True
+                    # Retrieve
+                    agent_assistant = openai.beta.assistants.retrieve(agent_assistant_id)
+
+                    # Update tools
+                    if agent_assistant:
+                        updated_agent_assistant = openai.beta.assistants.update(
+                            assistant_id= agent_assistant_id,
+                            tools= thread.loaded_tools,
+                        )
+                    # Load virtual agent assistant
+                    thread.loaded_assistant = updated_agent_assistant
+                    update_thread = True
+
+                else:
+                    raise LoadAssistantFailed(f"Virtual Agent {agent.name} No assistant id found. New assistant required.")
+
+            
+            except LoadAssistantFailed as e:
+
+                try:
+                    # Create virtual agent assistant again
+                    thread.loaded_assistant = openai.beta.assistants.create(
+
+                        instructions= agent.instructions,
+                        name= agent.name,
+                        tools=thread.loaded_tools,   
+                        model=thread.lexi.model,
+                    )
+
+                except Exception as e:
+                        
+                    # If agent has enabled 'can_be_replaced' meaning it can be rerouted, then delete its reference
+                    if agent.can_be_replaced:
+                        # Delete reference
+                        thread.virtual_agent_name = None
+                        # Default assistant name
+                        thread._name_ = thread.lexi.name
+                        # Ensure the minimun toolbox
+                        thread.loaded_tools = thread.root_tools
+    
+                    elif not agent.can_be_replaced:
+                        # Otherwise rise an exception for debug, problem could be originated in virtual agent can_be_replaced set to False 
+                        # and not being able to start.
+                        raise LoadAssistantFailed(f"Virtual Agent '{thread.virtual_agent_name}' cannot be loaded. Check 'can_be_replaced' attribute.", DEBUG, source="agent")
+            
 
             except Exception as e:
+                raise LexiException("Agent determination procedure failed.", DEBUG, e)
+            
+    try:        
+        
+        # Thread could be determined
+        saved_loaded_thread_id =  conversation.model_loaded_thread_id
+        if update_thread and saved_loaded_thread_id:
+
+            try:
+                # Retrieve
+                restored_thread = openai.beta.threads.retrieve(saved_loaded_thread_id)
+                # Load
+                thread.loaded_thread = restored_thread
+
+                # If the target is root refresh also the root_thread field
+                if target == "root":
+                    thread.root_thread = restored_thread
+            
+            except Exception as e:
+                raise LoadThreadFailed(e)
+        
+        try:
+            # To this point an asisstant should be loaded unless a LoadAssistantFailed exception
+            refresh_assistant_references(thread, conversation)
+            
+            # For workers, save the loaded status aqquaried for a faster reboot
+            if thread.virtual_agent_name:    
+                # Verify the virtual agent, and keep the default value in case it ghosts 
+                agent = thread.lexi.agents_router.by_name(thread._name_)
+                if agent:
+                    # Create a default title to identify the background conversations
+                    conversation.title = f"Virtual Agent Worker - {agent.name} c_id {thread.conversation_id}" 
+                    # Record user id used by the agent
+                    conversation.user_id = agent.as_user_id
+                    conversation.conversation_id = thread.conversation_id
                     
-                # If agent has enabled 'can_be_replaced' meaning it can be rerouted, then delete its reference
-                if agent.can_be_replaced:
-                    # Delete reference
-                    thread.virtual_agent_name = None
-                    # Default assistant name
-                    thread._name_ = thread.lexi.name
-                    # Ensure the minimun toolbox
-                    thread.loaded_tools = thread.root_tools
-                    # Ensure target
-                    target = "root"
-                    start_new = True
+        except Exception as e:
+            pass
+
+
         
-                elif not agent.can_be_replaced:
-                    # Otherwise rise an exception for debug, problem could be originated in virtual agent can_be_replaced set to False 
-                    # and not being able to start.
-                    raise LoadAssistantFailed(f"Virtual Agent '{thread.virtual_agent_name}' cannot be loaded. Check 'can_be_replaced' attribute.", DEBUG, source="agent")
-        
-    # To this point an asisstant should be loaded at thread.loaded_assistant unless LoadAssistantFailed exception
+    finally:
+        # Push changes into the database
+         save_conversation(thread, push=True)
 
-    # First check the new thread flag, True means we can create a new thread 
-    if start_new:
-        # The thread creation will be handled later when the first message arrives
-        target_thread_id = None
-
-    elif target == "root":
-        target_thread_id = conversation.model_root_thread_id
-
-    elif target == "agent":
-        target_thread_id = conversation.model_loaded_thread_id
-
-    try:
-        # Target thread was determined
-        if target_thread_id:
-
-            # Retrieve
-            restored_thread = openai.beta.threads.retrieve(target_thread_id)
-            # Load
-            thread.loaded_thread = restored_thread
-
-            # If the target is root refresh also the root_thread field
-            if target == "root":
-                thread.root_thread = restored_thread
-        
-    except Exception as e:
-        # Raise exception
-        raise LoadThreadFailed(e)
 
     return True
+
+def refresh_assistant_references(thread: _LexiAssistantThread, conversation: Conversation):
+    # Update assistants in the ORM object
+
+    conversation.virtual_agent_name = thread.virtual_agent_name or None
+    conversation.model_root_assistant_id = thread.root_assistant.id if thread.root_assistant else None
+    conversation.model_root_thread_id = thread.root_thread.id if thread.root_thread else None
+    conversation.model_loaded_assistant_id = thread.loaded_assistant.id if thread.loaded_assistant else None
+    conversation.model_loaded_thread_id = thread.loaded_thread.id if thread.loaded_thread else None
+
+    # Push the changes to the DB
+    save_conversation(thread, push=True)

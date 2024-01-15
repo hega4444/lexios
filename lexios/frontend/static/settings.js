@@ -1,29 +1,35 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
+    // Flag to check if the change event is triggered manually
+    let manualChange = true;
+
     // Function to load user settings from the server
     function loadUserSettings() {
-        // Make a GET request to retrieve user settings
-        fetch('/get_user_settings', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Populate form fields with the retrieved settings
-            document.getElementById('firstName').value = data.name_first || '';
-            document.getElementById('lastName').value = data.name_last || '';
-            document.getElementById('location').value = data.location || '';
-            document.getElementById('google_id').value = data.google_id || '';
-            document.getElementById('bingSearchCheckbox').checked = data.bing_searches || false;
-            document.getElementById('lexiLearnCheckbox').checked = data.lexi_learns || false;
-            document.getElementById('gmailCheckbox').checked = data.gmail_access || false;
-            document.getElementById('calendarCheckbox').checked = data.google_calendar_access || false;
-            document.getElementById('themeSelection').value = data.theme_selection || 'theme1';
-            document.getElementById('backgroundColor').value = data.background_color || '#FFFFFF';
-            document.getElementById('textColor').value = data.text_color || '#000000';
-        })
-        .catch(error => console.error('Error loading user settings:', error));
+        if (manualChange) {
+            // Make a GET request to retrieve user settings
+            fetch('/get_user_settings', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Populate form fields with the retrieved settings
+                    document.getElementById('firstName').value = data.name_first || '';
+                    document.getElementById('lastName').value = data.name_last || '';
+                    document.getElementById('location').value = data.location || '';
+                    document.getElementById('google_id').value = data.google_id || '';
+                    document.getElementById('bingSearchCheckbox').checked = data.bing_searches || false;
+                    document.getElementById('lexiLearnCheckbox').checked = data.lexi_learns || false;
+                    document.getElementById('gmailCheckbox').checked = data.gmail_access || false;
+                    document.getElementById('calendarCheckbox').checked = data.google_calendar_access || false;
+                    document.getElementById('themeSelection').value = data.theme_selection || 'theme1';
+                    document.getElementById('backgroundColor').value = data.background_color || '#C4660E';
+                    document.getElementById('textColor').value = data.text_color || '#FDFDF6';
+                })
+                .catch(error => console.error('Error loading user settings:', error));
+        
+        }
     }
 
     // Function to update user settings on the server
@@ -47,6 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Include CSRF token in the headers
         const csrfToken = document.getElementById('csrf_token').value;
 
+        // Set manualChange to true before making the update
+        manualChange = true;
+
         // Make a POST request to update user settings
         fetch('/update_user_settings', {
             method: 'POST',
@@ -55,26 +64,33 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: formData,
         })
-        .then(response => response.json())
-        .then(data => {
-            // Optionally handle the response
-            console.log('User settings updated successfully:', data);
-        })
-        .catch(error => console.error('Error updating user settings:', error));
+            .then(response => response.json())
+            .then(data => {
+                // Optionally handle the response
+                console.log('User settings updated successfully:', data);
+            })
+            .catch(error => console.error('Error updating user settings:', error))
+            .finally(() => {
+                // Reset manualChange to false after the update
+                manualChange = false;
+            });
     }
-    
+
     // Load user settings when the page loads
     loadUserSettings();
 
-    // Attach event listener to form to trigger update 
-    const form = document.getElementById('settingsForm'); // Replace 'yourFormId' with the actual ID of your form
+    // Attach event listener to form to trigger update
+    const form = document.getElementById('settingsForm');
     form.addEventListener('change', updateUserSettings);
-
 
     // Function to handle theme-related actions
     function handleThemeChange(themeName) {
+        // Set manualChange to true before making the change
+        manualChange = true;
+        
         // Make a GET request to get theme colors
         fetch(`/get_theme_colors?theme=${themeName}`)
+
             .then(response => response.json())
             .then(themeColors => {
                 // Update color pickers with theme colors
@@ -84,18 +100,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Set the theme selection to "user custom"
                 document.getElementById('themeSelection').value = themeName;
 
-                // Update user settings
-                updateUserSettings();
-
                 // Update globalSettings with user theme colors
                 globalSettings.textColor = themeColors.text;
                 globalSettings.backgroundColor = themeColors.background;
-                updateStyles()
+                updateStyles();
             })
-            .catch(error => console.error('Error getting theme colors:', error));
+            .catch(error => console.error('Error getting theme colors:', error))
+            .finally(() => {
+                // Reset manualChange to false after the update
+                manualChange = false;
+            });
     }
 
-    // Attach event listeners to form fields to trigger update when they change
+    // Attach event listener to form fields to trigger update when they change
     const themeFormFields = document.querySelectorAll('.form-control, .form-check-input, .form-select');
     themeFormFields.forEach(field => {
         field.addEventListener('change', function () {
@@ -103,6 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (field.id === 'themeSelection') {
                 handleThemeChange(field.value);
             } else {
+                // Set manualChange to true before making the change
+                manualChange = true;
+
                 // If the user manually adjusts a color, set the theme selection to "user custom"
                 document.getElementById('themeSelection').value = 'user_custom';
                 // Update user settings
@@ -111,7 +131,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update globalSettings with user theme colors
                 globalSettings.textColor = document.getElementById('textColor').value;
                 globalSettings.backgroundColor = document.getElementById('backgroundColor').value;
-                updateStyles()
+                updateStyles();
+
+                // Reset manualChange to false after the update
+                manualChange = false;
             }
         });
     });
@@ -149,7 +172,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Call the async function
     connectToWebSocket();
-
-
-
 });

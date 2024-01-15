@@ -61,13 +61,7 @@ const globalSettings = {
   // Call the function to fetch theme data when the page loads
   window.addEventListener('load', fetchThemeData);
   
-  // Example of how to use the global variables for changes
-  // globalSettings.textColor = '#FF0000'; // Set new text color
-  // globalSettings.backgroundColor = '#00FF00'; // Set new background color
-  
-  // Call the function to apply the styles
-  // updateStyles();
-  
+
   function hexToRgb(hex) {
     // Remove the hash if it exists
     hex = hex.replace(/^#/, '');

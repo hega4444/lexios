@@ -27,10 +27,10 @@ class UserSpecificData(BaseModel):
     created_at: datetime
 """
 # User data manager creates a level of abstraction allowing the ai model save user prefrences and specific data
-from lexios.integrations.context import Context
+from lexios.integrations.context import RunContext
 
 class UserDataManager():
-    def __init__(self, context: Context = None) -> None:
+    def __init__(self, context: RunContext = None) -> None:
 
         if context:
 

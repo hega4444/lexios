@@ -1,5 +1,6 @@
 # lexios_builtin.py
 
+from lexios.globals import ROOT_ID
 from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 from lexios.core.lexios_main import LexiOS_Backend
@@ -278,11 +279,27 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
 
         if lexi.virtual_agents:
 
-            # Include Virtual Agents
+            # Include Virtual Agents component
             from lexios.integrations.virtual_agents import VirtualAgentsRouter, VirtualAgent
 
-            # Define a router
-            lexi.agents_router = VirtualAgentsRouter(lexi.virtual_agents)
+            # Retrieve the current list of agents
+            agents = VirtualAgentsRouter(lexi.virtual_agents)._virtual_agents
+
+            # Create and append root assistant
+            agents.append(VirtualAgent(
+
+                name= LEXI_ALIAS,
+                as_user_id=ROOT_ID,
+                roles=['root'],
+                instructions= lexi.instructions,
+                can_be_cloned=True,
+                can_be_replaced=True, 
+                retrieval=True,
+                interpreter=True,  
+            ))
+
+            # Store the initiated router 
+            lexi.agents_router = VirtualAgentsRouter(agents) 
 
             # Append routing to root assistand command
             lexi.append_command(LexiExternalCommand(
@@ -292,10 +309,7 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                 required_by_lexi= True,
             )
 
-            # Retrieve the agents names list
-            agent_names = lexi.agents_router._agent_names
-
-            # Route message command
+            # Define Route message command
             route_message_to_agent = LexiExternalCommand(
                 VirtualAgentsRouter.route_to_virtual_agent,
                 requires_dynamic_object= VirtualAgentsRouter,
@@ -305,7 +319,7 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
             route_message_to_agent.add_key_spec(
                 param="virtual_agent_name", 
                 tag="enum", 
-                value= agent_names,
+                value= VirtualAgentsRouter()._agent_names,
             )
 
             # Append command
@@ -314,10 +328,11 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                 required_by_lexi=True
             )
 
-            agent: VirtualAgent
-            # Initate main instances for each agent
+            # Initate main instances for each agent  
             for agent in lexi.virtual_agents:
+
                 agent.start_agent_thread(lexi)
+            
         
     except Exception as e:
         with CustomLogger("lexios") as log:

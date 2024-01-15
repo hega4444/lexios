@@ -27,7 +27,7 @@ class RolesVerification():
                     # Read the attribute, it has to be boolean type
                     verification = getattr(user, session_data_check)
 
-                    if not isinstance(self.verification, bool):
+                    if not isinstance(verification, bool):
                         with CustomLogger("security") as log:
                             log.warning(f"Attribute {session_data_check} is not bool type. Check security settings.")
                         raise AttributeError(f"Attribute {session_data_check} is not bool type. Check security settings.")

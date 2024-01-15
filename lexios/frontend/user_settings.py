@@ -40,7 +40,7 @@ async def settings(
 async def get_theme_colors(theme: str = Query(..., description="The name of the theme")):
 
     theme_colors = {
-        'lexi_default': {'background': '#e25a5a', 'text': '#fdf6f6'},
+        'lexi_default': {'background': '#C4660E', 'text': '#FDFDF6'},
         'night_sky': {'background': '#000000', 'text': '#FFFFFF'},
         'moonlight_serenade': {'background': '#001F3F', 'text': '#E6E6E6'},
         'daybreak_delight': {'background': '#FDF6E3', 'text': '#333333'},

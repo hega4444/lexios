@@ -5,13 +5,14 @@ import openai
 from admin.verify_folder import find_project_folder
 
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger
+from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.consent import ConsentScreen
 from lexios.frontend.session_data import read_session_data_from_backend 
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.integrations.context import Context
+from lexios.integrations.context import RunContext
+from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
@@ -57,6 +58,8 @@ class ToolCall():
             self.status = "queued"
         else:
             self.status = "not_found"
+        
+        self.context = None
 
     async def async_tool_run(self):
 
@@ -112,29 +115,41 @@ class ToolCall():
 
                 try:
                     # Create a snapshot of the current context to share with the service that executes the command
-                    context = Context(
+                    context = RunContext(
 
                         lexi=self.lexi,
                         user_id=self.user_id,
                         user=read_session_data_from_backend(self.user_id),
                         conversation_id=self.conversation_id,
                         user_message=self.user_message,
+                        requested_command = self.function_name,
+                        _name_=self.thread._name_,
                         virtual_agent_name=self.thread.virtual_agent_name or None,
                         can_be_replaced=self.thread.can_be_replaced or False,
+                        timestamp = datetime.now(),
                     )
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)
                 
                 # Routing to virtual agent
                 except VirtualAgentRequested as to_agent:
+                    context.add_exception(to_agent)
+                    context.add_message(f"Request for Agent {to_agent} aknowledged.")
                     raise to_agent
+                
                 # Route to main assistant
                 except MainAssistantRequested as from_agent:
+                    context.add_exception(from_agent)
+                    context.add_message(f"Request for Agent {from_agent} aknowledged.")
                     raise from_agent
 
                 except Exception as e:
-                    raise ValueError("messages: ", e)    
+                    raise ValueError("messages: ", e)
+                
+                finally:
+                    # Update the execution status
 
+                    self.context = context
         #----------------------------------EXECUTE COMMAND ---------------------------------------------#                    
                                                                                             # After
 
@@ -267,6 +282,12 @@ class ToolCall():
 
         self.status = "rejected"
         self.ret_status = "The user denied the execution of this tool."
+    
+    def cancel(self):
+        # Reject a tool call, denied at the Consent dialog
+
+        self.status = "cancelled"
+        self.ret_status = "The tool call is no longer needed by user."        
 
 
 # Other functions related to calls
@@ -335,7 +356,7 @@ async def create_tool_calls(thread):
                 'user_id': thread.user_id,
                 'conversation_id': thread.conversation_id,
                 'calls': thread.tool_calls, 
-                'timer': 60,
+                'timer': 60, # valid for 60''
             }
 
             # Create consent screen verification
@@ -379,21 +400,37 @@ async def attend_tool_calls(thread):
 
             # Execute the actions if they are still pending
             if ready_to_execute and tool_call.status == "queued":
-                
-                # Each action
-                await tool_call.async_tool_run()
+                try:
+                    # Each action
+                    await tool_call.async_tool_run()
 
-                # Check if the tool generated a custom output
-                if tool_call.custom_output:
-                    
-                    # Update conversation ORM
-                    thread.conversation_orm.app_messages_content.append({
-                                            'source':'system',
-                                            'time': format_datetime(str(datetime.now()))[:-3],
-                                            'text': tool_call.custom_output.get("text", None),
-                                            'images': tool_call.custom_output.get("images", None),
-                                        }                    
-                    )
+                    # Check if the tool generated a custom output
+                    if tool_call.custom_output:
+                        
+                        # Update conversation ORM
+                        thread.conversation_orm.app_messages_content.append({
+                                                'source':'system',
+                                                'time': format_datetime(str(datetime.now()))[:-3],
+                                                'text': tool_call.custom_output.get("text", None),
+                                                'images': tool_call.custom_output.get("images", None),
+                                            }                    
+                        )
+                        
+                except MainAssistantRequested as request:
+                    if (request.agent.lower() == thread._name_.lower() == LEXI_ALIAS.lower() or
+                        not thread.can_be_replaced):
+                        pass
+                    else:
+                        raise
+
+                except VirtualAgentRequested as request:
+                    if request.name == thread._name_:
+                        pass
+                    else:
+                        raise
+
+                except Exception:
+                    LexiException("At attend_tool_calls(), ", DEBUG)
 
         # Update the status of the pending calls
         if all(tool_action.status in ("completed", "failed", "rejected", "expired") \

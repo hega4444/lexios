@@ -4,12 +4,13 @@ import json
 import asyncio
 import inspect
 
-from typing import List, Any
+from typing import List, Any, Optional
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
-from lexios.integrations.context import Context
+from lexios.integrations.context import RunContext
+from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 
 class LexiExternalCommand():
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
@@ -337,7 +338,7 @@ class LexiExternalCommand():
 
         self._custom_validation = val_function
 
-    def __custom_params_validation(self, context: Context, **params) -> bool:
+    def __custom_params_validation(self, context: RunContext, **params) -> bool:
         # Defines a custom validations over the input parameters of the external command
         # <val_function> must return None or a Str with error details.
         # <context> is a dict with user_id metadata about the action 
@@ -352,7 +353,7 @@ class LexiExternalCommand():
                 return None
         return check
 
-    async def execute_command(self, context: Context = None, **kwargs):
+    async def execute_command(self, context: Optional[RunContext] = None, **kwargs) ->RunContext:
         # Executes the external command 
 
         # Check for custom external command validation
@@ -370,19 +371,21 @@ class LexiExternalCommand():
         if self.requires_object:
             method_to_call = getattr(self.requires_object, self.name)
 
+            
             # Check whether the function needs a sync or async call
             if asyncio.iscoroutinefunction(method_to_call):
 
                 result = await method_to_call(**kwargs)
             else:
                 result = method_to_call(**kwargs)
+        
 
         # Check if the function requires an object to be called and check the 
         # Context 
         elif self.requires_dynamic_object:
             
             # create an instance of the dynamic object that handles the tool call
-            required_object = self.requires_dynamic_object(context)
+            required_object = self.requires_dynamic_object(context=context)
             method_to_call = getattr(required_object, self.name)
 
             # Check whether the function needs a sync or async call

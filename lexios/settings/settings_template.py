@@ -16,6 +16,11 @@ TIME_ZONE = "Europe/Berlin"
 TIME_DELTA = 0 # Adjust time zone if neccesary (min)
 LOG_FOLDER = "<new>/backend_logs"
 
+# Design settings 
+NEW_CHAT_PROMPT = "new chat.."
+DEFAULT_THEME_TEXT_COLOR = '#FDFDF6'
+DEFAULT_THEME_BACKGROUND_COLOR = '#C4660E'
+
 # Dev tools
 TEST_MODE = True
 LOGS_VERBOSITY_LEVEL = "DEBUG" #accepcted: DEBUG, INFO, WARNING, ERROR, CRITICAL

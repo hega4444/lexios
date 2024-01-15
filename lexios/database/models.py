@@ -67,7 +67,8 @@ class User(Base):
                  conversation_index, birth_date=None, location=None,
                  bing_searches=False, lexi_learns=False, google_id=None, google_details=None, 
                  gmail_access=False, google_calendar_access=False,
-                 theme_selection='lexi_default', text_color='#fdf6f6', background_color='#771840'):
+                 theme_selection='lexi_default', text_color=DEFAULT_THEME_TEXT_COLOR, 
+                 background_color=DEFAULT_THEME_BACKGROUND_COLOR):
         
         # Encrypt google_details
         if google_details:
@@ -230,7 +231,7 @@ class ScheduledTaskPydantic(BaseModel):
     end_at: Optional[datetime] = None
 
 # This function is called by the admin tool when creating a new project to have a separate database
-def initial_database_setup(remake: bool = False):
+def initial_database_setup(name="lexi_template", remake: bool = False):
     # This function is called by the admin tool when creating a new project to have a separate database
     
     session = Session()
@@ -258,9 +259,12 @@ def initial_database_setup(remake: bool = False):
     # Create models
     Base.metadata.create_all(engine)
 
+    # Define root username
+    root_name=  str(name) + "_ADMIN"
+
     # USER_ID 1 = SYSTEM USER
     # Create a new user and add it to the database
-    root = User(name_first=LEXI_ALIAS, name_last=LEXI_ALIAS, username=LEXI_DB_ADMIN_USER, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+    root = User(name_first=LEXI_ALIAS, name_last=LEXI_ALIAS, username=root_name, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
     session.add(root)
     session.commit()
     

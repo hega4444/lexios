@@ -1,7 +1,9 @@
 import os
+import warnings
+
 from io import BytesIO
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'    # Disables excessive log
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'    # Disables excessive log
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'   # Disables ODNN
 
 from itertools import combinations
@@ -25,6 +27,7 @@ ANN_MODEL = 2
 
 # Set the logging level to only show error messages
 tf.get_logger().setLevel('ERROR')
+
 
 
 class SimpleMinerBaseObject():

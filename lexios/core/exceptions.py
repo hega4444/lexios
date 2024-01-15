@@ -1,16 +1,25 @@
 # exceptions.py
+
+import os
+import inspect
 from lexios.core.logger import CustomLogger
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
-class LexiException(Exception):
-    def __init__(self, message, type=ERROR, **kwargs):
-        self.message = f"{message} {kwargs or ''}"
 
+class LexiException(Exception):
+    def __init__(self, message=None, type=ERROR, **kwargs):
+        # Get details from frame 0
+        frame_info = self.get_calling_frame_info()
+
+        # Construct the message
+        self.message = f"Trace:{frame_info}: {str(kwargs or '')} {message}"
+        
+        # Log the message using CustomLogger
         with CustomLogger("lexios") as log:
             if type == ERROR:
-                log.error(self.message)  
+                log.error(self.message)
             elif type == DEBUG:
-                log.debug(self.message)  
+                log.debug(self.message)
             elif type == INFO:
                 log.info(self.message)
             elif type == WARNING:
@@ -19,6 +28,18 @@ class LexiException(Exception):
                 log.critical(self.message)
 
         super().__init__(self.message)
+
+    def get_calling_frame_info(self):
+        # Get details from the calling frame using inspect.stack()
+        frame_info = inspect.stack()[2]
+        filename = frame_info[1]
+        # Omit the most base folder
+        filename = os.path.relpath(filename, start=os.path.commonprefix([os.getcwd(), filename]))
+        function_name = frame_info[3]
+        line_number = frame_info[2]
+        return f"{filename}:{function_name}:{line_number}"
+
+
 
 class CreateAssistantFailed(LexiException):
     def __init__(self, message="Failed to create assistant", type=DEBUG, **kwargs):

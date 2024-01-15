@@ -1,5 +1,6 @@
 import colorlog
 import logging
+import absl.logging
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
 from lexios.settings.main import LOG_FOLDER, LOGS_VERBOSITY_LEVEL, CONSOLE_VERBOSITY_LEVEL

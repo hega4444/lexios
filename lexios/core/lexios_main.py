@@ -119,6 +119,8 @@ class LexiOS_Backend(_LexiOS_Backend):
         append_basic_IO(self)
 
         # Setup Virtual Agents
+
+        self.agents_router = None
         self.virtual_agents = virtual_agents
         from lexios.core.setup import set_up_virtual_agents_and_routing
         set_up_virtual_agents_and_routing(self)
@@ -310,12 +312,19 @@ class LexiOS_Backend(_LexiOS_Backend):
                 # Update with the agent context
                 thread_context['virtual_agent_name']= virtual_agent.name
                 thread_context['instructions'] = virtual_agent.instructions
-                thread_context['toolbox'] = virtual_agent.toolbox
                 thread_context['retrieval'] = virtual_agent.retrieval
                 thread_context['interpreter'] = virtual_agent.interpreter
                 thread_context['can_be_replaced'] = virtual_agent.can_be_replaced
                 thread_context['run_in_background'] = True
             
+                if virtual_agent.request_full_access:
+                    
+                    # Copy whole toolbox of lexi, it will pass through verification later
+                    thread_context['toolbox'] = self.toolbox
+                else:
+                    # Use the local toolbox given by the agent
+                    thread_context['toolbox'] = virtual_agent.toolbox
+              
             # Restore conversation Setup
             if restore_conversation:
                 thread_context['title_generated'] = True,

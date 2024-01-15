@@ -31,7 +31,6 @@ from lexios.frontend.file_services import files_router
 
 
 # Define logic at startup and shutdown
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -56,15 +55,14 @@ async def lifespan(app: FastAPI):
     print("Background tasks closed.")
 
 # Define the main app
-
 app = FastAPI(lifespan=lifespan)
 
+# Routes to the frontend services
 app.include_router(login_router)
 app.include_router(messages_router)
 app.include_router(conversations_router)
 app.include_router(settings_router)
 app.include_router(files_router)
-
 
 # CORS set up
 app.add_middleware(
