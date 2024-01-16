@@ -3,8 +3,7 @@ from typing import List, Callable, Union
 
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
-from lexios.core.setup import set_up_db_integration, set_up_virtual_agents_and_routing
-from lexios.integrations.plugin import PluginTemplate
+from lexios.integration.plugin import PluginTemplate
 
 class IntegrationsManager:
 

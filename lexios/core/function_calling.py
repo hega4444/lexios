@@ -11,9 +11,11 @@ from lexios.core.consent import ConsentScreen
 from lexios.frontend.session_data import read_session_data_from_backend 
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.integrations.context import RunContext
+from lexios.integration.context import RunContext
 from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
-
+from lexios.core.thread import LexiAssistantThread
+from lexios.core.external_command import LexiExternalCommand
+from lexios.core.lexios_main import LexiOS_Backend
 
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
 
@@ -38,20 +40,20 @@ class ToolCall():
 
         # Possible states: "new" -> "executed" -> "failed".
         # Lexi
-        self.lexi = lexi
-        self.thread = thread
-        self.user_id = user_id
-        self.conversation_id = conversation_id
+        self.lexi : LexiOS_Backend = lexi
+        self.thread : LexiAssistantThread = thread
+        self.user_id : int = user_id
+        self.conversation_id :str = conversation_id
         self.id = id
-        self.ret_status = None
+        self.ret_status : str = None
         self.output = None
         self.custom_output = None
-        self.ext_command = ext_command
-        self.function_name = function_name
-        self.function_arguments = function_arguments
-        self.type = "function"
-        self.error_details = None
-        self.user_message = user_message
+        self.ext_command: LexiExternalCommand = ext_command
+        self.function_name : str = function_name
+        self.function_arguments : dict = function_arguments
+        self.type : str = "function"
+        self.error_details : str = None
+        self.user_message : str = user_message
 
         # Determine if it is a valid call
         if ext_command:
@@ -99,6 +101,7 @@ class ToolCall():
             # Check if the action is for scheduling (future action):
             if self.function_name == SCHEDULER_FUNCTION:
                 try:
+                    # Scheduler executes in a different way, so we handle the call here.
                     self.ret_status = self.lexi.scheduler.attend_action_request(
                         user_id = self.user_id, 
                         conversation_id = self.conversation_id,
@@ -111,7 +114,8 @@ class ToolCall():
 
             # Before        
         #----------------------------------EXECUTE COMMAND ---------------------------------------------#
-                
+                # Record the execution
+                CustomLogger("runs").info(f"User Id: {self.user_id}: Executing command {self.function_name}.")
 
                 try:
                     # Create a snapshot of the current context to share with the service that executes the command
@@ -131,28 +135,25 @@ class ToolCall():
                     
                     self.ret_status = await self.ext_command.execute_command(context, **params)
                 
-                # Routing to virtual agent
-                except VirtualAgentRequested as to_agent:
-                    context.add_exception(to_agent)
-                    context.add_message(f"Request for Agent {to_agent} aknowledged.")
-                    raise to_agent
-                
-                # Route to main assistant
-                except MainAssistantRequested as from_agent:
-                    context.add_exception(from_agent)
-                    context.add_message(f"Request for Agent {from_agent} aknowledged.")
-                    raise from_agent
-
+                # Route to virtual agent
+                except (VirtualAgentRequested, MainAssistantRequested) as request:
+                    context.add_exception(request)
+                    context.add_message(f"Aknowledged: Routing message to {request.to_agent}.")
+                    raise request
+    
                 except Exception as e:
-                    raise ValueError("messages: ", e)
+                    raise LexiException(f"At function calling, command {self.function_name}: {e}", DEBUG)
                 
                 finally:
                     # Update the execution status
-
+                    context.set_execution_result(self.ret_status)
                     self.context = context
+
+                    # Give a receipt as confirmation
+                    self.add_receipt(self.ext_command, receipt= context)
+
         #----------------------------------EXECUTE COMMAND ---------------------------------------------#                    
                                                                                             # After
-
 
             # Change tool_call status to completed
             self.status = "completed"
@@ -227,11 +228,11 @@ class ToolCall():
 
             return self.ret_status
         
-        except VirtualAgentRequested as to_agent:
+        except VirtualAgentRequested as request:
             self.status = "completed"
-            self.ret_status = f"Virtual agent {to_agent} will handle the request."
+            self.ret_status = f"Virtual agent {request.to_agent} will handle the request."
             raise 
-        except MainAssistantRequested as from_agent:
+        except MainAssistantRequested as request:
             self.status = "completed"
             self.ret_status = "Routing to main assistant."
             raise
@@ -255,6 +256,11 @@ class ToolCall():
             if self.function_name != SCHEDULER_FUNCTION:
                 with CustomLogger("func_calls") as log:
                     log.error(f"Errors executing function '{self.function_name}'. Used parameters: {params}. Details: {e.args}")
+    
+
+    # Keep a stack of receipts as confirmation of the executed command    
+    def add_receipt(self, command: LexiExternalCommand, receipt: RunContext):
+        command.receipts.append(receipt)
 
     def submit_function_output(self):
         # Prepare JSON to reply the AI model with the return from the external command
@@ -287,12 +293,12 @@ class ToolCall():
         # Reject a tool call, denied at the Consent dialog
 
         self.status = "cancelled"
-        self.ret_status = "The tool call is no longer needed by user."        
+        self.ret_status = "Action is no longer needed."        
 
 
 # Other functions related to calls
         
-async def create_tool_calls(thread):
+async def create_tool_calls(thread: LexiAssistantThread):
     # Create a ToolCall for each required action:
 
     requires_consent_screen = False
@@ -370,7 +376,7 @@ async def create_tool_calls(thread):
                 log.warning(f"Could not verify consent screen due to {e}.")
 
 
-async def attend_tool_calls(thread):
+async def attend_tool_calls(thread: LexiAssistantThread):
     # Execute tool actions:
 
     while not thread.consent_dialog or thread.consent_dialog.status not in ["expired", "cancelled"]:
@@ -415,18 +421,23 @@ async def attend_tool_calls(thread):
                                                 'images': tool_call.custom_output.get("images", None),
                                             }                    
                         )
-                        
-                except MainAssistantRequested as request:
-                    if (request.agent.lower() == thread._name_.lower() == LEXI_ALIAS.lower() or
-                        not thread.can_be_replaced):
-                        pass
-                    else:
-                        raise
 
-                except VirtualAgentRequested as request:
-                    if request.name == thread._name_:
+                # Handle request to route the conversation to the main assistant (root)     
+                except MainAssistantRequested as request:
+                    if (request.from_agent.lower() == thread._name_.lower() == LEXI_ALIAS.lower() or
+                        not thread.can_be_replaced):
+                        # For now, do nothing.
                         pass
                     else:
+                        # Raise exception at Thread Level
+                        raise
+                # Handle request to route the conversation to a Vritual Agent    
+                except VirtualAgentRequested as request:
+                    # Verifiy the requested agent is not already loaded
+                    if request.to_agent == thread._name_:
+                        pass
+                    else:
+                        # Raise at Thread
                         raise
 
                 except Exception:
@@ -447,12 +458,15 @@ async def attend_tool_calls(thread):
         thread.consent_dialog = None
 
 
-def submit_function_outputs(thread):
+def submit_function_outputs(thread: LexiAssistantThread):
     # Create JSON output for function and submit to Run:
     outputs = [tool.submit_function_output() for tool in thread.tool_calls]
     try:
         openai.beta.threads.runs.submit_tool_outputs(
             thread_id=thread.loaded_thread.id, run_id=thread.run.id, tool_outputs=outputs
         )
-    except Exception as e:
-        raise ValueError("Error at submit_function_outputs. ", e)
+    except openai.BadRequestError as e:
+        pass
+
+    except Exception:
+        raise LexiException(f"Error at submit_function_outputs. {e}")

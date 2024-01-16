@@ -4,17 +4,19 @@ import asyncio
 import openai
 from logging import DEBUG
 
-from lexios.core.conversations import NEW_CHAT_PROMPT
+from lexios.core.thread import LexiAssistantThread
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger, DEBUG, ERROR
+from lexios.core.logger import CustomLogger, DEBUG, ERROR, WARNING
 from lexios.database.models import Conversation
-from lexios.core.signatures import _LexiAssistantThread
+
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import LoadAssistantFailed, LoadThreadFailed, LoadConversationFailed, CreateAssistantFailed, LexiException
-from lexios.core.conversations import save_conversation
+from lexios.core.thread_conversations import save_conversation, NEW_CHAT_PROMPT
 
-def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conversation):
+
+def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conversation):
     # Handles the load of both the assistant and the thread if possible
+
     try:
         loaded = False
 
@@ -69,7 +71,7 @@ def load_assistant_and_orm_data(thread: _LexiAssistantThread, conversation: Conv
         raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}",ERROR, e.args)
     
                 
-async def update_thread_messages(thread: _LexiAssistantThread, new_message = None, new_file = None):
+async def update_thread_messages(thread: LexiAssistantThread, new_message = None, new_file = None):
     # Appends messages and attachments to the current user_thread
 
     if new_file:
@@ -109,8 +111,7 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
 
         except Exception as e:
             # Log error
-            with CustomLogger("file_uploads") as log:
-                log.error(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}")   
+                LexiException(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}", WARNING, e)   
 
     # Text messages (with or without attachments):
     if new_message:
@@ -126,8 +127,8 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
         except Exception:
             file_ref = None
 
-        if thread.loaded_thread:
         # Check if the thread was already initiated.
+        if thread.loaded_thread:
             # If so, update messages:
             message_data = {
                 "thread_id": thread.loaded_thread.id,
@@ -159,8 +160,7 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
                     openai.beta.threads.messages.create(**message_data)
                 
             except Exception as e:
-                with CustomLogger("lexios") as e:
-                    log.error(f"Thread remains blocked. {e}")
+                LexiException(f"At update thread messages. Thread cannot be loaded. {e}")
 
         else:
             try:
@@ -181,12 +181,11 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
                 if not thread.run_in_background:
                     # Register thread in conversation ORM
                     thread.conversation_orm.model_loaded_thread_id = thread.loaded_thread.id
+                    save_conversation(thread, push=True)
 
             except Exception as e:
-                raise ValueError(f"Problem creating thread. Message: {new_message}, Files: {new_file}. Details: {e}")
-        
-        with CustomLogger("messages") as log:
-            log.debug("new message", details={"from": "user", "content": new_message, "metadata": thread.metadata()})
+                LexiException(f"Problem creating thread. User Id: "
+                              f"{thread.user_id} Message: {new_message}, Files: {new_file}. Details: {e}")
 
     # Only file attachments:
     # New files need to be uploaded first, and then be linked to an assistant
@@ -209,7 +208,7 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
                         )
                     
                 except Exception:
-                    raise ValueError(f"Problem creating thread. Message: '{new_message}'. Files: {new_file}. Details: {e}")
+                    raise LexiException(f"Problem creating thread. Message: '{new_message}'. Files: {new_file}. Details: {e}")
 
             # Append uploaded file to Thread
             thread.assistant_files.append(new_file)
@@ -218,46 +217,46 @@ async def update_thread_messages(thread: _LexiAssistantThread, new_message = Non
                 log.debug("new message", details={"from": "lexi", "file uploaded": filename})                    
 
         except Exception as e:
-            with CustomLogger("assistants") as log:
-                log.debug(f"Problem attaching file {new_file} to assistant. User {thread.user_id}. Details: {e}") 
-
-            raise ValueError(f"Problem attaching file {new_file} to Assistant. User {thread.user_id}. Details: {e}")
+            raise LexiException(f"Problem attaching file {new_file} to Assistant. User {thread.user_id}. Details: {e}")
 
 
-async def render_annotations(thread: _LexiAssistantThread, links, attachments):
-
-    # Handle links
-    if links:
-        await frontend_output(
-                content = links.get("text"),
-                user_id = thread.user_id,
-                conversation_id=thread.conversation_id,
-                msg_type = "sys_notif",
-                spell = False,
-                metadata = {"attachment" : links },
-        )
-
-        # Update conversation ORM
-        thread.save_message(links.get("text"), type="sys_notif", metadata={"attachment" : links })
-
-    # Handle attachments
-    if attachments:
-        for filename in attachments:
-
+async def render_annotations(thread: LexiAssistantThread, links, attachments):
+    # Issues messages to the frontend with onformation on how to render links and downloads
+    try:
+        # Handle links
+        if links:
             await frontend_output(
-                f'Download "{filename}"',
-                user_id = thread.user_id,
-                conversation_id=thread.conversation_id,
-                msg_type = "sys_notif",
-                spell = False,
-                metadata = {"attachment" : attachments[filename]}
+                    content = links.get("text"),
+                    user_id = thread.user_id,
+                    conversation_id=thread.conversation_id,
+                    msg_type = "sys_notif",
+                    spell = False,
+                    metadata = {"attachment" : links },
             )
 
             # Update conversation ORM
-            thread.save_message(f'Download "{filename}"', type="sys_notif", metadata= {"attachment" : attachments[filename]})
+            thread.save_message(links.get("text"), type="sys_notif", metadata={"attachment" : links })
 
+        # Handle attachments
+        if attachments:
+            for filename in attachments:
 
-def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, new: bool = False):
+                await frontend_output(
+                    f'Download "{filename}"',
+                    user_id = thread.user_id,
+                    conversation_id=thread.conversation_id,
+                    msg_type = "sys_notif",
+                    spell = False,
+                    metadata = {"attachment" : attachments[filename]}
+                )
+
+                # Update conversation ORM
+                thread.save_message(f'Download "{filename}"', type="sys_notif", metadata= {"attachment" : attachments[filename]})
+    
+    except Exception as e:
+        raise LexiException(f"At render annotations. {e}")
+    
+def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new: bool = False):
     # Validate consistency and load assistant / virtual agents on thread
 
     # Define target # 
@@ -275,7 +274,7 @@ def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, ne
     elif agent:
         target = "agent"
         
-        # Determine if the agent is a main instance or clone
+        # Determine if the agent is a main instance or a clone
         thread.main_agent= thread.user_id == agent.as_user_id 
              
     else:
@@ -437,7 +436,8 @@ def load_assistants(thread: _LexiAssistantThread, conversation: Conversation, ne
 
     return True
 
-def refresh_assistant_references(thread: _LexiAssistantThread, conversation: Conversation):
+
+def refresh_assistant_references(thread: LexiAssistantThread, conversation: Conversation):
     # Update assistants in the ORM object
 
     conversation.virtual_agent_name = thread.virtual_agent_name or None

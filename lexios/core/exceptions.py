@@ -2,6 +2,7 @@
 
 import os
 import inspect
+from lexios.settings.main import LEXI_ALIAS
 from lexios.core.logger import CustomLogger
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
@@ -48,18 +49,24 @@ class CreateAssistantFailed(LexiException):
 
 class VirtualAgentRequested(LexiException):
     """Handle a request for cloning a virtual agent in the routing process."""
-    def __init__(self, name: str=None, **kwargs):
-        default_message = f"Routing message to Virtual Agent {name} {kwargs or ''}"
-        self.name = name
+    def __init__(self, to_agent:str=None, from_agent: str = None, user_message:str=None, information:str=None, **kwargs):
+        default_message = f"Routing message to Virtual Agent {to_agent} {kwargs or ''}"
+        
+        self.to_agent = to_agent
+        self.from_agent = from_agent
+        self.user_message = user_message
+        self.information = information
         super().__init__(default_message, type=INFO, **kwargs)
 
 class MainAssistantRequested(LexiException):
     """Handle a request for routing back to a main assistant."""
-    def __init__(self, agent:str=None, user_message:str=None, information:str=None, **kwargs):
+    def __init__(self, from_agent:str=None, user_message:str=None, information:str=None, **kwargs):
 
-        default_message = f"Virtual Agent {agent} raised this exception:{information} from user message:{user_message} {kwargs or ''}"
+        default_message = f"Virtual Agent {from_agent} raised this exception:{information} originated from user message:{user_message} {kwargs or ''}"
 
-        self.agent = agent
+        # Define main assistant name as Lexi Alias (so it will change depending on the loaded project)
+        self.to_agent = LEXI_ALIAS
+        self.from_agent = from_agent
         self.user_message = user_message
         self.information = information
         super().__init__(default_message, type=INFO, **kwargs)

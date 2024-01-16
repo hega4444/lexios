@@ -13,7 +13,7 @@ class MakeToolBox():
             thread: LexiAssistantThread
     ):
         # Definitions needed at setup
-        from lexios.integrations.virtual_agents import VirtualAgentsRouter as Router
+        from lexios.integration.virtual_agents import VirtualAgentsRouter as Router
 
         # Create a list of tools available for the assistant:
         tools = []

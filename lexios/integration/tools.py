@@ -1,6 +1,6 @@
-from lexios.integrations.manager import IntegrationsManager
-from lexios.integrations.database_plugin import DatabaseConnection
-from lexios.integrations.virtual_agents import VirtualAgent
+from lexios.integration.manager import IntegrationsManager
+from lexios.integration.database_plugin import DatabaseConnection
+from lexios.integration.virtual_agents import VirtualAgent
 
 # Instantiate a Manager for managing integrations (internally)
 collector = IntegrationsManager()

@@ -6,7 +6,7 @@ class PluginTemplate():
 
     def __init__(self, plugin_name: str, id: uuid4 = uuid4()) -> None:
 
-        from lexios.integrations.manager import IntegrationsManager    
+        from lexios.integration.manager import IntegrationsManager    
 
         # Set a unique identifier
         self.id = id

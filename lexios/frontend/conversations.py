@@ -22,7 +22,7 @@ async def get_conversation_data(
 
         if select_conversation_id:
             session_data.conversation_id_focus = select_conversation_id
-            messages = LexiSessionManager().rerieve_conversation(session_data.user_id, select_conversation_id)
+            messages = LexiSessionManager().retrieve_conversation(session_data.user_id, select_conversation_id)
 
             if messages:
                 if not isinstance(messages, list):

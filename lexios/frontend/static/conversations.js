@@ -269,9 +269,10 @@ async function load_conversation_messages(conversationId) {
                 let images = message.images || null;
                 let alias = message.alias || null;
                 
-                // Update alias for the message
-                text = alias ? `${alias}: ${text}` : `Lexi: ${text}`;
-
+                if (source == "system") {
+                    // Update alias for the message
+                    text = alias ? `${alias}: ${text}` : `Lexi: ${text}`;
+                }
                 // Add messages to the main chatbox area
                 await addMessageToChat(text, images, source, msg_type, false, metadata, time); // Adjust message parameters
             }

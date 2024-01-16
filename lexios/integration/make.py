@@ -1,6 +1,6 @@
 import os
 import sys
-from lexios.integrations.manager import IntegrationsManager
+from lexios.integration.manager import IntegrationsManager
 from admin.verify_folder import find_project_folder
 
 # Dynamically fetch functions with @external_command decorator and integrate to Lexi

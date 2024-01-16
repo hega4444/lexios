@@ -1,5 +1,6 @@
 # conversations.py
-import json  
+
+from sqlalchemy.orm import object_session  
 from lexios.database.models import Session, Conversation
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import LexiException
@@ -30,6 +31,10 @@ def save_conversation_in_db(conversation: Conversation):
     # Create a session
     with Session() as session:
         try:
+            # If the conversation is not attached to a session, try to merge it
+            if object_session(conversation) is None:
+                conversation = session.merge(conversation)
+
             # Query the database to check if the conversation already exists
             existing_conversation = session.query(Conversation).filter_by(conversation_id=conversation.conversation_id).first()
 
@@ -58,11 +63,16 @@ def save_conversation_in_db(conversation: Conversation):
         finally:
             session.close()  # Close the session
 
+
 def delete_conversation_in_db(conversation_id):
     # Create a session
     session = Session()
 
     try:
+        # If the conversation is not attached to a session, try to merge it
+        if not session.contains(conversation):
+            conversation = session.merge(conversation)
+
         # Query the database to find the conversation by conversation_id
         conversation_to_delete = session.query(Conversation).filter_by(conversation_id=conversation_id).first()
 

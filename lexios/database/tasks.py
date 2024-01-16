@@ -11,6 +11,9 @@ def save_scheduled_task_in_db(action: ScheduledTaskPydantic):
         # Save to the database
         session.add(task_orm)
         session.commit()
+        
+    except Exception as e:
+        session.rollback()
     finally:
         # Close the session when you're done
         session.close()
@@ -34,6 +37,8 @@ def update_task_status(task_id, new_status, new_start_at=None, new_end_at=None, 
         session.query(ScheduledTaskORM).filter_by(task_id=task_id).update(update_data)
         session.commit()
 
+    except Exception as e:
+        session.rollback()
     finally:
         # Close the session when you're done
         session.close()
@@ -45,6 +50,8 @@ def get_all_scheduled_tasks():
     try:
         return session.query(ScheduledTaskORM).filter_by(status='scheduled').all()
     
+    except Exception as e:
+        session.rollback()
     finally:
         # Close the session when you're done
         session.close() 

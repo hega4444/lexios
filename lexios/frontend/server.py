@@ -188,12 +188,12 @@ async def process_input(
     
 
 @app.post('/reset_user_thread_request', response_class=JSONResponse, dependencies=[Depends(cookie)])
-def reset_user_thread_request(
+async def reset_user_thread_request(
     session_data : LexiSessionData = Depends(verifier),
 ):
     try:
         # Send command to Lexi:
-        lexi.reset_user_thread_request(
+        await lexi.reset_user_thread_request(
             user_id= session_data.user_id, 
             conversation_id= session_data.conversation_id_focus
             )

@@ -280,7 +280,7 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
         if lexi.virtual_agents:
 
             # Include Virtual Agents component
-            from lexios.integrations.virtual_agents import VirtualAgentsRouter, VirtualAgent
+            from lexios.integration.virtual_agents import VirtualAgentsRouter, VirtualAgent
 
             # Retrieve the current list of agents
             agents = VirtualAgentsRouter(lexi.virtual_agents)._virtual_agents
@@ -328,10 +328,11 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                 required_by_lexi=True
             )
 
+            agent: VirtualAgent
             # Initate main instances for each agent  
             for agent in lexi.virtual_agents:
 
-                agent.start_agent_thread(lexi)
+                agent.start_service(lexi)
             
         
     except Exception as e:

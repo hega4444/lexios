@@ -2,7 +2,8 @@
 
 ROOT_ID = 1
 GENERAL_VIRTUAL_AGENT = 2
-VIRTUAL_AGENT = "VIRTUAL AGENT"
+
+GENERAL_VIRTUAL_AGENT_LABEL = "Virtual Agent"
 
 class Globals:
     _instance = None

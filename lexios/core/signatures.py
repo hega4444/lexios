@@ -91,7 +91,7 @@ class _LexiSessionManager(ABC):
         pass
 
     @abstractmethod
-    def rerieve_conversation(self, user_id, conversation_id):
+    def retrieve_conversation(self, user_id, conversation_id):
         pass
 
     @abstractmethod

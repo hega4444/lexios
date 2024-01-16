@@ -5,7 +5,7 @@ from admin.verify_folder import find_project_folder
 
 from lexios.globals import Globals
 from lexios.core.signatures import _LexiOS_Backend, _LexiSessionManager
-from lexios.integrations.make import get_lexi_backend_instance
+from lexios.integration.make import get_lexi_backend_instance
 
 
 # Set up Lexi backend features

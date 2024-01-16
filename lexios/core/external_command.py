@@ -9,8 +9,8 @@ from collections import OrderedDict
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
-from lexios.integrations.context import RunContext
-from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
+from lexios.integration.context import RunContext
+
 
 class LexiExternalCommand():
     # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
@@ -66,6 +66,9 @@ class LexiExternalCommand():
 
         # Additional key specifications
         self.aditional_key_specs = []
+
+        # Keep a stack of receipts as confirmation of the executed command
+        self.receipts : [RunContext] = []
 
         # Complete the specs
         self.generate_specs()  # This will populate self.json_string
@@ -430,7 +433,6 @@ class LexiExternalCommand():
                 'args' : vars,
                 }
         
-    
     def is_valid_parameter(self, variable_name):
         # Check if variable_name is a valid parameter in func_specs structure
         if (
@@ -444,7 +446,7 @@ class LexiExternalCommand():
             return True
         else:
             return False
-
+        
 
 if __name__ == "__main__":
     # Example usage:

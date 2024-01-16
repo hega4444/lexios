@@ -1,6 +1,6 @@
 from typing import List
 
-from lexios.integrations.plugin import PluginTemplate
+from lexios.integration.plugin import PluginTemplate
 
 class DatabaseConnection(PluginTemplate):
 

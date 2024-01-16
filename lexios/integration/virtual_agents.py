@@ -1,24 +1,37 @@
 # virtual_agent.py
 import asyncio
-from typing import List
+from typing import Any, List
 from uuid import uuid4
 
-from lexios.settings.main import LEXI_GPT_MODEL, LEXI_ALIAS
+from lexios.settings.main import LEXI_ALIAS
 from lexios.core.signatures import _LexiOS_Backend
 from lexios.core.external_command import LexiExternalCommand
-from lexios.core.logger import CustomLogger, DEBUG, ERROR, WARNING
+from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
 from lexios.globals import GENERAL_VIRTUAL_AGENT
 
-from lexios.integrations.plugin import PluginTemplate
-from lexios.integrations.context import RunContext
+from lexios.integration.plugin import PluginTemplate
+from lexios.integration.context import RunContext
 
+class Counter:
 
-_internal_id = 400
+    _internal_id = 400
+
+    def __init__(self):
+        self.channel = Counter._internal_id
+
+        Counter._internal_id += 1
+    
+    def __call__(self) -> Any:
+        return self.channel
+
 
 class VirtualAgent(PluginTemplate):
     # Create a virtual agent that interacts within the system
+
+    # Define a channel (for now using the field conversation_id with a special range above 400)
+    channel = Counter()()
 
     def __init__(
             self, 
@@ -46,7 +59,7 @@ class VirtualAgent(PluginTemplate):
         self.instructions = instructions
         self.name = name
         self.hidden = hidden
-        self.lexi_thread = None
+        self.main_thread = None
 
         # Assistant_id
         self.ref_assistant_id = None
@@ -68,6 +81,9 @@ class VirtualAgent(PluginTemplate):
         # False = The agent takes requests sequentially and acts as a single identity.
         # True = The agent loads in each thread that requests it ans creates new specific context to append in the conversation.
         
+        # Keep a counter of the number of copies this virtual agent has released
+        self.nr_copies = 0
+        
         # Can be replaced:
         self.can_be_replaced = can_be_replaced
         # Defines whether the agent can be overwritten by other agents 
@@ -87,6 +103,32 @@ class VirtualAgent(PluginTemplate):
 
         # Call construtor of the PluginTemplate class
         super().__init__(plugin_name= "VirtualAgent")
+    
+    def __call__(self, message: str, sync: bool = True):
+        # Call a virtual agent from direclty by code
+
+        # sync mode by default, wait for the response to continue processing your code
+        if sync:
+            # Create an event loop
+            loop = asyncio.new_event_loop()
+
+            # Run the asynchronous method in the event loop
+            result = loop.run_until_complete(self.attend_request(
+                message=message,
+                callback= True,
+            ))
+
+            # Close the event loop
+            loop.close()
+
+            return result
+        else:
+            # In async mode the agent will execute commands in background withouth supervision until
+            # it finishes executing the Run.
+            self.attend_request(
+                    message= message,
+                    callback= True,
+                )
 
     async def attend_request(
             self, 
@@ -100,21 +142,20 @@ class VirtualAgent(PluginTemplate):
         # Virtual Agent attends a request, originated either by an user or by other interface or 
         # Component.
 
+        # Log the start of the service on console
+        CustomLogger("lexios").info(f"Virtual agent {self.name} @ channel . {self.channel}. Processing new request.")
         try:
             # Thread is loaded
-            if self.lexi_thread:
+            if self.main_thread:
                 # Prepare a message to the virtual agent to give context.
                 if session_data:
                     message = f"message from {session_data.name_first}: {message}"
 
                 # Run Thread
-                await self.lexi_thread.process_input(message)
-
-                # Retrieve output
-                response = self.lexi_thread.response
+                response = await self.main_thread.process_input(message)
 
                 # Check status
-                if response.get("status") == "completed":
+                if response.status == "completed":
                     
                     # Extract the Virtual Agent reply
                     plain_text = response.get('output')
@@ -134,9 +175,6 @@ class VirtualAgent(PluginTemplate):
                     else:
                         # Return the generated response to the source agent
                         return parsed_response
-
-                else:
-                    raise LexiException("Could not process virtual agent request.", DEBUG)
                 
         except Exception as e:
             raise LexiException("Could not process virtual agent request.", DEBUG, e)
@@ -176,20 +214,7 @@ class VirtualAgent(PluginTemplate):
         # Add agent to the Router's agent list
         self.hidden = False
 
-    def start_agent_thread(self, lexi: _LexiOS_Backend):
-        # Start virtual agent
-        try:
-            # Build the LexiThread 
-            self.lexi_thread= self.build(lexi)
-
-            # Change status
-            self.status = "ready"
-        
-        except LexiException as e:
-            self.status = "load_failed"
-            raise LexiException(f"Virtual agent {self.name} problems starting service. {e}")
-        
-
+    # Build the thread
     def build(self, lexi: _LexiOS_Backend):
         # Build a copy of the model <assistant, instructions, tools>
         global _internal_id
@@ -203,19 +228,30 @@ class VirtualAgent(PluginTemplate):
         try:
             thread = lexi.build_thread(
                 user_id= self.as_user_id,
-                conversation_id= str(_internal_id).zfill(3),
+                conversation_id= self.channel,
                 virtual_agent=self,
             )
-            
-            # Update internal range
-            _internal_id += 1
             
             return thread
         
         except Exception as e:
             raise LexiException(f"Building virtual agent: {e}.")
+    
+    # Start the service
+    def start_service(self, lexi: _LexiOS_Backend):
+        # Start virtual agent
+        try:
+            # Build the LexiThread 
+            self.main_thread= self.build(lexi)
 
-  
+            # Change status
+            self.status = "ready"
+        
+        except LexiException as e:
+            self.status = "load_failed"
+            raise LexiException(f"Virtual agent {self.name} problems starting service. {e}")
+        
+    # Create a copy of the asistant
     def clone(self, lexi):
         # Check if cloning feature is allowed
 
@@ -225,16 +261,10 @@ class VirtualAgent(PluginTemplate):
         if self.hidden:
             raise AttributeError("hidden is set to True, change to False for enabling cloning.")
         
-        # Clone the thread by passing its reference or returning a new copy
-        if self.lexi_thread:
-            last_agent_instance = self.lexi_thread
-            # Clear the reference so on the next request a new model is built
-            self.lexi_thread = None
-            # Return the instance
-            return last_agent_instance
-        else:
-            # Return a new copy
-            return self.build(lexi)
+        # Increment the counter 
+        self.nr_copies += 1     
+        # Return a new copy
+        return self.build(lexi)
         
 class VirtualAgentsRouter():
 
@@ -251,61 +281,18 @@ class VirtualAgentsRouter():
         if context:
             # Save the context 
             self.context = context
-
-    async def route_to_virtual_agent(self, virtual_agent_name: str, message: str, no_callback: bool = True):
-
-        # SUMM: Forward the user input to another virtual assistant listed on the available options.
-        # virtual_agent_name 'description': Virtual assistant name that will receive the message.
-        # callback 'description' : <default>True: Next assistant takes over conversation with user. False: await results from virtual agent.
-
-        # Find the agent         
-        agent = self.by_name(virtual_agent_name)
-        if agent:
-                    
-
-            # Check is not already root or if it can be replaced
-            if self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == LEXI_ALIAS.lower():
-                return f"You are at root level. Your alias is '{LEXI_ALIAS}'."
-
-            # Check the requested agent is not already loaded
-            elif self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == virtual_agent_name.lower():
-                return f"You are '{virtual_agent_name}'. These are the valid agent names: {self.agent_names}" 
-
-            # Or cannot be replaced (settings on virtual agents)
-            elif not self.context.can_be_replaced:
-                return "You are currently set as the permanent assistant in this conversation. Routing service is Disabled."
-        
-            else:
-
-                # Send message to virtual agent
-                agent_task = asyncio.create_task(
-                    agent.attend_request(
-                        message= message,
-                        from_user_id= self.context.user_id,
-                        from_conversation_id= self.context.conversation_id,
-                        session_data= self.context.user,
-                        # Convert the callback parameter, seems to work better this way.
-                        callback= not no_callback,
-                    )
-                )
-
-            # Request for the virtual agent to take over
-            if no_callback and self.context.can_be_replaced and agent.can_be_cloned:
-
-                # Raise an exception to handle the take over process
-                raise VirtualAgentRequested(name=agent.name)
-                        
-            else:
-                # Wait for the agent to process its output and return to the source LexiThread
-                agent_response = await agent_task
-                return agent_response
-        else:
-            # Return Information about the current routes available from this node.   
-            return (f"Virtual agent {virtual_agent_name} not found. These are the valid agent names: {self.agent_names}"
-                    f"\n Root assistant alias is '{LEXI_ALIAS}'.")
-        
-
     
+    # Return a VirtualAgent by its label name
+    def by_name(self, agent_name: str, _default: any = None) -> VirtualAgent:
+
+        for agent in self._virtual_agents:
+            if agent.name.lower() == agent_name.lower():
+
+                return agent
+        
+        return _default
+    
+    # Route to main assistant
     def route_to_main_assistant(self, information: str = None):
 
         # SUMM: Use when assistant cannot complete user request and requires a higher level of supervision. 
@@ -316,20 +303,70 @@ class VirtualAgentsRouter():
         else:
             # Raise Exception
             raise MainAssistantRequested(
-                                agent=self.context.virtual_agent_name,
-                                information= information,
                                 user_message= self.context.user_message,
+                                from_agent=self.context.virtual_agent_name,
+                                information= information,                 
             )
 
+    # Route to a virtual agent
+    async def route_to_virtual_agent(self, virtual_agent_name: str, information: str= None, no_callback: bool = True):
 
-    def by_name(self, agent_name: str, _default: any = None) -> VirtualAgent:
-        # Return a VirtualAgent by its label name
-        for agent in self._virtual_agents:
-            if agent.name.lower() == agent_name.lower():
+        # SUMM: Forward the user input to another virtual assistant listed on the available options.
+        # viertual_agent_name  'description' : Virtual assistant name that will receive the message.
+        # information 'description' : A brief comment for the next agent to gain context on how to help the user.
+        # no_callback 'description' : <default>True: Next assistant takes over conversation with user. False: await results from virtual agent.
 
-                return agent
+        # Find the agent by its alias       
+        agent = self.by_name(virtual_agent_name)
+        if not agent:
+            
+            # Return Information about the current routes available from this node.   
+            return (f"Virtual agent {virtual_agent_name} not found. These are the valid agent names: {self._agent_names}"
+                    f"\n Root assistant alias is '{LEXI_ALIAS}'.")
+                    
+        # Check is not already root or if it can be replaced
+        if self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == LEXI_ALIAS.lower():
+            return f"You are at root level. Your alias is '{LEXI_ALIAS}'."
+
+        # Check the requested agent is not already loaded
+        elif self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == virtual_agent_name.lower():
+            return f"You already are '{virtual_agent_name}'. List of valid agent names: {self._agent_names}." 
+
+        # Or cannot be replaced (settings on virtual agents)
+        elif not self.context.can_be_replaced:
+            return "You are currently set as the permanent assistant in this conversation. Routing service is Disabled."
         
-        return _default
+        # If requested for the root assistant, relay the message.
+        elif virtual_agent_name.lower() == LEXI_ALIAS.lower():
+            self.route_to_main_assistant()
+
+        # Check if there is no need for callback, the current thread allows replacement and the agent allows cloning
+        elif no_callback and self.context.can_be_replaced and agent.can_be_cloned:
+
+            # Raise an exception to handle the take over process
+            raise VirtualAgentRequested(  
+                        from_agent= self.context.virtual_agent_name,
+                        to_agent= agent.name,
+                        user_message= self.context.user_message,
+                        information = information,
+            )
+
+        else:
+            # Create a request for the agent and await the response as if calling any other function
+            agent_response = await asyncio.create_task(
+                agent.attend_request(
+                    message= information,
+                    from_user_id= self.context.user_id,
+                    from_conversation_id= self.context.conversation_id,
+                    session_data= self.context.user,
+                    # Negate the callback parameter, seems to work better this way.
+                    callback= not no_callback,
+                )
+            )
+            # Return the response inside the current thread
+            return agent_response
+        
+
 
 if __name__ == "__main__":
 

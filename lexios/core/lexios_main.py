@@ -1,18 +1,19 @@
 # lexios_main.py
 import os
 import openai
-from typing import ForwardRef
 from datetime import timedelta
+from asyncio import sleep
 
 from lexios.globals import Globals
 from lexios.settings.main import *
 from lexios.core.common_tools import *
+from lexios.core.logger import CustomLogger, INFO, DEBUG, ERROR
 from lexios.core.signatures import _LexiOS_Backend
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.thread import LexiAssistantThread
+from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
 from lexios.core.messages_backend import frontend_output
-from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.core.logger import CustomLogger
+
 
 class LexiOS_Backend(_LexiOS_Backend):
     # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
@@ -148,6 +149,7 @@ class LexiOS_Backend(_LexiOS_Backend):
             model=self.model,
         )
 
+    
     def define_output_methods(self, command_line=None, backend=None):
         # Determine the way Lexi will output messages to the user (command line / Websockets):
         if isinstance(command_line, bool):
@@ -182,10 +184,13 @@ class LexiOS_Backend(_LexiOS_Backend):
         return tools
 
     def show_toolbox(self):
+        # Prints all the functions colledted in Lexi Toolbox
         for tool in self.toolbox.values():
             print(tool)
 
     async def process_user_request(
+        # Entry point to receive all the requests from the frontend    
+
         self, user_input: str = None, 
         user_id: int = None, 
         conversation_id: str = None,
@@ -214,7 +219,7 @@ class LexiOS_Backend(_LexiOS_Backend):
             if user_profile:
 
                 # Try to recover thread:
-                thread = self.session_manager.get_thread(user_id, conversation_id)
+                thread : LexiAssistantThread = self.session_manager.get_thread(user_id, conversation_id)
                 if thread:
 
                     # Thread found and ready, process new request
@@ -228,9 +233,15 @@ class LexiOS_Backend(_LexiOS_Backend):
                         await frontend_output(
                             "I'm still processing your last request. Just a moment please...", 
                             user_id= user_id,
-                            conversation_id= conversation_id
+                            conversation_id= conversation_id,
+                            alias=thread._name_ or self.name
                         )
-                
+                        # Increment the counter of retries on this thread
+                        thread.nr_retries += 1
+                        # Reaching the limit, try cancelling the thread
+                        if thread.nr_retries > 1:
+                            await self.reset_user_thread_request(thread = thread)
+   
                 else:
                     # No thread found, create one
                     new_thread = self.build_thread(
@@ -244,41 +255,55 @@ class LexiOS_Backend(_LexiOS_Backend):
                     await new_thread.process_input(user_input, filename)
         
         except MainAssistantRequested as request:
-                await thread.process_input(from_agent=request)
+                await thread.process_input(request=request)
 
-        except VirtualAgentRequested as agent:
+        except VirtualAgentRequested as request:
             # Route a thread to a Virtual Agent
-            self.route_virtual_agent(thread, agent)
+            self.route_virtual_agent(thread, request)
+            # Process the user request with the new context loaded
+            await thread.process_input(request= request)
 
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.error(f"At process_user_request: {e}")
+            raise LexiException(f"At process user request. {e}")
 
-    def reset_user_thread_request(self, user_id: str ='default', conversation_id='default') ->str:
-        # Resets the user thread 
+    async def reset_user_thread_request(
+            self, user_id: int = None, 
+            conversation_id: str = None, 
+            thread: LexiAssistantThread = None
+    ) ->str: 
+        # Resets a thread 
         try:
-             # Check if the user has an initiated Thread already:
-            user_profile = self.users.get(user_id, None)
-            if user_profile:
+                
+            if not thread:
                 # Try to recover thread:
-                thread = user_profile.active_threads.get(conversation_id, None)
-                if thread:
-                    thread.reset_signal = True
+                thread : LexiAssistantThread =  self.session_manager.get_thread(user_id, conversation_id)
+                if not thread:
+                    return
+
+            # Cancel thread run
+            thread.cancel_run()
+            # Signal the LexiThread to reload the inner thread component
+            thread.reset_signal = True
+            await sleep(0.1)
+            thread.running_stat = "ready"
             
         except Exception:
-            pass
+            LexiException(f"At user thread request: {e}.")
     
-    def route_virtual_agent(self, thread: LexiAssistantThread, agent: MainAssistantRequested):
+    def route_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
         # Load an instance of a virtual agent
+        from lexios.integration.virtual_agents import VirtualAgent
         
         # Find the agent
-            agent = self.agents_router.by_name(agent.name)
-            if agent.can_be_cloned:
-                # Get a blank slate of a virtual agent
-                cloned_virtual_agent = agent.clone(lexi=self)
+        agent : VirtualAgent = self.agents_router.by_name(request.to_agent)
 
-                # Request the session manager to handle the transition
-                thread.load_virtual_agent(cloned_virtual_agent)
+        if agent and agent.can_be_cloned:
+
+            # Get a blank slate of a virtual agent
+            cloned_virtual_agent = agent.clone(lexi=self)
+
+            # Load the cloned agent into the thread
+            thread.load_virtual_agent(cloned_virtual_agent, request)
     
     def build_thread(
             self, 
@@ -333,5 +358,4 @@ class LexiOS_Backend(_LexiOS_Backend):
             return LexiAssistantThread(**thread_context)
             
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.error(f"lexios. at build_thread: {e}.")
+                LexiException(f"lexios. at build_thread: {e}.")

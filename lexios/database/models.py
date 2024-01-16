@@ -1,4 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey, Text, LargeBinary, Boolean, JSON
+# models.py
+
+import json
+import bcrypt
+from typing import Optional
+
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -6,11 +11,9 @@ from sqlalchemy.orm import sessionmaker
 from datetime import date, datetime
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, field_validator
-from typing import Optional
-import bcrypt
-import json
+from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, ForeignKey, Text, LargeBinary, Boolean, JSON
 
-from lexios.globals import VIRTUAL_AGENT
+from lexios.globals import GENERAL_VIRTUAL_AGENT_LABEL
 from lexios.settings.main import *
 from lexios.core.builtin.engines.SQLEngine import SimpleSQL
 
@@ -276,7 +279,7 @@ def initial_database_setup(name="lexi_template", remake: bool = False):
     
     # USER_ID 2 = VIRTUAL AGENT
     # Create a new user and add it to the database
-    agent = User(name_first="virtual_agent", name_last="", username=VIRTUAL_AGENT, password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
+    agent = User(name_first=GENERAL_VIRTUAL_AGENT_LABEL, name_last="", username="virtual_agent", password=LEXI_DB_ADMIN_PASS , birth_date=date(2024, 4, 4), conversation_index=0)
     session.add(agent)
     session.commit()
 
