@@ -7,7 +7,24 @@ from lexios.core.logger import CustomLogger
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
 
+class LexiLogging(Exception):
+    # A simple exception for easier logging
+    def __init__(self, message=None, type=INFO, **kwargs):
+        default_message = f"{message} {kwargs or ''}"
+
+        with CustomLogger("lexios") as log:
+            log.info(default_message)
+
+class LexiWarning(Exception):
+    # A simple exception for easier logging
+    def __init__(self, message=None, type=WARNING, **kwargs):
+        default_message = f"{message} {kwargs or ''}"
+
+        with CustomLogger("lexios") as log:
+            log.warning(default_message)       
+
 class LexiException(Exception):
+    # A more elaborate exception for logging errors
     def __init__(self, message=None, type=ERROR, **kwargs):
         # Get details from frame 0
         frame_info = self.get_calling_frame_info()
@@ -39,9 +56,7 @@ class LexiException(Exception):
         function_name = frame_info[3]
         line_number = frame_info[2]
         return f"{filename}:{function_name}:{line_number}"
-
-
-
+    
 class CreateAssistantFailed(LexiException):
     def __init__(self, message="Failed to create assistant", type=DEBUG, **kwargs):
         default_message = f"{message} {kwargs or ''}"

@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from lexios.core.logger import CustomLogger
-from lexios.core.messages_backend import frontend_output
+from lexios.core.common_tools import frontend_output
 
 _consent_backend = {}
 
@@ -155,7 +155,7 @@ class ConsentScreen():
             choices = result.get("choices")
             
             # In case the dialog expired update the self status
-            if status in ["expired", "cancelled"]:
+            if status in ("expired", "cancelled"):
                 
                 self.status = status
                 

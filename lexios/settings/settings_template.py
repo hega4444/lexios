@@ -12,7 +12,7 @@ LEXI_GPT_TEMPERATURE = 0.8
 
 UPLOAD_FOLDER = 'temp/uploads'
 DOWNLOAD_FOLDER = 'temp/downloads'
-TIME_ZONE = "Europe/Berlin"
+TIME_ZONE = "Europe/Berlin" # values accecpted: from Datetime library
 TIME_DELTA = 0 # Adjust time zone if neccesary (min)
 LOG_FOLDER = "<new>/backend_logs"
 
@@ -23,7 +23,7 @@ DEFAULT_THEME_BACKGROUND_COLOR = '#C4660E'
 
 # Dev tools
 TEST_MODE = True
-LOGS_VERBOSITY_LEVEL = "DEBUG" #accepcted: DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOGS_VERBOSITY_LEVEL = "INFO" #values accepcted: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
 CONSOLE_VERBOSITY_LEVEL = "ERROR"
 
 # Lexi_app server settings
@@ -56,6 +56,13 @@ LEXI_DATABASE_NAME = 'lexi_database'
 LEXI_DB_ADMIN_USER = 'postgres'
 LEXI_DB_ADMIN_PASS = 'postgres'
 LEXI_DB_ADMIN_PORT = 5432
+
+# Virtual Agents Service
+LEXI_VIRTUAL_AGENTS_ENABLED = True
+LEXI_VIRTUAL_AGENTS_CONNECT_ALL = True
+LEXI_SIGNED_TRX_PASSWORD = "your secret password here..."
+
+#-----------------------------------------------------------------------------------#
 
 LEXI_AUTOMATIC_DB_SETUP = False  # True will wipe database !!!
 

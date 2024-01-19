@@ -1,18 +1,14 @@
 #thread.py
 import openai
-
+from typing import Optional, Union
 from admin.verify_folder import find_project_folder
 
-from lexios.core.signatures import _LexiAssistantThread
 from lexios.core.common_tools import *
-from lexios.core.messages_backend import frontend_output
-from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
-from lexios.core.logger import CustomLogger, WARNING, ERROR
+from lexios.core.builtin.functions.greetings import greetings
 
 PROJECT_FOLDER = find_project_folder()
 
-
-class LexiAssistantThread(_LexiAssistantThread):
+class LexiAssistantThread():
     # Represents a conversation with the user
     
     def __init__(
@@ -33,6 +29,8 @@ class LexiAssistantThread(_LexiAssistantThread):
         can_be_replaced: bool = True,
         retrieval: bool= False,
         interpreter: bool = False,
+        pre_loaded_assistant_id: str = None, 
+        pre_loaded_thread_id: str = None, 
 
     ) -> None:
         # Call the __init__ methods of the base classes
@@ -61,6 +59,10 @@ class LexiAssistantThread(_LexiAssistantThread):
         # Loaded thread
         self.loaded_assistant = None
         self.loaded_thread = None
+
+        # Virtual Agents - Preloaded Assistant Id
+        self.pre_loaded_assistant_id = pre_loaded_assistant_id
+        self.pre_loaded_thread_id = pre_loaded_thread_id
       
         # Specify if the thread can be replaced for another virtual agent 
         self.can_be_replaced = can_be_replaced
@@ -139,10 +141,15 @@ class LexiAssistantThread(_LexiAssistantThread):
         # Keep a counter of unanswered requests
         self.nr_retries = 0
 
+        ## Final verifications ##
+
         # Verifiy root assistant is loaded if not a main virtual agent
         if not self.root_assistant and not self.virtual_agent_name:
             LexiException("At Thread init(). Something went wrong on loading the root assistant.")
         
+        # If a thread was recovered and loaded, verify consistency
+        self.verify_consistency()
+
     def metadata(self):
         # Prepare metadata, information that can enhance the quality of the assistant replies:
         week_day = curr_day_short()
@@ -158,241 +165,259 @@ class LexiAssistantThread(_LexiAssistantThread):
             self, 
             message: str = None, 
             file:str = None, 
-            request: VirtualAgentRequested = None,
-    ):
-        # Handles the execution of a Run 
-
-        # Auxiliar methods
-        from lexios.core.thread_loading import update_thread_messages, render_annotations
-        from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
-        from lexios.core.downloads import manage_downloads, manage_links
-        from lexios.core.thread_conversations import generate_conversation_name
-        
-        # Update user message
-        self.user_message = message
-
-        # Signal its busy attending a request
-        self.running_stat = "processing"
-
-        # clear the thread refrence if there is a reset signal request
-        if self.reset_signal:
-            self.loaded_thread = None
-            self.reset_signal = False
-
-    
-        # Define scpecific instructions for the run
-        instructions = "\n".join(
-            (
-            f"Your name is {self._name_}.\n",
-            self.instructions,
-            str(self.metadata()),
-            )
-        )
-
-        # Routing requests
-        if request:
-            # Validate the request as a routing request:
-            if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
-
-                message_from_agent = (
-                    f"\nIMPORTANT!:\n"
-                    f"You are being summoned by virtual agent {request.from_agent or ''} to attend a new user request.\n Details:\n"
-                    f"User '{self.session_data.name_first}' original request: '{request.user_message}'.\n"
-                    f"Virtual agent generated metadata: '{request.information}'.\n"
-                    )
-                # Append instructions for the root assistant to take over the conversation
-                "\n".join((instructions, message_from_agent))
-
-            # Update with user message that originated the callback
-            self.user_message = message = request.user_message           
+            request: Optional[Union[VirtualAgentRequested, MainAssistantRequested]] = None,
+        ):  
+            """
+            Handles the execution of an external Run. 
             
-        # Process a new message (creates a Run)
-        # Update messages in Thread:
-        try:
-            if message or file:
-                try:
-                    await update_thread_messages(self, message, file)
-                except ValueError as e:
-                    raise LexiException("Could not update messages in Thread.")
+
+            """
+            # Child methods
+            from lexios.core.thread_loading import update_thread_messages, render_annotations
+            from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
+            from lexios.core.downloads import manage_downloads, manage_links
+            from lexios.core.thread_conversations import generate_conversation_name
             
             if message:
-                try:
-                    # Run the thread
-                    self.run = openai.beta.threads.runs.create(
-                        thread_id=self.loaded_thread.id,
-                        assistant_id=self.loaded_assistant.id,
-                        model=self.model,
-                        instructions= instructions,
+                # Update user message, attaching the name to give a special touch
+                self.user_message = f"User {self.session_data.name_first}: '{message or ''}'" 
+
+            # First check the status 
+
+            # Signal its busy attending a request
+            self.running_stat = "processing"
+
+            # clear the thread refrence if there is a reset signal request
+            if self.reset_signal:
+                self.loaded_thread = None
+                self.reset_signal = False
+
+        
+            # Define scpecific instructions for the run
+            instructions = "\n".join(
+                (
+                f"Your name is {self._name_}.\n",
+                self.instructions,
+                str(self.metadata()),
+                )
+            )
+
+            # Routing requests
+            if request:
+                # Validate the request as a routing request:
+                if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
+
+                    # Generate an automatic salutation when switching assistants
+                    salutation = greetings(agent_name=self.virtual_agent_name or LEXI_ALIAS, 
+                                           user_name=self.session_data.name_first or None)
+                    
+                    # Create a context for the next virtual agent using a predefined template
+                    message_from_prev_agent = (
+                        
+                        # Context #
+                        f"\nIMPORTANT:\n"
+                        f"This conversation is being routed to you by request of virtual agent {request.from_agent}. \n"
+                        f"Details:\n"
+                        f"User '{self.session_data.name_first}', Original request: '{request.user_message}'.\n"
+                        f"Prev. generated metadata: '{request.information}'.\n"
+                        # New directives #
+                        f"DIRECTIVES:\n"
+                        f"Start with this '{salutation}' or resolving user's request."
                     )
-                except Exception as e:
-                    raise LexiException(f"At create process input, creating Run, "
-                                  f"user_id {self.user_id} message {self.user_message} {e}")
+                
+                    # Append new instructions for the virtual agent taking over the conversation
+                    instructions = "\n".join((instructions, message_from_prev_agent))
                     
+                    # Update with user message that originated the request for the virtual agent
+                    self.user_message = message = instructions
 
-                # Main loop to treat a Thread - Run
-                while self.run.status not in ["completed", "cancelled", "failed", "expired"]:
-
-                    # Await for Run to change status
-                    while self.run.status in ["queued", "in_progress"]:
-
-                        # Retrieve run status:
-                        self.run = openai.beta.threads.runs.retrieve(
-                            thread_id=self.loaded_thread.id, run_id=self.run.id
-                        )
-
-                    # Log run status
-                    with CustomLogger("lexios") as log:
-                        log.info(f"run object status - User: {self.user_id} Status:{self.run.status} "
-                                 f"Message:{self.user_message} Last Error: {self.run.last_error}")
-                    
-                    # Check if the run failed
-                    if self.run.status == 'failed':
-                        raise ValueError(f"openai: {self.run.last_error}")
-
-                    # Recover meesages from the model
-                    messages = openai.beta.threads.messages.list(thread_id=self.loaded_thread.id)
-
-                    # Update conversation_orm
+                
+            # Process a new message (creates a Run)
+            # Update messages in Thread:
+            try:
+                if message or file:
                     try:
-                        self.conversation_orm.model_messages = messages
-                    except Exception:
-                        pass # just in case the user sent an attachment without any message
+                        await update_thread_messages(self, message, file)
+                    except ValueError as e:
+                        raise LexiException("Could not update messages in Thread.")
+                
+                if message:
+                    try:
+                        # Run the thread
+                        self.run = openai.beta.threads.runs.create(
+                            thread_id=self.loaded_thread.id,
+                            assistant_id=self.loaded_assistant.id,
+                            model=self.model,
+                            instructions= instructions,
+                        )
+                    except Exception as e:
+                        raise LexiException(f"At create process input, creating Run, "
+                                    f"user_id {self.user_id} message {self.user_message} {e}")
+                        
 
-                    # Recover the text response from messages
-                    assistant_reply = messages.data[0].content[0].text.value
-                    
-                    if assistant_reply:
+                    # Main loop to treat a Thread - Run
+                    while self.run.status not in ("completed", "cancelled", "failed", "expired"):
 
-                        # Replace annotations if included in the message
-                        # Also get attachment references if any
-                        assistant_reply, attachments  = manage_downloads(self, messages.data[0])
+                        # Await for Run to change status
+                        while self.run.status in ("queued", "in_progress"):
 
-                        assistant_reply, links = manage_links(assistant_reply)
-
-                        # If the Run requires action and shows some echo message, filter it:
-                        if (
-                            self.lexi.filter_echo is True
-                            and assistant_reply == message
-                            and self.run.status == "requires_action"
-                        ):
-                            
-                            if not self.run_in_background:
-                                # Log entry
-                                with CustomLogger("messages") as log:
-                                    log.debug("System", details={"from": self._name_, 
-                                        "content": assistant_reply, "filtered": True})
-                            
-                                
-                        elif not self.run_in_background:
-
-                            # Update conversation ORM
-                            self.save_message(assistant_reply)
-                            
-                            # Render assistant reply to frontend
-                            await frontend_output(
-                                content= assistant_reply, 
-                                user_id= self.user_id, 
-                                conversation_id= self.conversation_id,
-                                alias= self._name_
-                            )
-
-                            # Render annotations
-                            await render_annotations(self, links, attachments)
-
-                            # Log entry
-                            if not self.run_in_background:
-                                with CustomLogger("messages") as log:
-                                    log.debug("new message", details={"from": self._name_, "content": assistant_reply, "filtered": False})
-   
-                    # Check for requested tools:
-                    if (self.run.status == "requires_action" and 
-                        self.run.required_action.type == "submit_tool_outputs"):
-
-                            # Create required tool calls:
-                            await create_tool_calls(self)
-
-                            # Attend calls generated:
-                            # Inse this method the external commands are being executed
-                            await attend_tool_calls(self)        
-
-                            # When all calls are completed, submit tool_function_outputs:
-                            submit_function_outputs(self)
-
-                            # Update Run status:
+                            # Retrieve run status:
                             self.run = openai.beta.threads.runs.retrieve(
                                 thread_id=self.loaded_thread.id, run_id=self.run.id
                             )
-                            # Clear to_dos:
-                            self.tool_calls = []
+
+                        # Log run status
+                        LexiLogging(f"User Id: {self.user_id}: Processing message: {self.user_message} Status: '{self.run.status}' "
+                                    f"Last Error: '{self.run.last_error or 'No errors'}'.")
+                        
+                        # Check if the run failed
+                        if self.run.status == 'failed':
+                            raise ValueError(f"openai: {self.run.last_error}")
+
+                        # Recover meesages from the model
+                        messages = openai.beta.threads.messages.list(thread_id=self.loaded_thread.id)
+
+                        # Update conversation_orm
+                        try:
+                            self.conversation_orm.model_messages = messages
+                        except Exception:
+                            pass # just in case the user sent an attachment without any message
+
+                        # Recover the text response from messages
+                        assistant_reply = messages.data[0].content[0].text.value
+                        
+                        if assistant_reply:
+
+                            # Replace annotations if included in the message
+                            # Also get attachment references if any
+                            assistant_reply, attachments  = manage_downloads(self, messages.data[0])
+
+                            assistant_reply, links = manage_links(assistant_reply)
+
+                            # If the Run requires action and shows some echo message, filter it:
+                            if (
+                                self.lexi.filter_echo is True
+                                and assistant_reply == message
+                                and self.run.status == "requires_action"
+                            ):
+                                
+                                if not self.run_in_background:
+                                    # Log entry
+                                    with CustomLogger("messages") as log:
+                                        log.debug("System", details={"from": self._name_, 
+                                            "content": assistant_reply, "filtered": True})
+                                
+                                    
+                            elif not self.run_in_background:
+
+                                # Update conversation ORM
+                                self.save_message(assistant_reply)
+                                
+                                # Render assistant reply to frontend
+                                await frontend_output(
+                                    content= assistant_reply, 
+                                    user_id= self.user_id, 
+                                    conversation_id= self.conversation_id,
+                                    alias= self._name_
+                                )
+
+                                # Render annotations
+                                await render_annotations(self, links, attachments)
+
+                                # Log entry
+                                if not self.run_in_background:
+                                    with CustomLogger("messages") as log:
+                                        log.debug("new message", details={"from": self._name_, "content": assistant_reply, "filtered": False})
+    
+                        # Check for requested tools:
+                        if (self.run.status == "requires_action" and 
+                            self.run.required_action.type == "submit_tool_outputs"):
+
+                                # Create required tool calls:
+                                await create_tool_calls(self)
+
+                                # Attend calls generated:
+                                # Inse this method the external commands are being executed
+                                await attend_tool_calls(self)        
+
+                                # When all calls are completed, submit tool_function_outputs:
+                                submit_function_outputs(self)
+
+                                # Update Run status:
+                                self.run = openai.beta.threads.runs.retrieve(
+                                    thread_id=self.loaded_thread.id, run_id=self.run.id
+                                )
+                                # Clear to_dos:
+                                self.tool_calls = []
 
 
-        # Virtual Agent was solicited 
-        except VirtualAgentRequested as request:
-            if self.can_be_replaced:
-                # Change the status to "on hold" during the routing
-                self.running_stat = "on hold"
-                # Cancel the current run
-                self.cancel_run()
-                # Mark as changed to save in db
-                raise
-
-        # Root assistant requested
-        except MainAssistantRequested as request:
-            if self.virtual_agent_name and self.can_be_replaced:
-                # Change the status to "on hold" during the routing
-                self.running_stat = "ready"
-                # Cancel run
-                self.cancel_run()
-                # Load root assistant
-                self.load_root_assistant(request)
-        
-        except Exception as e:
-                
-                # Inform the user about the problem:
-                if not self.run_in_background:
-                    await frontend_output(
-                        "I'm sorry, there was a problem processing your last request. Please try again...", 
-                        user_id = self.user_id,
-                        conversation_id=self.conversation_id,
-                        alias= self._name_
-                    )
-
-                # Let know the LexiOS component   
-                raise LexiException(f"Problem running thread. Details: {e}", WARNING)
-        
-        finally:
-            if self.run.status in ['required_action', 'in_progress']:
-                # Keep on hold
-                self.running_stat = "on_hold"
-                # Cancel run
-                try:
+            # Virtual Agent was solicited 
+            except VirtualAgentRequested as request:
+                if self.can_be_replaced:
+                    # Change the status to "on hold" during the routing
+                    self.running_stat = "on hold"
+                    # Cancel the current run
                     self.cancel_run()
-                except Exception as e:
-                    self.running_stat = "reload_needed"
-                
-            elif self.run.status in ["completed", "cancelled", "failed", "expired"]:
-                # Release the LexiAssistant to attend new requests    
-                self.running_stat = "ready"
-                
-                # Autogenerate conversation title
-                if self.run.status == "completed" and not self.title_generated and \
-                not self.run_in_background:
+                    # Mark as changed to save in db
+                    raise
 
-                    # Generate name, update title
-                    await generate_conversation_name(self)
+            # Root assistant requested
+            except MainAssistantRequested as request:
+                if self.virtual_agent_name and self.can_be_replaced:
+                    # Change the status to "on hold" during the routing
+                    self.running_stat = "ready"
+                    # Cancel run
+                    self.cancel_run()
+                    # Load root assistant
+                    self.load_root_assistant(request)
+            
+            except Exception as e:
+                    
+                    # Inform the user about the problem:
+                    if not self.run_in_background:
+                        await frontend_output(
+                            "I'm sorry, there was a problem processing your last request. Please try again...", 
+                            user_id = self.user_id,
+                            conversation_id=self.conversation_id,
+                            alias= self._name_
+                        )
+
+                    # Let know the LexiOS component   
+                    raise LexiException(f"Problem running thread. Details: {e}", WARNING)
+            
+            finally:
+                if self.run.status in ('required_action', 'in_progress'):
+                    # Keep on hold
+                    self.running_stat = "on_hold"
+                    # Cancel run
+                    try:
+                        self.cancel_run()
+                    except Exception as e:
+                        self.running_stat = "reload_needed"
+                    
+                elif self.run.status in ("completed", "cancelled", "failed", "expired"):
+                    # Release the LexiAssistant to attend new requests    
+                    self.running_stat = "ready"
+                    
+                    # Autogenerate conversation title
+                    if self.run.status == "completed" and not self.title_generated and \
+                    not self.run_in_background:
+
+                        # Generate name, update title
+                        await generate_conversation_name(self)
 
 
-                # End of Run execution
-                # Save the response generated, used for background tasks
+                    # End of Run execution
+                    # Save the response generated, used for background tasks
 
-                if self.run_in_background and self.run.status in ["completed", "cancelled", "failed", "expired"]:
+                    if self.run_in_background and self.run.status in ("completed", "cancelled", "failed", "expired"):
 
-                    self.response = {
-                        'status': self.run.status,
-                        'output': assistant_reply,
-                    }
-                    # Return the response
-                    return self.response
+                        self.response = {
+                            'status': self.run.status,
+                            'output': assistant_reply,
+                        }
+                        # Return the response
+                        return self.response
             
     # Update conversation ORM
     def save_message(self, message: str, source: str= "system",type: str = "text", metadata: any = None):
@@ -495,10 +520,12 @@ class LexiAssistantThread(_LexiAssistantThread):
             # Reset running status just in case
             self.running_stat = "ready"
 
-    def cancel_run(self):
+    def cancel_run(self, run_id: str = None):
         # Cancel the run
+
+        run = run_id or self.run
         
-        if self.run and self.run.status in ["queued", "in_progress", "requires_action"]:
+        if run and run.status in ["queued", "in_progress", "requires_action"]:
 
             try:
                 # Cancel current run
@@ -507,8 +534,46 @@ class LexiAssistantThread(_LexiAssistantThread):
                     run_id=self.run.id,
                 )
             except openai.BadRequestError:
-                pass
+                with CustomLogger("openai") as log:
+                    log.warning("At cancel run:", WARNING, e)
+
             except Exception as e:
                 raise LexiException("At cancel run:", WARNING, e)
+    
+    def verify_consistency(self):
+        # Checks if there are runs open for the object and closes them
+        try:
+            # Verification started
+            int_status = "started"
+
+            if self.loaded_thread:
+
+                runs = openai.beta.threads.runs.list(thread_id= self.loaded_thread.id)
+
+                #verify is a list
+                if isinstance(runs,list):
+
+                    for run in runs:
+                        # If the run is in an inconsistent status,
+                        if run.status in ("in_progress", "queued", "requires_action"):
+
+                            # Cancel the run
+                            self.cancel_run(run_id = run.id)
+
+                            # Log the inconsistency
+                            LexiLogging(f"User Id: {self.user_id}. Inconsistency detected. Cancelling run.")
+
+                        # Verification is finished        
+                        int_status = "finished"
+
+        except openai.BadRequestError:
+            pass
+        except Exception as e:
+            raise LexiException(f"At verify_consistency().. {e}.", DEBUG)
+        finally:
+            if int_status == "finished":
+                self.running_stat = "ready"
+            else:
+                self.running_stat = "inconsistent"
 
 

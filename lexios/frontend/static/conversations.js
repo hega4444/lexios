@@ -1,34 +1,37 @@
 // Add / upload conversation content
+
+
+// Global function to read conversation from the API endpoint
+const fetchConversationData = async () => {
+    try {
+        const response = await fetch('/get_conversation_data');
+        const data = await response.json();
+        const conversations_list = data.conversations_list;
+        const conversation_focus = data.conversation_focus;
+
+        // Create an object to hold both messages and focus
+        const result = {
+            conversations_list: conversations_list, 
+            conversation_focus: conversation_focus
+        };
+
+        return result;
+    } catch (error) {
+        console.error('Error fetching conversation data:', error);
+        // Return an object with default values if there's an error
+        return {
+            conversations_list: [],
+        };
+    }
+};
+
+
 document.addEventListener("DOMContentLoaded", async function () {
 
     // New conversation button
     const newConversationButton = document.getElementById("create-conversation-button");
 
     // Check if chat history is empty (you need to implement this logic)
-
-    const fetchConversationData = async () => {
-        try {
-            const response = await fetch('/get_conversation_data');
-            const data = await response.json();
-            const conversations_list = data.conversations_list;
-            const conversation_focus = data.conversation_focus;
-
-            // Create an object to hold both messages and focus
-            const result = {
-                conversations_list: conversations_list, 
-                conversation_focus: conversation_focus
-            };
-
-            return result;
-        } catch (error) {
-            console.error('Error fetching conversation data:', error);
-            // Return an object with default values if there's an error
-            return {
-                conversations_list: [],
-            };
-        }
-    };
-
     try {
         const result = await fetchConversationData();
 
@@ -330,6 +333,7 @@ function confirmDeleteConversation(conversation_id) {
     });
 }
 
+// Delete a conversation
 async function deleteConversation(conversation_id) {
     // Find the conversation element with the given conversation_id
     const conversationElement = document.querySelector(`.conversations-list .conversation-element[data-conversation_id="${conversation_id}"]`);
@@ -341,7 +345,41 @@ async function deleteConversation(conversation_id) {
 
         // Find first element in the list and load conversation
         const firstConversationElement = document.querySelector('.conversations-list .conversation-element');
-        await load_conversation_messages(firstConversationElement.dataset.conversation_id);
+        if (firstConversationElement){
+            
+            // Load the conversation id of the found element
+            await load_conversation_messages(firstConversationElement.dataset.conversation_id);
+        }
+        else {
+
+            // Load conversations again to validate consistency (code below can be packed as a function)
+
+            try {
+                const result = await fetchConversationData();
+        
+                // Load the conversation titles
+                const chatList = document.querySelector('.conversations-list'); // Updated selector
+        
+                if (result.conversations_list && result.conversations_list.length > 0) {
+                    for (const customTitle of result.conversations_list) {
+                        // Create custom conversation elements for each title
+                        const customConversationElement = await createConversationElement(customTitle);
+                        chatList.appendChild(customConversationElement);
+                    }
+                } else {
+                    // Handle the case when there are no other titles
+                    console.log('No other titles to create conversation elements for.');
+                }
+                
+                // Load conversation in main view screen
+                await load_conversation_messages(result.conversation_focus)
+                moveConversationToTop(result.conversation_focus)
+                
+            } catch (error) {
+                // Handle any errors that occur during the fetch or processing
+                console.error('Error:', error);
+            }
+        }
 
         // Send a post request to the server for conversation deletion
         const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Get CSRF token from the form

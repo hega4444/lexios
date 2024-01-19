@@ -16,13 +16,13 @@ from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
 from fastapi.middleware.cors import CORSMiddleware
 
+from lexios.core.common_tools import LexiLogging, LexiException, WARNING
+from lexios.core.consent import _consent_backend
 from lexios.frontend.session_data import cookie, verifier, LexiSessionData
 from lexios.frontend.web_proxy import get_link_icon_and_title
 from lexios.frontend.messages_frontend import listen_to_redis
-from lexios.core.consent import _consent_backend
 
 from lexios.frontend.service import PROJECT_FOLDER, lexi, templates
-
 from lexios.frontend.login_routes import login_router
 from lexios.frontend.messages_frontend import messages_router
 from lexios.frontend.user_settings import settings_router
@@ -165,7 +165,7 @@ async def process_input(
             f.write(file_upload.file.read())
 
     # Log new message
-    print(f"Lexi_API - new message (ses_id_{session_id})", user_input)
+    LexiLogging(f"API - New message session_id:{session_id[:5]} Input: {user_input}")
 
     # Prepare structure for sending to Lexi:
     message = {
@@ -183,7 +183,7 @@ async def process_input(
         return JSONResponse(content={"status": "Message sent to Lexi."})
     
     except Exception as e:
-        print(f"Error processing message: {e}")
+        LexiException(f"Error processing message: {e}", WARNING)
         return JSONResponse(content={"error": "An error occurred processing your message."})
     
 
@@ -202,7 +202,7 @@ async def reset_user_thread_request(
         return JSONResponse({"status": "Message sent to Lexi."})
 
     except Exception as e:
-        print("Problem at 'reset_user_thread_request: ",e)
+        LexiException(f"Problem at 'reset_user_thread_request: {e}", WARNING)
         # Immediately return a success response
         return JSONResponse({"status": "Error reseting thread"})
 

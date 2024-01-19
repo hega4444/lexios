@@ -3,8 +3,6 @@
 from abc import ABC, abstractmethod
 from typing import ForwardRef, List
 
-from lexios.database.models import Conversation
-
 class _LexiOS_Backend(ABC):
 
     @abstractmethod
@@ -67,7 +65,7 @@ class _LexiSessionManager(ABC):
         pass
 
     @abstractmethod
-    def load_conversation(self, conversation: Conversation):
+    def load_conversation(self, conversation: any):
         pass
 
     @abstractmethod

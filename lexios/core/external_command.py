@@ -3,23 +3,41 @@ import re
 import json
 import asyncio
 import inspect
+from uuid import uuid4
 
 from typing import List, Any, Optional
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
-from lexios.integration.context import RunContext
+from lexios.integration.plugin import PluginTemplate
+from lexios.integration.trustedActions import TrustedAction
 
+class LexiExternalCommand(PluginTemplate):
+    """This class encapsulates the details for connecting an external command to Lexi.
 
-class LexiExternalCommand():
-    # This class encapsulates the details for connecting an external process to the chat model, making it available to the user through NLP.
+    Parameters:
+    - func (callable): The external command function to be executed.
+    - requires_object (PluginTemplate): An optional external command plugin that is required for executing the command.
+    - requires_dynamic_object (PluginTemplate): An optional reference to an object that has implemented the function name an can execute it.
+    - show_return_to_user (bool): A flag indicating whether the command result should be shown to the user.
+    - if_error (str): A text to be shown if an error occurs during command execution.
+    - before (str): A text to be shown before executing the command.
+    - after (str): A text to be shown after executing the command.
+    - printer (callable): A printer function for custom logging or output handling.
+    - roles_required (List[str]): A list of roles required to execute the command.
+    - scopes (List[str]): A list of scopes (or 'roles' names) required to execute the command.
+    - session_data_check (str): str of the label on user settings checks, if given Lexi will verify this value is active on the user profile.
+    - allowed_in_background (bool): A flag indicating whether the command is allowed to execute in the background.
+
+    Note: This class extends PluginTemplate and inherits its properties and methods.
+    """
 
     def __init__(
         self,
         func: callable,
-        requires_object: Any = None,
-        requires_dynamic_object: Any = None,
+        requires_object: PluginTemplate = None,
+        requires_dynamic_object: PluginTemplate = None,
         show_return_to_user: bool = False,
         if_error: str = None,
         before: str = None,
@@ -36,7 +54,7 @@ class LexiExternalCommand():
         # Specify the object that has to call that method (if any)
         self.requires_object = requires_object
         # Specify if the object needs to be instantiated in the moment
-        self.requires_dynamic_object = requires_dynamic_object
+        self.plugin = requires_dynamic_object
 
         self.json_string = None
         self.specs = None
@@ -57,7 +75,7 @@ class LexiExternalCommand():
         # Security obj: code to register object and later access control
         self.roles_required = roles_required
 
-        # Scopes are specific confirmations the action may need. I.E. "Im about to send an email. Do you want me to proceed...?"
+        # Scopes are specific confirmations the action may need i.e "Im about to send an email. Do you want me to proceed...?"
         self.scopes = scopes 
         self.session_data_check = session_data_check
 
@@ -67,11 +85,10 @@ class LexiExternalCommand():
         # Additional key specifications
         self.aditional_key_specs = []
 
-        # Keep a stack of receipts as confirmation of the executed command
-        self.receipts : [RunContext] = []
-
         # Complete the specs
         self.generate_specs()  # This will populate self.json_string
+
+        super().__init__(plugin_name="External_Command_Interface")
 
     def generate_specs(self):
         
@@ -178,7 +195,7 @@ class LexiExternalCommand():
                 )  # Wrap each key in double quotes
                 comment_sections["KEYS"] = keys
             elif sum_match:
-                comment_sections["SUMM"] = sum_match.group(1)
+                comment_sections["SUMM"] = " ".join((comment_sections["SUMM"] or '' , sum_match.group(1)))
 
         return comment_sections
 
@@ -334,36 +351,44 @@ class LexiExternalCommand():
                 return data
 
     def define_custom_validation(self, val_function):
-        # Defines a custom validations over the input parameters of the external command
-        # <val_function> must return None or a Str with error details.
-        # Use for example to restrict the access of users to resources,
-        # or prevent issues caused by wrong input data.
+
+        """
+         Defines a custom validations over the input parameters of the external command
+         <val_function> must return None or a Str with error details.
+         Use for example to restrict the access of users to resources,
+         or prevent issues caused by wrong input data.
+        """
 
         self._custom_validation = val_function
 
-    def __custom_params_validation(self, context: RunContext, **params) -> bool:
-        # Defines a custom validations over the input parameters of the external command
-        # <val_function> must return None or a Str with error details.
-        # <context> is a dict with user_id metadata about the action 
+    def _custom_params_validation(self, action: TrustedAction, **params) -> bool:
+        """
+        Defines a custom validation over the input parameters of the external command.
+
+        Parameters:
+        - `val_function`: A callable that must return `None` or a `str` with error details.
+        - `action`: A `TrustedAction` with context metadata about the action.
+
+        """
       
         if self._custom_validation:
             check = None
             try:
                 if callable(self._custom_validation):
-                    check = self._custom_validation(context, **params)
+                    check = self._custom_validation(action, **params)
                     return check
             except Exception:
                 return None
         return check
 
-    async def execute_command(self, context: Optional[RunContext] = None, **kwargs) ->RunContext:
+    async def execute_command(self, action: Optional[TrustedAction] = None, **kwargs) ->TrustedAction:
         # Executes the external command 
 
         # Check for custom external command validation
         if self._custom_validation:
             check = None
             try:
-                check = self.__custom_params_validation(context, **kwargs)
+                check = self._custom_params_validation(action=action, **kwargs)
             except Exception:
                 pass
             if check:
@@ -385,10 +410,10 @@ class LexiExternalCommand():
 
         # Check if the function requires an object to be called and check the 
         # Context 
-        elif self.requires_dynamic_object:
+        elif self.plugin:
             
             # create an instance of the dynamic object that handles the tool call
-            required_object = self.requires_dynamic_object(context=context)
+            required_object = self.plugin(transaction=action)
             method_to_call = getattr(required_object, self.name)
 
             # Check whether the function needs a sync or async call

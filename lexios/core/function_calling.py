@@ -9,9 +9,8 @@ from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.consent import ConsentScreen
 from lexios.frontend.session_data import read_session_data_from_backend 
-from lexios.core.messages_backend import frontend_output
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.integration.context import RunContext
+from lexios.integration.trustedActions import TrustedAction
 from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.external_command import LexiExternalCommand
@@ -22,35 +21,40 @@ SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
 PROJECT_FOLDER = find_project_folder()
 
 class ToolCall():
-    # Represents a requested command by the AI model, to be attended.
+
+    
+    """ Represents a tool call execution, adding an extra layer of security validations
+        and also executing custom functionality that the external command may include as part 
+        of its protocol when executed.
+    """
 
     def __init__(
         self, 
-        lexi, 
-        thread, 
+        lexi : LexiOS_Backend, 
+        thread : LexiAssistantThread, 
         user_id: int, 
         conversation_id: str, 
-        id, 
+        id: str, 
         function_name: str, 
         function_arguments: str, 
-        ext_command,
-        user_message = None,
+        ext_command : LexiExternalCommand,
+        user_message : str = None,
     ):
         super().__init__()
 
         # Possible states: "new" -> "executed" -> "failed".
         # Lexi
-        self.lexi : LexiOS_Backend = lexi
+        self.lexi :LexiOS_Backend = lexi
         self.thread : LexiAssistantThread = thread
         self.user_id : int = user_id
-        self.conversation_id :str = conversation_id
-        self.id = id
-        self.ret_status : str = None
-        self.output = None
-        self.custom_output = None
-        self.ext_command: LexiExternalCommand = ext_command
+        self.conversation_id : str = conversation_id
+        self.id : str = id
+        self.call_output :str = None
+        self.output : any = None
+        self.custom_output : any = None
+        self.external_cmd : LexiExternalCommand= ext_command
         self.function_name : str = function_name
-        self.function_arguments : dict = function_arguments
+        self.function_arguments = function_arguments
         self.type : str = "function"
         self.error_details : str = None
         self.user_message : str = user_message
@@ -61,7 +65,7 @@ class ToolCall():
         else:
             self.status = "not_found"
         
-        self.context = None
+        self.signed_action = None
 
     async def async_tool_run(self):
 
@@ -88,21 +92,23 @@ class ToolCall():
 
             # Check if the external command protocol includes messages to the user:
             try:
-                show_message = self.ext_command.custom_messages.get("before").get(
+                show_message = self.external_cmd.custom_messages.get("before").get(
                     "text", None
                 )
                 if show_message:
-                    await frontend_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await frontend_output(show_message, user_id=self.user_id, 
+                                          conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await asyncio.sleep(0.4)
 
             except Exception as e:
-                with CustomLogger("func_calls") as log:
-                    log.warning(f"Command {self.ext_command.name} could not print its messages. {e}")
+                with CustomLogger("lexios") as log:
+                    log.warning(f"Command {self.external_cmd.name} could not print its messages. {e}")
 
             # Check if the action is for scheduling (future action):
             if self.function_name == SCHEDULER_FUNCTION:
                 try:
                     # Scheduler executes in a different way, so we handle the call here.
-                    self.ret_status = self.lexi.scheduler.attend_action_request(
+                    self.call_output = self.lexi.scheduler.attend_action_request(
                         user_id = self.user_id, 
                         conversation_id = self.conversation_id,
                         params = params
@@ -113,58 +119,94 @@ class ToolCall():
             else:
 
             # Before        
-        #----------------------------------EXECUTE COMMAND ---------------------------------------------#
+        #----------------------------------BEGIN OF EXECUTE ACTION ---------------------------------------------#
                 # Record the execution
-                CustomLogger("runs").info(f"User Id: {self.user_id}: Executing command {self.function_name}.")
-
+                LexiLogging(f"User Id: {self.user_id}: Executing '{self.function_name}'"
+                            f" Parameters: {self.function_arguments}.")
                 try:
                     # Create a snapshot of the current context to share with the service that executes the command
-                    context = RunContext(
+                    new_action = TrustedAction(
 
-                        lexi=self.lexi,
+                        _name_=self.thread._name_,
                         user_id=self.user_id,
                         user=read_session_data_from_backend(self.user_id),
                         conversation_id=self.conversation_id,
                         user_message=self.user_message,
-                        requested_command = self.function_name,
-                        _name_=self.thread._name_,
+                        transaction_name = self.function_name,
                         virtual_agent_name=self.thread.virtual_agent_name or None,
                         can_be_replaced=self.thread.can_be_replaced or False,
                         timestamp = datetime.now(),
                     )
+
+                    # If there is a specific PluginTemplate implementation of 'before_requested_event', then call it
+                    try:
+                        # Check directly the most specific plugin implementation
+
+                         if ( hasattr(self.external_cmd.plugin, 'before_request_event') and
+                         callable(self.external_cmd.plugin.before_request_event)):                    
+                            
+                            # Retrieve the callback function associated to the plugin    
+                            callback = self.external_cmd.plugin.before_request_event
+                            
+                            # Submit signed context through the interface
+                            await callback(self.external_cmd.plugin, action= new_action)
                     
-                    self.ret_status = await self.ext_command.execute_command(context, **params)
-                
+                    except Exception as e: 
+                        raise LexiException(f"User Id: {self.user_id}: Executing "
+                                            f"'{self.function_name}' before_requested_event() failed: {e}.")   
+
+                    # Execute command with parameters and aggregated context given by Lexi
+                    self.call_output = await self.external_cmd.execute_command(action=new_action, **params)
+
+      #----------------------------------END OF EXECUTE ACTION ---------------------------------------------------#                 
                 # Route to virtual agent
                 except (VirtualAgentRequested, MainAssistantRequested) as request:
-                    context.add_exception(request)
-                    context.add_message(f"Aknowledged: Routing message to {request.to_agent}.")
+                    new_action._add_exception(request)
+                    new_action._add_message(f"Aknowledged: Routing message to {request.to_agent}.")
                     raise request
     
                 except Exception as e:
+                    new_action._add_exception(e)
                     raise LexiException(f"At function calling, command {self.function_name}: {e}", DEBUG)
                 
                 finally:
-                    # Update the execution status
-                    context.set_execution_result(self.ret_status)
-                    self.context = context
+                    
+                    # Security # Attach the result to the action & generate a token response as a signature 
+                    new_action._sign_results(result= self.call_output)
 
-                    # Give a receipt as confirmation
-                    self.add_receipt(self.ext_command, receipt= context)
+                    # Keep a copy of the action
+                    self.signed_action = new_action
 
-        #----------------------------------EXECUTE COMMAND ---------------------------------------------#                    
-                                                                                            # After
+                    # Attach it to the external command as the lowest level of the interface
+                    self.external_cmd._append_action(new_action)
 
+                    # If there is a specific PluginTemplate implementation, also send another copy
+                    try:
+                        # Check directly the most specific plugin implementation
+                         if ( hasattr(self.external_cmd.plugin, 'after_request_event') and
+                         callable(self.external_cmd.plugin.after_request_event)):                    
+                            
+                            # Retrieve the callback function associated to the plugin    
+                            callback = self.external_cmd.plugin.after_request_event
+                            
+                            # Submit signed context through the interface
+                            await callback(self.external_cmd.plugin, action= new_action)
+                    
+                    except Exception as e: 
+                        raise LexiException(f"User Id: {self.user_id}: Executing "
+                                            f"'{self.function_name}' after_execution_request() failed: {e}.")
+                    
+                                                                                                   
             # Change tool_call status to completed
             self.status = "completed"
 
             # Check if the external command protocol includes messages after execution
             try:
                 # Text data
-                message = self.ext_command.custom_messages.get("after").get("text", None)
+                message = self.external_cmd.custom_messages.get("after").get("text", None)
 
                 # IMG data
-                images = self.ext_command.custom_messages.get("after").get(
+                images = self.external_cmd.custom_messages.get("after").get(
                     "images", None
                 )
                 if images:
@@ -183,7 +225,7 @@ class ToolCall():
                         
                         images[filename] = os.path.join("downloads", str(self.user_id).zfill(5), filename)
 
-               
+                # Prepare metadata
                 if message or images:
                     
                     # Append custom output
@@ -204,37 +246,36 @@ class ToolCall():
                 
             except Exception as e:
                 # Log warning
-                with CustomLogger("func_calls") as log:
+                with CustomLogger("lexios") as log:
                     log.warning(f"Warning: '{self.function_name}' could not render custom messages/images. {e}")
 
             # Check if a preview output(automatic w/o checking with the AI model)
-            if self.ext_command.custom_messages.get("show_return_to_user", None):
+            if self.external_cmd.custom_messages.get("show_return_to_user", None):
                 try:
                     # Check if there is a sub-routine for printing the function return
-                    data = self.ext_command.format_user_response(self.ret_status)
+                    data = self.external_cmd.format_user_response(self.call_output)
 
                     # Print results
                     await frontend_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
 
                 except Exception as e:
                     # Log warning
-                    with CustomLogger("func_calls") as log:
+                    with CustomLogger("lexios") as log:
                         log.warning(f"Warning: '{self.function_name}' could not print its results. Details: {e}")
 
             # Log execution: 
             if self.function_name != SCHEDULER_FUNCTION:
-                with CustomLogger("func_calls") as log:
-                    log.info(f"Function '{self.function_name}' executed with parameters: {params}.")
+                LexiLogging(f"User Id: {self.user_id}: Successful call on function '{self.function_name}'.")
 
-            return self.ret_status
+            return self.call_output
         
         except VirtualAgentRequested as request:
             self.status = "completed"
-            self.ret_status = f"Virtual agent {request.to_agent} will handle the request."
+            self.call_output = f"Virtual agent {request.to_agent} will handle the request."
             raise 
         except MainAssistantRequested as request:
             self.status = "completed"
-            self.ret_status = "Routing to main assistant."
+            self.call_output = "Routing to main assistant."
             raise
         
         except Exception as e:
@@ -244,23 +285,21 @@ class ToolCall():
 
             # Check if the external command protocol includes messages after execution
             try:
-                show_message = self.ext_command.custom_messages.get("if_error").get(
+                show_message = self.external_cmd.custom_messages.get("if_error").get(
                     "text", None
                 )
                 if show_message:
-                    await frontend_output(show_message, user_id=self.user_id, conversation_id=self.conversation_id, msg_type="sys_notif")
+                    await frontend_output(show_message, user_id=self.user_id, 
+                                          conversation_id=self.conversation_id, msg_type="sys_notif")
             except Exception:
                 pass
 
             # Log the error:
             if self.function_name != SCHEDULER_FUNCTION:
-                with CustomLogger("func_calls") as log:
-                    log.error(f"Errors executing function '{self.function_name}'. Used parameters: {params}. Details: {e.args}")
-    
-
-    # Keep a stack of receipts as confirmation of the executed command    
-    def add_receipt(self, command: LexiExternalCommand, receipt: RunContext):
-        command.receipts.append(receipt)
+                with CustomLogger("lexios") as log:
+                    log.error(f"Errors executing function '{self.function_name}'."
+                              f" Used parameters: {params}. Details: {e.args}")
+                        
 
     def submit_function_output(self):
         # Prepare JSON to reply the AI model with the return from the external command
@@ -271,7 +310,7 @@ class ToolCall():
         if self.status in ["completed", "rejected"]:
             self.output = {
                 "tool_call_id": self.id, 
-                "output": str(self.ret_status)
+                "output": str(self.call_output)
             }
 
         # Return error details if needed
@@ -287,16 +326,18 @@ class ToolCall():
         # Reject a tool call, denied at the Consent dialog
 
         self.status = "rejected"
-        self.ret_status = "The user denied the execution of this tool."
+        self.call_output = "The user denied the execution of this tool."
     
     def cancel(self):
         # Reject a tool call, denied at the Consent dialog
 
         self.status = "cancelled"
-        self.ret_status = "Action is no longer needed."        
+        self.call_output = "Action is no longer needed."        
 
 
-# Other functions related to calls
+# Function calling auxiliar functions for LexiAssistantThread: #
+        
+
         
 async def create_tool_calls(thread: LexiAssistantThread):
     # Create a ToolCall for each required action:
@@ -379,7 +420,7 @@ async def create_tool_calls(thread: LexiAssistantThread):
 async def attend_tool_calls(thread: LexiAssistantThread):
     # Execute tool actions:
 
-    while not thread.consent_dialog or thread.consent_dialog.status not in ["expired", "cancelled"]:
+    while not thread.consent_dialog or thread.consent_dialog.status not in ("expired", "cancelled"):
 
         # Manage tasks pending to execute inside a required action:
         for tool_call in thread.tool_calls:
@@ -396,7 +437,7 @@ async def attend_tool_calls(thread: LexiAssistantThread):
                 if call_consent_status == "granted":
                     ready_to_execute = True
 
-                elif call_consent_status in ["denied", "expired", "cancelled"]:
+                elif call_consent_status in ("denied", "expired", "cancelled"):
                     # Reject the tool call
                     tool_call.reject()
 
@@ -431,6 +472,7 @@ async def attend_tool_calls(thread: LexiAssistantThread):
                     else:
                         # Raise exception at Thread Level
                         raise
+                    
                 # Handle request to route the conversation to a Vritual Agent    
                 except VirtualAgentRequested as request:
                     # Verifiy the requested agent is not already loaded
@@ -441,7 +483,7 @@ async def attend_tool_calls(thread: LexiAssistantThread):
                         raise
 
                 except Exception:
-                    LexiException("At attend_tool_calls(), ", DEBUG)
+                    LexiException("At function calling, attend_tool_calls(), ", DEBUG)
 
         # Update the status of the pending calls
         if all(tool_action.status in ("completed", "failed", "rejected", "expired") \

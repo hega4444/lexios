@@ -16,7 +16,7 @@ from googleapiclient.discovery import build
 from lexios.settings.main import *
 from lexios.core.session_manager import LexiSessionManager
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie, backend
-from lexios.core.security import UserValidation
+from lexios.core.security import UserAuthentication
 from lexios.database.users import update_user_data_in_db
 
 # Define router and backend components
@@ -71,11 +71,11 @@ async def submit_login(
     response: JSONResponse = JSONResponse(status_code=200, content={"detail": "OK"})
     csrf_protect.unset_csrf_cookie(response)  # prevent token reuse
 
-    # Check if the user exists and the password is correct
-    user = LexiSessionManager().validate_user_profile(email, password)
 
     try:
-        user = UserValidation()(email, password)
+        # Security # Check if the user exists and the password is correct
+        user = UserAuthentication()(email, password)
+    
     except PermissionError as e:
         user = None
    
@@ -135,8 +135,13 @@ async def google_submit_login(
 
             email = google_details.get('email')
 
+
             try:
-                user = UserValidation()(email, GOOGLE_ID, google_details)
+                # Security # Check if the user exists and the password is correct
+                # If Google Authentication process goes ok it creates a new Lexi account
+
+                user = UserAuthentication()(email, GOOGLE_ID, google_details)
+
             except PermissionError as e:
                 user = None
     

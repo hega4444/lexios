@@ -18,7 +18,7 @@ class CustomLogger:
             file_formatter = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
 
             console_formatter = colorlog.ColoredFormatter(
-                '%(log_color)s%(levelname)s - %(asctime)s - %(message)s',
+                '%(log_color)s%(levelname)-10s%(asctime)s - %(message)s',
                 datefmt=None,
                 reset=True,
                 log_colors={
@@ -33,7 +33,7 @@ class CustomLogger:
             )
 
             # File handler
-            file_handler = logging.FileHandler(f'{self.log_path}/log_{log_type}.log')
+            file_handler = logging.FileHandler(f'{self.log_path}/log_{log_type}.log')    
             file_handler.setFormatter(file_formatter)
 
             # Console handler

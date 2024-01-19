@@ -8,7 +8,7 @@ from fastapi import WebSocket, WebSocketDisconnect, HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from typing import Dict
 
-from lexios.settings.main import BROKER_URL
+from lexios.core.common_tools import BROKER_URL, LexiLogging
 from lexios.frontend.session_data import backend
 from lexios.database.users import update_user_data_in_db
 from lexios.core.session_manager import LexiSessionManager
@@ -81,7 +81,7 @@ async def listen_to_redis():
     async with aioredis.from_url(BROKER_URL) as broker:
         channel = broker.pubsub()
         await channel.subscribe("fastapi_channel")
-        print("Listening to messages from backend.")
+        LexiLogging("Listening to messages from backend.")
 
         try:
             while True:

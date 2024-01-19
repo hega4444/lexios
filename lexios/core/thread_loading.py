@@ -4,14 +4,10 @@ import asyncio
 import openai
 from logging import DEBUG
 
-from lexios.core.thread import LexiAssistantThread
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger, DEBUG, ERROR, WARNING
+from lexios.core.thread import LexiAssistantThread
 from lexios.database.models import Conversation
-
-from lexios.core.messages_backend import frontend_output
-from lexios.core.exceptions import LoadAssistantFailed, LoadThreadFailed, LoadConversationFailed, CreateAssistantFailed, LexiException
-from lexios.core.thread_conversations import save_conversation, NEW_CHAT_PROMPT
+from lexios.core.thread_conversations import save_conversation
 
 
 def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conversation):
@@ -256,8 +252,13 @@ async def render_annotations(thread: LexiAssistantThread, links, attachments):
     except Exception as e:
         raise LexiException(f"At render annotations. {e}")
     
+
+    
 def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new: bool = False):
     # Validate consistency and load assistant / virtual agents on thread
+
+    # Here runs all the logic to determine, load, and refresh assistants and threads references, both
+    # for the root assistant and the loaded virtual agent if defined in the thread.
 
     # Define target # 
     
@@ -285,6 +286,7 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
    
     # Try to load from db #
     update_thread = False
+        
     # If it's not an irreplaceable virtual agent, always load root assistant first
     if not (agent and not agent.can_be_replaced):
 
@@ -310,23 +312,44 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
                 raise LexiException("No root assistant id saved in the conversation.", DEBUG)
 
         except Exception as e:
-            # If the recovery failed, try to create a new instance of the assistant
-        
-            try:
-                # Create root assistant
-                thread.root_assistant = openai.beta.assistants.create(
+        # If the recovery failed, try to create a new instance of the assistant    
+            
+            # If an assistant reference was given, try to recover that one
+            if thread.pre_loaded_assistant_id:
+            
+                try:
+                    # Create root assistant from preloaded settings
+                    thread.root_assistant = openai.beta.assistants.retrieve(thread.pre_loaded_assistant_id)
 
-                    instructions=thread.instructions,
-                    name=thread._name_,
-                    tools=thread.loaded_tools,   
-                    model=thread.lexi.model,
-                )
-                
-                # Just to follow the setup sequence, also load root assistant 
-                thread.loaded_assistant = thread.root_assistant
+                    # Update assistant and reload tools
+                    thread.root_assistant = openai.beta.assistants.update(
+                        assistant_id= thread.root_assistant.id,
+                        tools= thread.loaded_tools,
+                    )                    
+                    
+                    # Just to follow the setup sequence, also load root assistant 
+                    thread.loaded_assistant = thread.root_assistant
 
-            except Exception as e:
-                raise CreateAssistantFailed(f"Recovering Root assistant from DB : {e}", DEBUG, source="root")
+                except Exception as e:
+                    raise CreateAssistantFailed(f"Recovering Root assistant from DB : {e}", DEBUG, source="root")
+
+            else:
+            # If not, create a new one without reference
+                try:
+                    # Create root assistant
+                    thread.root_assistant = openai.beta.assistants.create(
+
+                        instructions=thread.instructions,
+                        name=thread._name_,
+                        tools=thread.loaded_tools,   
+                        model=thread.lexi.model,
+                    )
+                    
+                    # Just to follow the setup sequence, also load root assistant 
+                    thread.loaded_assistant = thread.root_assistant
+
+                except Exception as e:
+                    raise CreateAssistantFailed(f"Recovering Root assistant from DB : {e}", DEBUG, source="root")
     
         
     # Other virtual agents or failed cases at loading from db #
@@ -435,7 +458,6 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
 
 
     return True
-
 
 def refresh_assistant_references(thread: LexiAssistantThread, conversation: Conversation):
     # Update assistants in the ORM object

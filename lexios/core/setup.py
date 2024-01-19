@@ -1,10 +1,9 @@
 # lexios_builtin.py
 
-from lexios.globals import ROOT_ID
-from lexios.settings.main import *
-from lexios.core.logger import CustomLogger
-from lexios.core.lexios_main import LexiOS_Backend
+from uuid import uuid4
 
+from lexios.core.common_tools import *
+from lexios.core.lexios_main import LexiOS_Backend
 # Appends the builtin commands of lexi as baseline
 
 def append_basic_IO(lexi: LexiOS_Backend):
@@ -203,8 +202,7 @@ def append_basic_IO(lexi: LexiOS_Backend):
             )
     
     except Exception as e:
-        with CustomLogger("lexios") as log:
-            log.error(f"Problem setting up builtin features: {e}")
+            raise LexiException(f"Problem setting up builtin features: {e}")
 
 def set_up_db_integration(lexios: LexiOS_Backend):
     # Sets up the integration steps for exchanging data with a local database
@@ -267,8 +265,7 @@ def set_up_db_integration(lexios: LexiOS_Backend):
                     )   
 
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.error(f"Problem setting up SQL / Mining features: {e}")
+                raise LexiException(f"Problem setting up SQL / Mining features: {e}")
 
 def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
     # Set up the virtual agents functionality
@@ -280,13 +277,14 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
         if lexi.virtual_agents:
 
             # Include Virtual Agents component
-            from lexios.integration.virtual_agents import VirtualAgentsRouter, VirtualAgent
+            from lexios.core.agents_router import AgentsRouter
+            from lexios.integration.virtual_agents import VirtualAgent
 
             # Retrieve the current list of agents
-            agents = VirtualAgentsRouter(lexi.virtual_agents)._virtual_agents
+            agents = AgentsRouter(lexi.virtual_agents)._virtual_agents
 
-            # Create and append root assistant
-            agents.append(VirtualAgent(
+            # Create root assistant
+            Lexi = VirtualAgent(
 
                 name= LEXI_ALIAS,
                 as_user_id=ROOT_ID,
@@ -296,45 +294,104 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                 can_be_replaced=True, 
                 retrieval=True,
                 interpreter=True,  
-            ))
-
+            )
+            # For some reason (yet to be understood), agents list gets updated just by invoking the contructor
+            # of Virtual Agent, probably because the Integration Manager is collecting the object. This was
+            # a good unexpected side effect. 
+  
             # Store the initiated router 
-            lexi.agents_router = VirtualAgentsRouter(agents) 
+            lexi.agents_router = AgentsRouter(agents) 
 
             # Append routing to root assistand command
             lexi.append_command(LexiExternalCommand(
-                VirtualAgentsRouter.route_to_main_assistant,
-                requires_dynamic_object= VirtualAgentsRouter,
+                AgentsRouter.route_to_main_assistant,
+                requires_dynamic_object= AgentsRouter,
+                before=f"{LEXI_ALIAS} is gonna be here in a second ..."
+                ),
+                required_by_lexi= True,
+            )
+
+            # Append List virtual agents command
+            lexi.append_command(LexiExternalCommand(
+                 AgentsRouter.list_virtual_agents,
+                 requires_dynamic_object=AgentsRouter,
                 ),
                 required_by_lexi= True,
             )
 
             # Define Route message command
             route_message_to_agent = LexiExternalCommand(
-                VirtualAgentsRouter.route_to_virtual_agent,
-                requires_dynamic_object= VirtualAgentsRouter,
+                AgentsRouter.route_to_virtual_agent,
+                requires_dynamic_object= AgentsRouter,
+                before="just a moment ..."
             )
 
             # Update command specs to include the agents names
             route_message_to_agent.add_key_spec(
                 param="virtual_agent_name", 
                 tag="enum", 
-                value= VirtualAgentsRouter()._agent_names,
+                value= AgentsRouter()._agent_names,
             )
 
-            # Append command
+            # Append route message command
             lexi.append_command(
                 command=route_message_to_agent,
                 required_by_lexi=True
             )
 
+            # Custom sorting function
+            def custom_sort(virtual_agent):
+                return virtual_agent.name.lower() != LEXI_ALIAS.lower() , virtual_agent.name
+
+            # Sort the list to keep Lexi (or alias) on top
+            sorted_agents = sorted(lexi.virtual_agents, key=custom_sort)
+
+            # Get a shorter version of the setting
+            CONNECT_ALL = LEXI_VIRTUAL_AGENTS_CONNECT_ALL
+
             agent: VirtualAgent
             # Initate main instances for each agent  
-            for agent in lexi.virtual_agents:
+            for agent in sorted_agents:
 
-                agent.start_service(lexi)
-            
+                try:
+                    # Add relationship to agent
+                    Lexi.add_relationship(agent)
+
+                    for other_agent in sorted_agents:
+                        # Avoid connect the agent to itself
+                        if agent.channel != other_agent.channel:
+
+                            # Check if there is a conflicting configuration for the nodes
+                            if ((agent.get_neighbors() or CONNECT_ALL) and not agent.can_be_replaced):
+                                    # Friendly message
+                                    LexiWarning(f"Virtual Agent: {agent.name}. Conflicting configuration. Either setting LEXI_VIRTUAL_AGENTS_CONNECT_ALL "
+                                                "is set on True or the agent has explicitly defined neighbour agents, "
+                                                "however attribute 'can_be_reaplaced' was set to False.", WARNING)
+                                               
+                                    # Facts
+                                    raise LexiException
+                            
+                            # If connect_all is enabled or the agent 
+                            if (CONNECT_ALL or
+                                  # included a reference to the next agent
+                            other_agent in agent.get_neighbors() ):
+
+                                # Add relationship
+                                agent.add_relationship(other_agent)
+
+                    # Start virtual agent service
+                    try:
+                        # Register a token for the agent
+                        agent.id = uuid4()
+
+                        agent.start_service(lexi)
+                        LexiLogging(f"Virtual agent {agent.name: <10} @ channel {agent.channel}. Service started.")
+
+                    except Exception as e:
+                         LexiException(f"Service for virtual Agent {agent.name} could not be started. {e}")           
+
+                except Exception as e:
+                     LexiException(f"Lexios Setup. At loading the routes: {e}", WARNING)   
         
     except Exception as e:
-        with CustomLogger("lexios") as log:
-            log.error(f"Virtual Agents LexiOS setup: {e}")
+            raise LexiException(f"Lexios, at setup virtual agents: {e}.")

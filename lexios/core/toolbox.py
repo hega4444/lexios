@@ -1,8 +1,8 @@
 # toolbox.py
 
-from lexios.core.security import RolesVerification
 from lexios.core.logger import CustomLogger
 from lexios.core.thread import LexiAssistantThread
+from lexios.core.security import RolesVerification
 
 class MakeToolBox():
     # Creates a tailored toolbox for a thread

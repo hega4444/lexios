@@ -6,14 +6,13 @@ from datetime import datetime
 
 
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger
 from lexios.database.models import ScheduledTaskPydantic
 from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
 from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_in_db, update_task_status
+
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
-from lexios.core.messages_backend import frontend_output
 
 REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
 

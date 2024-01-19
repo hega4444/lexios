@@ -4,7 +4,8 @@ import re
 import openai
 
 from admin.verify_folder import find_project_folder
-from lexios.core.logger import CustomLogger
+from lexios.core.logger import CustomLogger, DEBUG, INFO
+from lexios.core.exceptions import LexiException
 
 PROJECT_FOLDER = find_project_folder()
 
@@ -17,7 +18,6 @@ def manage_downloads(self, message):
     attachments = {}
 
     try:
-
         # Iterate over the annotations and add footnotes
         for index, annotation in enumerate(annotations):
 
@@ -59,41 +59,44 @@ def manage_downloads(self, message):
                     # Update the filename using the static folder of the fronted "downloads"
                     attachments[filename] = {'link': os.path.join("downloads", str(self.user_id).zfill(5), filename)}
 
-                    with CustomLogger("downloads") as log:
+                    with CustomLogger("lexios") as log:
                         log.info(f"User: {self.user_id} File name:{filename} Status: Downloaded.")
 
                 except Exception as e:
-                    with CustomLogger("downloads") as log:
-                        log.info(f"User: {self.user_id} File name:{filename} Status: Fail - Details: {e}")
+                    raise LexiException(f"User: {self.user_id} File name:{filename} Status: Fail - Details: {e}", DEBUG)
+
+        # Return the messages with the found attachments
+        return message_content, attachments
     
     except Exception as e:
-        pass
+        raise LexiException(f"At manage downloads. User: {self.user_id} File name:{filename} Status: Fail - Details: {e}")
     
-    return message_content, attachments
 
 def manage_links(text: str) -> str:
     # Identify links and create appropiate containers
-    
-    # Define a regular expression pattern for matching URLs and text within square brackets
-    pattern = re.compile(r'(?P<text>[^\[]+)(?:\[(?P<text_in_brackets>[^\]]+)\])?(?:\((?P<link>https?://[^\)]+)\))?')
+    try:
+        # Define a regular expression pattern for matching URLs and text within square brackets
+        pattern = re.compile(r'(?P<text>[^\[]+)(?:\[(?P<text_in_brackets>[^\]]+)\])?(?:\((?P<link>https?://[^\)]+)\))?')
 
-    # Search for the pattern in the input text
-    match = re.search(pattern, text)
+        # Search for the pattern in the input text
+        match = re.search(pattern, text)
 
-    if match:
-        # Extract the matched groups
-        modified_text = match.group('text').strip()
-        text_in_brackets = match.group('text_in_brackets')
-        link = match.group('link')
+        if match:
+            # Extract the matched groups
+            modified_text = match.group('text').strip()
+            text_in_brackets = match.group('text_in_brackets')
+            link = match.group('link')
 
-        if link:
+            if link:
 
-            link_data = {
-                'text': text_in_brackets,
-                'link' : link, 
-            }
+                link_data = {
+                    'text': text_in_brackets,
+                    'link' : link, 
+                }
 
-            return modified_text, link_data
-    
-    
-    return text, None
+                return modified_text, link_data
+        
+        
+        return text, None
+    except Exception as e:
+        raise LexiException(f"At downloads.py manage_links: {e}", DEBUG)

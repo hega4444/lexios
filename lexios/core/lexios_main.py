@@ -1,34 +1,30 @@
 # lexios_main.py
+
 import os
 import openai
 from datetime import timedelta
 from asyncio import sleep
 
-from lexios.globals import Globals
-from lexios.settings.main import *
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger, INFO, DEBUG, ERROR
-from lexios.core.signatures import _LexiOS_Backend
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.thread import LexiAssistantThread
-from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
-from lexios.core.messages_backend import frontend_output
 
 
-class LexiOS_Backend(_LexiOS_Backend):
-    # This class is capable of managing the whole communication with a chat model integrating external functions, access to real-time data
-    # and NLP capabilities.
+class LexiOS_Backend():
+    # Singleton class for LexiOS_Backend
 
-    def __init__(
-            self, 
-            model: str = LEXI_GPT_MODEL, 
-            instructions=None, 
-            active_users=None,
-            virtual_agents= None,
-            databases = None,
-    ):
-        
-        super().__init__()
+    _instance = None
+    _init_done = False
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(LexiOS_Backend, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self, model=LEXI_GPT_MODEL, instructions=None, active_users=None, virtual_agents=None, databases=None):
+        # Initialize only once
+        if self._init_done:
+            return
 
         Globals(lexi=self)
 
@@ -120,10 +116,10 @@ class LexiOS_Backend(_LexiOS_Backend):
         append_basic_IO(self)
 
         # Setup Virtual Agents
-
+        from lexios.core.setup import set_up_virtual_agents_and_routing
         self.agents_router = None
         self.virtual_agents = virtual_agents
-        from lexios.core.setup import set_up_virtual_agents_and_routing
+        
         set_up_virtual_agents_and_routing(self)
 
         # Setup SQL Engine:
@@ -136,6 +132,9 @@ class LexiOS_Backend(_LexiOS_Backend):
 
         from lexios.core.setup import set_up_db_integration
         set_up_db_integration(self)
+
+        # Mark the class as initialized
+        self._init_done = True
 
     def set_up_admin_assistant(self):
         # Create a list of available tools for the Assistant
@@ -227,21 +226,41 @@ class LexiOS_Backend(_LexiOS_Backend):
                         # Send the message to the corresponding Thread
                         await thread.process_input(user_input, filename)
 
-                    else:
-
-                    # Thread found but busy, inform the user on the chat interface
-                        await frontend_output(
-                            "I'm still processing your last request. Just a moment please...", 
-                            user_id= user_id,
-                            conversation_id= conversation_id,
-                            alias=thread._name_ or self.name
-                        )
-                        # Increment the counter of retries on this thread
-                        thread.nr_retries += 1
+                    else:              
                         # Reaching the limit, try cancelling the thread
                         if thread.nr_retries > 1:
-                            await self.reset_user_thread_request(thread = thread)
-   
+                            
+                            # Run a validation over the thread consistency
+                            thread.verify_consistency()
+                  
+                            # Send a predefined message to the interface
+                            await frontend_output(
+                                content= "Sorry about that, let me try again...", 
+                                user_id= user_id,
+                                conversation_id= conversation_id,
+                                alias=thread._name_ or self.name
+                            )
+                            # Give some time to push the meesage faster
+                            await sleep(0.1)
+
+                            # Run the thread again
+                            await thread.process_input(user_input, filename)
+
+                            # Reset the counter
+                            thread.nr_retries = 0
+
+                        else:
+                            # Increment the counter of retries on this thread
+                            thread.nr_retries += 1
+
+                            # Thread found but busy, inform the user on the chat interface
+                            await frontend_output(
+                                content= "I'm still processing your last request. Just a moment please...", 
+                                user_id= user_id,
+                                conversation_id= conversation_id,
+                                alias=thread._name_ or self.name
+                            )
+ 
                 else:
                     # No thread found, create one
                     new_thread = self.build_thread(
@@ -269,23 +288,22 @@ class LexiOS_Backend(_LexiOS_Backend):
     async def reset_user_thread_request(
             self, user_id: int = None, 
             conversation_id: str = None, 
-            thread: LexiAssistantThread = None
+            thread: LexiAssistantThread = None,
     ) ->str: 
-        # Resets a thread 
+        # Resets a thread, either by a direct reference to the thread object or by the combination
+        # of user_id & conversation_id
         try:
-                
+            # Find the thread      
             if not thread:
                 # Try to recover thread:
                 thread : LexiAssistantThread =  self.session_manager.get_thread(user_id, conversation_id)
                 if not thread:
                     return
 
-            # Cancel thread run
-            thread.cancel_run()
-            # Signal the LexiThread to reload the inner thread component
-            thread.reset_signal = True
+            # Run a consistency verification over the thread & runs
+            thread.verify_consistency()
+            # Give it some time to refresh
             await sleep(0.1)
-            thread.running_stat = "ready"
             
         except Exception:
             LexiException(f"At user thread request: {e}.")
@@ -297,13 +315,14 @@ class LexiOS_Backend(_LexiOS_Backend):
         # Find the agent
         agent : VirtualAgent = self.agents_router.by_name(request.to_agent)
 
-        if agent and agent.can_be_cloned:
+        if thread and agent and agent.can_be_cloned:
 
             # Get a blank slate of a virtual agent
-            cloned_virtual_agent = agent.clone(lexi=self)
+            cloned_virtual_agent = agent._clone(lexi=self)
 
             # Load the cloned agent into the thread
             thread.load_virtual_agent(cloned_virtual_agent, request)
+
     
     def build_thread(
             self, 
@@ -340,6 +359,8 @@ class LexiOS_Backend(_LexiOS_Backend):
                 thread_context['retrieval'] = virtual_agent.retrieval
                 thread_context['interpreter'] = virtual_agent.interpreter
                 thread_context['can_be_replaced'] = virtual_agent.can_be_replaced
+                thread_context['pre_loaded_assistant_id'] = virtual_agent.pre_loaded_assistant_id
+                thread_context['pre_loaded_thread_id'] = virtual_agent.pre_loaded_thread_id
                 thread_context['run_in_background'] = True
             
                 if virtual_agent.request_full_access:

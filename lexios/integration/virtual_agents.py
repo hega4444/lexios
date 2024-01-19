@@ -2,43 +2,33 @@
 import asyncio
 from typing import Any, List
 from uuid import uuid4
+from abc import abstractmethod
 
+from lexios.core.common_tools import frontend_output
 from lexios.settings.main import LEXI_ALIAS
 from lexios.core.signatures import _LexiOS_Backend
-from lexios.core.external_command import LexiExternalCommand
 from lexios.core.logger import CustomLogger, DEBUG
-from lexios.core.messages_backend import frontend_output
-from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
+from lexios.core.exceptions import LexiException
 from lexios.globals import GENERAL_VIRTUAL_AGENT
 
 from lexios.integration.plugin import PluginTemplate
-from lexios.integration.context import RunContext
-
-class Counter:
-
-    _internal_id = 400
-
-    def __init__(self):
-        self.channel = Counter._internal_id
-
-        Counter._internal_id += 1
-    
-    def __call__(self) -> Any:
-        return self.channel
+from lexios.integration.trustedActions import TrustedAction
 
 
 class VirtualAgent(PluginTemplate):
     # Create a virtual agent that interacts within the system
 
-    # Define a channel (for now using the field conversation_id with a special range above 400)
-    channel = Counter()()
+    # Agents have conversation_id ranging above 400 for easier identification
+    _internal_id = 401
+    agents = {}
 
     def __init__(
             self, 
             name: str, 
-            id: uuid4 = uuid4(),
+            id: uuid4 = None,
             as_user_id: int = None, 
             instructions: str = None, 
+            description: str = None,
             hidden: bool = False,
             request_full_access = False,
             can_be_cloned = False,
@@ -47,18 +37,46 @@ class VirtualAgent(PluginTemplate):
             retrieval: bool = False,
             interpreter: bool = False,
             ref_assistant_id: uuid4 = None, 
-            
+            pre_loaded_assistant_id = None,
+            pre_loaded_thread_id = None,
+             
         ) -> None:
 
-        self.id = id
+        # Generate a new Token identification for security
+        self.id = None
+
+        # Name
+        self.name = name
+
+        # Define a unique channel for this agent
+        self.channel = VirtualAgent._internal_id
+        VirtualAgent._internal_id +=1
+
+        # Define a graph of nodes agents can access
+        self.neighbors = []
+
+        # Add the agent to the dictionary
+        VirtualAgent.agents[self.channel] = self
+
+        # Lexi (or alias) always gets the channel 400
+        if name.lower() == LEXI_ALIAS.lower():
+            self.channel = 400
+
         self.ref_assistant_id = ref_assistant_id
         self.status = "initiated"
 
+        # Define commands it can execute & resources it can access
         self.commands = None
         self.resources = None
+        
+        # Define instructions & description
         self.instructions = instructions
-        self.name = name
+        self.description = description 
+
+        # Hidden status 
         self.hidden = hidden
+        
+        # Service thread
         self.main_thread = None
 
         # Assistant_id
@@ -73,6 +91,10 @@ class VirtualAgent(PluginTemplate):
 
         # Asks for the complete toolbox available in lexios
         self.request_full_access = request_full_access
+
+        # Define a preloaded OpenAi assistant if you have trained one
+        self.pre_loaded_assistant_id = pre_loaded_assistant_id
+        self.pre_loaded_thread_id = pre_loaded_thread_id
 
         # Can be cloned:
         self.can_be_cloned = can_be_cloned
@@ -101,8 +123,32 @@ class VirtualAgent(PluginTemplate):
             # General virtuaL agent
             self.as_user_id = GENERAL_VIRTUAL_AGENT
 
+        # A wildcard reference to the backend, the field is actually initiated at
+        # method start_service()
+
+        self.lexi : _LexiOS_Backend = None
+
         # Call construtor of the PluginTemplate class
         super().__init__(plugin_name= "VirtualAgent")
+
+    
+    def add_relationship(self, other_agent: 'VirtualAgent'):
+        # Add a relationship between two agents
+        self.neighbors.append(other_agent)
+
+        # Return the other agent reference so it allows to create a chain of
+        # interactions
+        return other_agent
+
+    def get_neighbors(self)-> List['VirtualAgent']:
+        # Get neighbors of the agent
+        return self.neighbors
+    
+    def remove_relationship(self, other_agent: 'VirtualAgent'):
+        # Remove a relationship between two agents
+        if other_agent in self.neighbors:
+            self.neighbors.remove(other_agent)
+
     
     def __call__(self, message: str, sync: bool = True):
         # Call a virtual agent from direclty by code
@@ -135,6 +181,7 @@ class VirtualAgent(PluginTemplate):
             message: str, 
             from_user_id: int = None,
             from_conversation_id: str = None,
+            from_agent: 'VirtualAgent' = None,
             session_data= None,
             callback: bool = False
         
@@ -194,7 +241,7 @@ class VirtualAgent(PluginTemplate):
         self.commands[command.name] = command
 
     def append_resource(self, resource: any):
-        # Append other plugins or more advanced component, still on the cook
+        # Append other plugins or more advanced components, still on the cook
         # The resource should inherit from PluginTemplate
         # For now there are two resources:
         # 1 Virtual Agents
@@ -241,6 +288,10 @@ class VirtualAgent(PluginTemplate):
     def start_service(self, lexi: _LexiOS_Backend):
         # Start virtual agent
         try:
+
+            # Save the reference to lexi
+            self.lexi = lexi
+
             # Build the LexiThread 
             self.main_thread= self.build(lexi)
 
@@ -252,7 +303,7 @@ class VirtualAgent(PluginTemplate):
             raise LexiException(f"Virtual agent {self.name} problems starting service. {e}")
         
     # Create a copy of the asistant
-    def clone(self, lexi):
+    def _clone(self, lexi):
         # Check if cloning feature is allowed
 
         if not self.can_be_cloned:
@@ -265,115 +316,29 @@ class VirtualAgent(PluginTemplate):
         self.nr_copies += 1     
         # Return a new copy
         return self.build(lexi)
-        
-class VirtualAgentsRouter():
-
-    _virtual_agents = None
-    _agent_names = None
-
-    def __init__(self, virtual_agents: list = None, context: RunContext = None):
-        # Initialization logic
-        
-        if virtual_agents:
-            VirtualAgentsRouter._virtual_agents = virtual_agents
-            VirtualAgentsRouter._agent_names = [agent.name for agent in VirtualAgentsRouter._virtual_agents] if virtual_agents else []
-
-        if context:
-            # Save the context 
-            self.context = context
     
-    # Return a VirtualAgent by its label name
-    def by_name(self, agent_name: str, _default: any = None) -> VirtualAgent:
 
-        for agent in self._virtual_agents:
-            if agent.name.lower() == agent_name.lower():
+    @abstractmethod
+    async def before_closing_event(self, action: TrustedAction):
+        """
+        Defines en entrypoint to act before a command (action) is executed.  
 
-                return agent
-        
-        return _default
-    
-    # Route to main assistant
-    def route_to_main_assistant(self, information: str = None):
+        Abstract method to be implemented by child classes.
 
-        # SUMM: Use when assistant cannot complete user request and requires a higher level of supervision. 
-        # information 'description': include any relevant data that can help the main assistant to find a better solution.
+        Parameters:
+          - action (TrustedAction): Context of the execution.
+        """
+        pass
 
-        if self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == LEXI_ALIAS.lower():
-            return f"You are already the main-root assistant. Your name is '{LEXI_ALIAS}'."
-        else:
-            # Raise Exception
-            raise MainAssistantRequested(
-                                user_message= self.context.user_message,
-                                from_agent=self.context.virtual_agent_name,
-                                information= information,                 
-            )
+    @abstractmethod
+    async def after_closing_event(self, action: TrustedAction):
+        """
+        Defines en entrypoint to act after a command (action) is executed.  
 
-    # Route to a virtual agent
-    async def route_to_virtual_agent(self, virtual_agent_name: str, information: str= None, no_callback: bool = True):
+        Abstract method to be implemented by child classes.
 
-        # SUMM: Forward the user input to another virtual assistant listed on the available options.
-        # viertual_agent_name  'description' : Virtual assistant name that will receive the message.
-        # information 'description' : A brief comment for the next agent to gain context on how to help the user.
-        # no_callback 'description' : <default>True: Next assistant takes over conversation with user. False: await results from virtual agent.
+        Parameters:
+        - action (TrustedAction): Context of the execution.
+        """
+        pass
 
-        # Find the agent by its alias       
-        agent = self.by_name(virtual_agent_name)
-        if not agent:
-            
-            # Return Information about the current routes available from this node.   
-            return (f"Virtual agent {virtual_agent_name} not found. These are the valid agent names: {self._agent_names}"
-                    f"\n Root assistant alias is '{LEXI_ALIAS}'.")
-                    
-        # Check is not already root or if it can be replaced
-        if self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == LEXI_ALIAS.lower():
-            return f"You are at root level. Your alias is '{LEXI_ALIAS}'."
-
-        # Check the requested agent is not already loaded
-        elif self.context.virtual_agent_name and self.context.virtual_agent_name.lower() == virtual_agent_name.lower():
-            return f"You already are '{virtual_agent_name}'. List of valid agent names: {self._agent_names}." 
-
-        # Or cannot be replaced (settings on virtual agents)
-        elif not self.context.can_be_replaced:
-            return "You are currently set as the permanent assistant in this conversation. Routing service is Disabled."
-        
-        # If requested for the root assistant, relay the message.
-        elif virtual_agent_name.lower() == LEXI_ALIAS.lower():
-            self.route_to_main_assistant()
-
-        # Check if there is no need for callback, the current thread allows replacement and the agent allows cloning
-        elif no_callback and self.context.can_be_replaced and agent.can_be_cloned:
-
-            # Raise an exception to handle the take over process
-            raise VirtualAgentRequested(  
-                        from_agent= self.context.virtual_agent_name,
-                        to_agent= agent.name,
-                        user_message= self.context.user_message,
-                        information = information,
-            )
-
-        else:
-            # Create a request for the agent and await the response as if calling any other function
-            agent_response = await asyncio.create_task(
-                agent.attend_request(
-                    message= information,
-                    from_user_id= self.context.user_id,
-                    from_conversation_id= self.context.conversation_id,
-                    session_data= self.context.user,
-                    # Negate the callback parameter, seems to work better this way.
-                    callback= not no_callback,
-                )
-            )
-            # Return the response inside the current thread
-            return agent_response
-        
-
-
-if __name__ == "__main__":
-
-    command = LexiExternalCommand(VirtualAgentsRouter.route_to_virtual_agent)
-
-    names = ['Clarisa']
-
-    command.add_key_spec("virtual_agent_name", "enum", names)
-
-    print(command)

@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie
 from lexios.core.session_manager import LexiSessionManager
-from lexios.database.conversations import get_user_conversations
 
 # Conversations routes
 conversations_router = APIRouter() 
@@ -20,6 +19,7 @@ async def get_conversation_data(
 ):
     async with session_data:
 
+        # Load a particular conversation by it's conversation_id
         if select_conversation_id:
             session_data.conversation_id_focus = select_conversation_id
             messages = LexiSessionManager().retrieve_conversation(session_data.user_id, select_conversation_id)
@@ -37,10 +37,11 @@ async def get_conversation_data(
             
             else:
                 raise HTTPException(status_code=404)
-
+        
+        # Gest a list of conversations to update the titles on screen 
         else:
-            # Recover stored conversations too
-            conversations = get_user_conversations(session_data.user_id)
+         
+            conversations = LexiSessionManager().find_user_conversations(session_data.user_id)
 
             # Retrieve stored conversations
             if conversations:
@@ -58,9 +59,6 @@ async def get_conversation_data(
                         conversation.conversation_id
                     ]
                     )
-
-                    # Link the loaded conversations to the User session
-                    LexiSessionManager().load_conversation(conversation)
 
                 # Set the focus on the latest conversation             
                 session_data.conversation_id_focus = conversation_index
@@ -95,7 +93,7 @@ async def update_conversation_title(
     session_data: LexiSessionData = Depends(verifier),
 ):
 
-    LexiSessionManager().update_converstion_title(session_data.user_id, conversation_id, new_title)
+    LexiSessionManager().update_conversation_title(session_data.user_id, conversation_id, new_title)
 
     return JSONResponse({'message': 'Conversation title updated successfully'})
 
@@ -118,8 +116,10 @@ async def get_next_conversation_id(
 @conversations_router.get('/get_conversation_id_focus', response_class=JSONResponse, dependencies=[Depends(cookie)])
 def get_conversation_id_focus(
     session_data: LexiSessionData = Depends(verifier)
+
 ):
     return JSONResponse({'conversation_id_focus': session_data.conversation_id_focus})
+
 
 # Delete conversation request
 @conversations_router.post('/delete_conversation_id', response_class=JSONResponse, dependencies=[Depends(cookie)])
@@ -129,4 +129,5 @@ def delete_conversation(
 ):
     # Call lexi session manager to take care of the task
     LexiSessionManager().delete_conversation(session_data.user_id, conversation_id)
+
     return JSONResponse({'message': 'Conversation deleted successfully'})

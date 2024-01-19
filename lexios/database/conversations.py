@@ -1,19 +1,32 @@
 # conversations.py
 
+from typing import Union, Optional, List
+
 from sqlalchemy.orm import object_session  
 from lexios.database.models import Session, Conversation
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import LexiException
 
-def get_user_conversations(user_id):
-    # Retrieve stored conversations
+def get_user_conversations(user_id: int, conversation_id : str =None) -> Union[List[Conversation], Conversation]:
+    """ Retrieves stored conversations from database
+
+        - Given a user_id + conversation_id, it returns a single instance of Conversation
+        - Given a user_id alone, it returns a list of Conversations 
+
+
+    """
+
     # Create a session
     session = Session()
 
     try:
-        # Query the database to retrieve conversations for the given user_id
-        conversations = session.query(Conversation).filter_by(user_id=user_id).order_by(Conversation.last_updated.desc()).all()
+        if conversation_id:
+            # Query the database to retrieve a specific conversation for the given user_id and conversation_id
+            conversation = session.query(Conversation).filter_by(user_id=user_id, conversation_id=conversation_id).first()
+            return conversation if conversation else None
 
+        # Query the database to retrieve all conversations for the given user_id
+        conversations = session.query(Conversation).filter_by(user_id=user_id).order_by(Conversation.last_updated.desc()).all()
         return conversations
     
     except Exception as e:
@@ -28,6 +41,8 @@ def get_user_conversations(user_id):
         session.close()
 
 def save_conversation_in_db(conversation: Conversation):
+    """ Save a conversation orm in Database"""
+
     # Create a session
     with Session() as session:
         try:
@@ -64,15 +79,13 @@ def save_conversation_in_db(conversation: Conversation):
             session.close()  # Close the session
 
 
-def delete_conversation_in_db(conversation_id):
+def delete_conversation_in_db(conversation_id: str):
+    """Delete a conversation from Database"""
+    
     # Create a session
     session = Session()
 
-    try:
-        # If the conversation is not attached to a session, try to merge it
-        if not session.contains(conversation):
-            conversation = session.merge(conversation)
-
+    try:       
         # Query the database to find the conversation by conversation_id
         conversation_to_delete = session.query(Conversation).filter_by(conversation_id=conversation_id).first()
 
