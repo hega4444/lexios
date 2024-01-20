@@ -196,96 +196,98 @@ class LexiOS_Backend():
         data = None, 
         filename = None, 
     ) -> str:
-        
-        if isinstance(data, dict):
-  
-                # Data package overrides default user
-                user_id = data.get('user_id', None)
-                # conversation_id
-                conversation_id = data.get('conversation_id', None)
-                # Text input
-                user_input = data.get('user_input', None)
-                # File attachments
-                filename = data.get('filename', None)
-
         try:
-            # Check if admin assistant needs initialization
-            if self.admin_assistant is None and self.set_up_admin is True:
-                self.set_up_admin_assistant()
+            if isinstance(data, dict):
+    
+                    # Data package overrides default user
+                    user_id = data.get('user_id', None)
+                    # conversation_id
+                    conversation_id = data.get('conversation_id', None)
+                    # Text input
+                    user_input = data.get('user_input', None)
+                    # File attachments
+                    filename = data.get('filename', None)
 
-            # Check if the user has an initiated Thread already:
-            user_profile = self.users.get(user_id, None)
-            if user_profile:
+            try:
+                # Check if admin assistant needs initialization
+                if self.admin_assistant is None and self.set_up_admin is True:
+                    self.set_up_admin_assistant()
 
-                # Try to recover thread:
-                thread : LexiAssistantThread = self.session_manager.get_thread(user_id, conversation_id)
-                if thread:
+                # Check if the user has an initiated Thread already:
+                user_profile = self.users.get(user_id, None)
+                if user_profile:
 
-                    # Thread found and ready, process new request
-                    if thread.running_stat == "ready":
-                        # Send the message to the corresponding Thread
-                        await thread.process_input(user_input, filename)
+                    # Try to recover thread:
+                    thread : LexiAssistantThread = self.session_manager.get_thread(user_id, conversation_id)
+                    if thread:
 
-                    else:              
-                        # Reaching the limit, try cancelling the thread
-                        if thread.nr_retries > 1:
-                            
-                            # Run a validation over the thread consistency
-                            thread.verify_consistency()
-                  
-                            # Send a predefined message to the interface
-                            await frontend_output(
-                                content= "Sorry about that, let me try again...", 
-                                user_id= user_id,
-                                conversation_id= conversation_id,
-                                alias=thread._name_ or self.name
-                            )
-                            # Give some time to push the meesage faster
-                            await sleep(0.1)
-
-                            # Run the thread again
+                        # Thread found and ready, process new request
+                        if thread.running_stat == "ready":
+                            # Send the message to the corresponding Thread
                             await thread.process_input(user_input, filename)
 
-                            # Reset the counter
-                            thread.nr_retries = 0
+                        else: 
+                            # Reaching the limit, try cancelling the thread
+                            if thread.nr_retries > 0:  # Feel free to adjust
+                                
+                                # Run a validation over the thread consistency
+                                # to unstuck the conversation
+                                self.reset_user_thread_request(thread=thread)
+                    
+                                # Send a predefined message to the interface
+                                await frontend_output(
+                                    content= "Sorry about that, let me try again...", 
+                                    user_id= user_id,
+                                    conversation_id= conversation_id,
+                                    alias=thread._name_ or self.name
+                                )
+                                # Give some time to push the meesage faster
+                                await sleep(0.1)
 
-                        else:
-                            # Increment the counter of retries on this thread
-                            thread.nr_retries += 1
+                                # Run the thread again
+                                await thread.process_input(user_input, filename)
 
-                            # Thread found but busy, inform the user on the chat interface
-                            await frontend_output(
-                                content= "I'm still processing your last request. Just a moment please...", 
-                                user_id= user_id,
-                                conversation_id= conversation_id,
-                                alias=thread._name_ or self.name
-                            )
- 
-                else:
-                    # No thread found, create one
-                    new_thread = self.build_thread(
-                        user_id = user_id,
-                        conversation_id = conversation_id,
-                    )
-                    # Update session manager reference
-                    self.session_manager.register_conversation(new_thread)
+                                # Reset the counter
+                                thread.nr_retries = 0
 
-                    # Send the message to the initiated Thread as background task
-                    await new_thread.process_input(user_input, filename)
-        
-        except MainAssistantRequested as request:
-                await thread.process_input(request=request)
+                            else:
+                                # Thread found but busy, inform the user on the chat interface
+                                await frontend_output(
+                                    content= "I'm still processing your last request. Just a moment please...", 
+                                    user_id= user_id,
+                                    conversation_id= conversation_id,
+                                    alias=thread._name_ or self.name
+                                )
+                                # Increment the counter of retries on this thread
+                                thread.nr_retries += 1
+    
+                    else:
+                        # No thread found, create one
+                        new_thread = self.build_thread(
+                            user_id = user_id,
+                            conversation_id = conversation_id,
+                        )
+                        # Save a reference to better handle the exceptions
+                        thread = new_thread
+                        # Update session manager reference
+                        self.session_manager.register_thread_as_conversation(new_thread)
 
-        except VirtualAgentRequested as request:
-            # Route a thread to a Virtual Agent
-            self.route_virtual_agent(thread, request)
-            # Process the user request with the new context loaded
-            await thread.process_input(request= request)
+                        # Send the message to the initiated Thread as background task
+                        await new_thread.process_input(user_input, filename)
+            
+            except MainAssistantRequested as request:
+                    await thread.process_input(request=request)
+
+            except VirtualAgentRequested as request:
+                # Route a thread to a Virtual Agent
+                self.route_virtual_agent(thread, request)
+                # Process the user request with the new context loaded
+                await thread.process_input(request= request)
 
         except Exception as e:
-            raise LexiException(f"At process user request. {e}")
+            LexiException(f"At process user request. {e}")
 
-    async def reset_user_thread_request(
+    def reset_user_thread_request(
             self, user_id: int = None, 
             conversation_id: str = None, 
             thread: LexiAssistantThread = None,
@@ -302,9 +304,12 @@ class LexiOS_Backend():
 
             # Run a consistency verification over the thread & runs
             thread.verify_consistency()
-            # Give it some time to refresh
-            await sleep(0.1)
             
+            # Reset the thread and cancel the current run
+            if thread.running_stat != "ready":
+                thread.reset_signal = True
+                thread.cancel_run()
+
         except Exception:
             LexiException(f"At user thread request: {e}.")
     
@@ -379,4 +384,4 @@ class LexiOS_Backend():
             return LexiAssistantThread(**thread_context)
             
         except Exception as e:
-                LexiException(f"lexios. at build_thread: {e}.")
+            raise LexiException(f"lexios. at build_thread: {e}.")

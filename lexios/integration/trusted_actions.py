@@ -1,4 +1,4 @@
-# trustedActions.py
+# trusted_actions.py
 
 import jwt
 import json
@@ -47,8 +47,19 @@ class TrustedAction():
         self.signed = None
         self.transaction_id = None
 
+        # Routing metadata
+        self.next_agent = None
+        self.prev_agent = None
+
         # Keep an internal status as a security mechanism to not allow changing the result afterwards
         self.output_submitted = False
+
+    def _add_routing_metadata(self, prev_agent_name: str, next_agent_name: str):
+        """
+            Attach the details of from / to agents when switching context
+        """
+        self.prev_agent = prev_agent_name
+        self.next_agent = next_agent_name
 
     def _add_message(self, message):
         self.messages.append(message)

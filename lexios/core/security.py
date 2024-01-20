@@ -52,6 +52,7 @@ class RolesVerification():
                                           f"in session data. Permission denied. Check command {e}")
             
             if not roles_required:
+                
                 # Default role needed for unregistered objects
                 roles_required = ["user"]
             

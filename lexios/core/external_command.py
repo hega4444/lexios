@@ -4,14 +4,15 @@ import json
 import asyncio
 import inspect
 from uuid import uuid4
+from abc import abstractmethod
 
-from typing import List, Any, Optional
+from typing import List, Any, Union, Optional
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger
 from lexios.integration.plugin import PluginTemplate
-from lexios.integration.trustedActions import TrustedAction
+from lexios.integration.trusted_actions import TrustedAction
 
 class LexiExternalCommand(PluginTemplate):
     """This class encapsulates the details for connecting an external command to Lexi.
@@ -19,7 +20,8 @@ class LexiExternalCommand(PluginTemplate):
     Parameters:
     - func (callable): The external command function to be executed.
     - requires_object (PluginTemplate): An optional external command plugin that is required for executing the command.
-    - requires_dynamic_object (PluginTemplate): An optional reference to an object that has implemented the function name an can execute it.
+    - requires_dynamic_object (PluginTemplate): Similar to `requires_object` but in this case the instance of the class is created at the 
+    moment of executing the command.
     - show_return_to_user (bool): A flag indicating whether the command result should be shown to the user.
     - if_error (str): A text to be shown if an error occurs during command execution.
     - before (str): A text to be shown before executing the command.
@@ -42,7 +44,6 @@ class LexiExternalCommand(PluginTemplate):
         if_error: str = None,
         before: str = None,
         after: str = None,
-        printer: callable = None,
         roles_required: List[str] = None,
         scopes: List[str] = None,
         session_data_check: str = None,
@@ -51,15 +52,16 @@ class LexiExternalCommand(PluginTemplate):
         # Tool settings
         self.func = func
         self.name = func.__name__
+
         # Specify the object that has to call that method (if any)
-        self.requires_object = requires_object
+        self.static_object = requires_object
+
         # Specify if the object needs to be instantiated in the moment
-        self.plugin = requires_dynamic_object
+        self.dynamic_object = requires_dynamic_object
 
         self.json_string = None
         self.specs = None
-        self.printer = printer
-
+    
         # Custom parameters validation
         self._custom_validation = None
 
@@ -318,114 +320,81 @@ class LexiExternalCommand(PluginTemplate):
         # Update messages in dictionary
         self.custom_messages[event_type.lower()] = msg_bundle
 
-    def format_user_response(self, data) -> str:
-        # Format external commands return values to show to user, can be used as a tailored output solution
-
-        # If no special printer is assigned:
-        if self.printer == None:
-            try:
-                # Check if data is a string that can be loaded as JSON
-                if isinstance(data, str):
-                    json_object = json.loads(data)
-                elif isinstance(data, dict):
-                    # It's already a dictionary
-                    json_object = data
-                else:
-                    # If formatting does not work, show data dump:
-                    return data
-
-                # If data is a valid JSON object, pretty-print it with default json printer included in Lexi Class:
-                return self.build_pretty_json_string(json_object)
-
-            # If formatting does not work, show data dump:
-            except Exception as e:
-                return data
-        else:
-            # The command has a defined printer to format the output of the process
-            printer = self.printer
-            try:
-                return printer(data)
-
-            # If formatting does not work, show data dump:
-            except Exception as e:
-                return data
-
-    def define_custom_validation(self, val_function):
-
+    @abstractmethod
+    def format_user_response(self, data: any, action: TrustedAction) -> str:
+        """ Format external commands outpus to show to the user, as a tailored output solution
         """
-         Defines a custom validations over the input parameters of the external command
-         <val_function> must return None or a Str with error details.
-         Use for example to restrict the access of users to resources,
-         or prevent issues caused by wrong input data.
-        """
-
-        self._custom_validation = val_function
-
-    def _custom_params_validation(self, action: TrustedAction, **params) -> bool:
+        return data
+    
+    @abstractmethod
+    def custom_input_validation(self, action: TrustedAction, **params) -> Union[dict, None]:
         """
         Defines a custom validation over the input parameters of the external command.
+        In this entrypoint is possible to raise an exception and stop the execution of the 
+        external command..
+
+        OR 
+
+        return a new dict with the adjusted values for the parameters.
 
         Parameters:
-        - `val_function`: A callable that must return `None` or a `str` with error details.
+        - `params`: A dict with the arguments selected by the Ai Model to execute the command.
         - `action`: A `TrustedAction` with context metadata about the action.
 
         """
-      
-        if self._custom_validation:
-            check = None
-            try:
-                if callable(self._custom_validation):
-                    check = self._custom_validation(action, **params)
-                    return check
-            except Exception:
-                return None
-        return check
+        pass
 
-    async def execute_command(self, action: Optional[TrustedAction] = None, **kwargs) ->TrustedAction:
+    async def _execute_command(self, action: TrustedAction = None, **kwargs) ->TrustedAction:
         # Executes the external command 
 
-        # Check for custom external command validation
-        if self._custom_validation:
-            check = None
-            try:
-                check = self._custom_params_validation(action=action, **kwargs)
-            except Exception:
-                pass
-            if check:
-                    # Raise message setting the output of the command as failed and returning the details.
-                    raise ValueError(f"Error: {check}")
+        parameters = kwargs
 
+        # Check for the existance of an external command custom input validation
+        if hasattr(self, self.custom_input_validation.__name__) and callable(self.custom_input_validation):
+            alter_params = None
+            try:
+                alter_params = self.custom_input_validation(action, params= kwargs)
+
+            except Exception:
+                alter_params = None
+
+            if alter_params:
+                # Adjust the execution parameters
+                parameters = alter_params
+                    
         # Check if the function requires an associated object
-        if self.requires_object:
-            method_to_call = getattr(self.requires_object, self.name)
+        if self.static_object:
+            method_to_call = getattr(self.static_object, self.name)
 
             
             # Check whether the function needs a sync or async call
             if asyncio.iscoroutinefunction(method_to_call):
 
-                result = await method_to_call(**kwargs)
+                result = await method_to_call(**parameters)
             else:
-                result = method_to_call(**kwargs)
+                result = method_to_call(**parameters)
         
 
-        # Check if the function requires an object to be called and check the 
-        # Context 
-        elif self.plugin:
+        # Check if the function requires an object to be created right in the moment
+        # of execution (thus dynamic) calling its contructor and passing an instance 
+        # the TrustedAction object containing the aggregated execution context.
+                 
+        elif self.dynamic_object:
             
             # create an instance of the dynamic object that handles the tool call
-            required_object = self.plugin(transaction=action)
+            required_object = self.dynamic_object(action)
             method_to_call = getattr(required_object, self.name)
 
             # Check whether the function needs a sync or async call
             if asyncio.iscoroutinefunction(method_to_call):
 
-                result = await method_to_call(**kwargs)
+                result = await method_to_call(**parameters)
             else:
-                result = method_to_call(**kwargs)
+                result = method_to_call(**parameters)
 
         else:
             # Execute static function otherwise
-            result = self.func(**kwargs)
+            result = self.func(**parameters)
         
         return result
     

@@ -183,7 +183,8 @@ async def process_input(
         return JSONResponse(content={"status": "Message sent to Lexi."})
     
     except Exception as e:
-        LexiException(f"Error processing message: {e}", WARNING)
+        LexiLogging(f"Error processing message: {e}", WARNING)
+        
         return JSONResponse(content={"error": "An error occurred processing your message."})
     
 

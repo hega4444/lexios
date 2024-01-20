@@ -3,8 +3,8 @@ import uuid
 import json
 from datetime import datetime, timedelta
 
-from lexios.core.logger import CustomLogger
-from lexios.core.common_tools import frontend_output
+
+from lexios.core.common_tools import frontend_output, LexiException
 
 _consent_backend = {}
 
@@ -13,6 +13,7 @@ class ConsentScreen():
     def __init__(self, **kwargs):
         
         try:
+            from lexios.core.function_calling import ToolCall
 
             self.status = "created"
 
@@ -46,11 +47,12 @@ class ConsentScreen():
             if "calls" in kwargs:
                 self.calls = kwargs.get("calls")
 
+                call : ToolCall
                 for call in self.calls:
-                    if call.ext_command.scopes:
+                    if call.external_cmd.scopes:
 
                         self.scopes[call.function_name] = {}
-                        self.scopes[call.function_name]["cmd_scopes"] = call.ext_command.scopes
+                        self.scopes[call.function_name]["cmd_scopes"] = call.external_cmd.scopes
                         self.scopes[call.function_name]['arg_values'] = call.function_arguments
                           
                     else:
@@ -66,8 +68,7 @@ class ConsentScreen():
             self.choices = {}
 
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.warning(f"Problems at generating consent screen for user_id {self.user_id}. {e}")
+            LexiException(f"Problems at generating consent screen for user_id {self.user_id}. {e}")
 
     async def show_to_user(self) -> bool:
         # Perform the verification

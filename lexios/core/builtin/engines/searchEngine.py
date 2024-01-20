@@ -129,21 +129,6 @@ class SearchEngine():
             except Exception as e:
                 raise ValueError(f"Problems retrieving information from Bing. {e}")
 
-    @staticmethod
-    def bing_search_printer(json_data) -> str:
-        # Function to print title and summary
-        output = "\n"
-        try:
-            news_data = json.loads(json_data)
-            for news_id, news_content in news_data.items():
-                title = news_content.get("title")
-                summary = news_content.get("summary")
-                output += f"    -Title: {title}\n     -Summary: {summary}\n\n"
-
-            return output
-        except json.JSONDecodeError as e:
-            raise ValueError(e)
-
     @classmethod
     def read_external_url_content(cls, url: str) -> str:
         # SUMM: extract html content from an url 

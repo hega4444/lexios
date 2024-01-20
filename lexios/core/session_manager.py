@@ -72,7 +72,7 @@ class LexiSessionManager():
 
         return self.active_connections.get((user_id, conversation_id))
 
-    def register_conversation(self, thread: LexiAssistantThread):
+    def register_thread_as_conversation(self, thread: LexiAssistantThread):
         if thread.user_id and thread.conversation_id:
             self.active_connections[(thread.user_id, thread.conversation_id)] = thread
 

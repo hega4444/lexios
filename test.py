@@ -1,18 +1,23 @@
-class VirtualAgent:
-    def __init__(self, name):
-        self.name = name
+import inspect
 
-# Example list of Virtual Agent objects
-virtual_agents = [
-    VirtualAgent("Agent1"),
-    VirtualAgent("Clarisa"),
-    VirtualAgent("Lexi"),
-]
+def mark_method(func):
+    setattr(func, 'marked', True)
+    return func
 
+class MyClass:
+    @mark_method
+    def marked_method(self):
+        pass
 
+    def unmarked_method(self):
+        pass
 
-# The first element of the sorted list will be the one with name 'Lexi' if it exists
-first_agent = sorted_agents[0] if sorted_agents else None
+def get_marked_methods(instance):
+    return [method for method, _ in inspect.getmembers(instance, predicate=inspect.ismethod) if hasattr(method, 'marked')]
 
-for agent in sorted_agents:
-    print(agent.name)
+# Create an instance of MyClass
+my_instance = MyClass()
+
+# Get marked methods
+marked_methods = get_marked_methods(my_instance)
+print("Marked Methods:", marked_methods)

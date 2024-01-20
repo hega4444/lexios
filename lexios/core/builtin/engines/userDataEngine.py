@@ -9,7 +9,7 @@ from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import UserSpecificData
 from lexios.core.common_tools import frontend_output
-from lexios.integration.trustedActions import TrustedAction
+from lexios.integration.trusted_actions import TrustedAction
 from lexios.database.users import (
     create_user_specific_data, 
     update_user_specific_data, 
@@ -20,14 +20,14 @@ from lexios.database.users import (
 )
 
 class UserDataManager():
-    def __init__(self, execution_context: TrustedAction = None) -> None:
+    def __init__(self, action: TrustedAction = None) -> None:
 
-        if execution_context:
+        if action:
 
-            self.lexi = execution_context.lexi
-            self.user_id = execution_context.user_id
-            self.conversation_id = execution_context.conversation_id
-            self.context = execution_context
+            self.lexi = action.lexi
+            self.user_id = action.user_id
+            self.conversation_id = action.conversation_id
+            self.context = action
 
         # Define base categories (These are shown to the model as existing from the beginning)
         self.base_categories = ['reminders', 'preferences', 'memories']

@@ -36,7 +36,6 @@ def append_basic_IO(lexi: LexiOS_Backend):
             lexi.append_command(
                 LexiExternalCommand(
                     func=SearchEngine.bing_search,
-                    printer=SearchEngine.bing_search_printer,
                     show_return_to_user=False,
                 )
             )
@@ -323,7 +322,6 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
             route_message_to_agent = LexiExternalCommand(
                 AgentsRouter.route_to_virtual_agent,
                 requires_dynamic_object= AgentsRouter,
-                before="just a moment ..."
             )
 
             # Update command specs to include the agents names
@@ -354,18 +352,16 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
             for agent in sorted_agents:
 
                 try:
-                    # Add relationship to agent
-                    Lexi.add_relationship(agent)
 
                     for other_agent in sorted_agents:
                         # Avoid connect the agent to itself
-                        if agent.channel != other_agent.channel:
+                        if agent.name != other_agent.name:
 
                             # Check if there is a conflicting configuration for the nodes
                             if ((agent.get_neighbors() or CONNECT_ALL) and not agent.can_be_replaced):
                                     # Friendly message
                                     LexiWarning(f"Virtual Agent: {agent.name}. Conflicting configuration. Either setting LEXI_VIRTUAL_AGENTS_CONNECT_ALL "
-                                                "is set on True or the agent has explicitly defined neighbour agents, "
+                                                "is True or the agent has explicitly defined neighbour agents, "
                                                 "however attribute 'can_be_reaplaced' was set to False.", WARNING)
                                                
                                     # Facts
@@ -377,14 +373,14 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                             other_agent in agent.get_neighbors() ):
 
                                 # Add relationship
-                                agent.add_relationship(other_agent)
+                                agent.link_to_agent(other_agent)
 
                     # Start virtual agent service
                     try:
                         # Register a token for the agent
                         agent.id = uuid4()
 
-                        agent.start_service(lexi)
+                        agent._start_service(lexi)
                         LexiLogging(f"Virtual agent {agent.name: <10} @ channel {agent.channel}. Service started.")
 
                     except Exception as e:

@@ -4,26 +4,32 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
+from lexios.frontend.session_data import read_session_data_from_backend 
+
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.task_scheduler import LexiTaskScheduler
-from lexios.core.consent import ConsentScreen
-from lexios.frontend.session_data import read_session_data_from_backend 
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
-from lexios.integration.trustedActions import TrustedAction
 from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
+from lexios.integration.trusted_actions import TrustedAction
+from lexios.integration.plugin import PluginTemplate
+from lexios.core.consent import ConsentScreen
 
+
+# To make the code easier to read and keep references
+
+BEFORE_EVENT_NAME = PluginTemplate.before_execution_event.__name__
+AFTER_EVENT_NAME =  PluginTemplate.after_execution_event.__name__
 SCHEDULER_FUNCTION = LexiTaskScheduler.schedule_new_action.__name__
-
 PROJECT_FOLDER = find_project_folder()
 
 class ToolCall():
 
-    
-    """ Represents a tool call execution, adding an extra layer of security validations
+
+    """ Represents a ToolCall execution, adding an extra layer of security validations
         and also executing custom functionality that the external command may include as part 
         of its protocol when executed.
     """
@@ -133,41 +139,45 @@ class ToolCall():
                         conversation_id=self.conversation_id,
                         user_message=self.user_message,
                         transaction_name = self.function_name,
-                        virtual_agent_name=self.thread.virtual_agent_name or None,
+                        virtual_agent_name=self.thread.virtual_agent_name or LEXI_ALIAS,
                         can_be_replaced=self.thread.can_be_replaced or False,
                         timestamp = datetime.now(),
                     )
 
-                    # If there is a specific PluginTemplate implementation of 'before_requested_event', then call it
+                    # If there is a specific PluginTemplate implementation of 'before_execution_event', then call it
                     try:
-                        # Check directly the most specific plugin implementation
+                        # Check directly the specific plugin implementation
 
-                         if ( hasattr(self.external_cmd.plugin, 'before_request_event') and
-                         callable(self.external_cmd.plugin.before_request_event)):                    
+                         if ( hasattr(self.external_cmd.dynamic_object, BEFORE_EVENT_NAME) and
+                         callable(self.external_cmd.dynamic_object.before_execution_event)):                    
                             
                             # Retrieve the callback function associated to the plugin    
-                            callback = self.external_cmd.plugin.before_request_event
+                            before_event = self.external_cmd.dynamic_object.before_execution_event
                             
                             # Submit signed context through the interface
-                            await callback(self.external_cmd.plugin, action= new_action)
+                            await before_event(self.external_cmd.dynamic_object, action= new_action)
                     
                     except Exception as e: 
-                        raise LexiException(f"User Id: {self.user_id}: Executing "
-                                            f"'{self.function_name}' before_requested_event() failed: {e}.")   
+                        raise LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                                            f"Executing '{self.function_name}' {BEFORE_EVENT_NAME}(): {e}.")   
 
                     # Execute command with parameters and aggregated context given by Lexi
-                    self.call_output = await self.external_cmd.execute_command(action=new_action, **params)
+                    self.call_output = await self.external_cmd._execute_command(action=new_action, **params)
 
       #----------------------------------END OF EXECUTE ACTION ---------------------------------------------------#                 
                 # Route to virtual agent
                 except (VirtualAgentRequested, MainAssistantRequested) as request:
+                    
+                    # Append all the neccesary details to the TrustedAction
                     new_action._add_exception(request)
+                    # Routing metadata
+                    new_action._add_routing_metadata(request.from_agent, request.to_agent)
                     new_action._add_message(f"Aknowledged: Routing message to {request.to_agent}.")
                     raise request
     
                 except Exception as e:
                     new_action._add_exception(e)
-                    raise LexiException(f"At function calling, command {self.function_name}: {e}", DEBUG)
+                    raise
                 
                 finally:
                     
@@ -180,21 +190,21 @@ class ToolCall():
                     # Attach it to the external command as the lowest level of the interface
                     self.external_cmd._append_action(new_action)
 
-                    # If there is a specific PluginTemplate implementation, also send another copy
+                    # If there is a specific PluginTemplate implementation, call it and send the TrustedAction
                     try:
-                        # Check directly the most specific plugin implementation
-                         if ( hasattr(self.external_cmd.plugin, 'after_request_event') and
-                         callable(self.external_cmd.plugin.after_request_event)):                    
+                        # Check directly the specific plugin implementation
+                         if (hasattr(self.external_cmd.dynamic_object, AFTER_EVENT_NAME) and
+                         callable(self.external_cmd.dynamic_object.after_execution_event)):                    
                             
                             # Retrieve the callback function associated to the plugin    
-                            callback = self.external_cmd.plugin.after_request_event
+                            callback = self.external_cmd.dynamic_object.after_execution_event
                             
                             # Submit signed context through the interface
-                            await callback(self.external_cmd.plugin, action= new_action)
+                            await callback(self.external_cmd.dynamic_object, action= new_action)
                     
                     except Exception as e: 
-                        raise LexiException(f"User Id: {self.user_id}: Executing "
-                                            f"'{self.function_name}' after_execution_request() failed: {e}.")
+                        raise LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                                            f"Executing '{self.function_name}' {AFTER_EVENT_NAME}(): {e}.")  
                     
                                                                                                    
             # Change tool_call status to completed
@@ -253,7 +263,7 @@ class ToolCall():
             if self.external_cmd.custom_messages.get("show_return_to_user", None):
                 try:
                     # Check if there is a sub-routine for printing the function return
-                    data = self.external_cmd.format_user_response(self.call_output)
+                    data = self.external_cmd.format_user_response(self.call_output, new_action)
 
                     # Print results
                     await frontend_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
@@ -296,9 +306,8 @@ class ToolCall():
 
             # Log the error:
             if self.function_name != SCHEDULER_FUNCTION:
-                with CustomLogger("lexios") as log:
-                    log.error(f"Errors executing function '{self.function_name}'."
-                              f" Used parameters: {params}. Details: {e.args}")
+                LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                                f"Executing '{self.function_name}' {e}.")  
                         
 
     def submit_function_output(self):
@@ -362,7 +371,7 @@ async def create_tool_calls(thread: LexiAssistantThread):
     for call in calls:
 
         # Retrieve the external command associated to the Call
-        ext_command = thread.lexi.toolbox.get(call["function"]["name"], None)
+        ext_command = thread.loaded_toolbox.get(call["function"]["name"], None)
 
         if ext_command:
             
@@ -391,6 +400,10 @@ async def create_tool_calls(thread: LexiAssistantThread):
                 # Tool cannot be used (most probably wrong name):
                 with CustomLogger("lexios") as log:
                     log.error(f"Tool '{call['function']['name']}' could not be created. {e}")
+        
+        else:
+            if call["function"]["name"]:
+                raise LexiException(f"Tool {call['function']['name']} was not found in the designated Toolbox.")
                     
 
            # Check if the action requires a consent screen

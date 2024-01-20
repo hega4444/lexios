@@ -105,3 +105,8 @@ class SessionManagerException(LexiException):
     def __init__(self, message=None,type=ERROR, **kwargs):
         default_message = f"Session Manager Exception: {message} {kwargs or ''}"
         super().__init__(default_message, type=type,**kwargs)
+
+class IntegrationsManagerException(LexiException):
+    def __init__(self, message=None,type=ERROR, **kwargs):
+        default_message = f"Integrations Manager Exception: {message} {kwargs or ''}"
+        super().__init__(default_message, type=type,**kwargs)

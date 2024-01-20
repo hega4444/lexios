@@ -37,7 +37,7 @@ class LexiAssistantThread():
         super().__init__() 
           
         # Imports needed only by  LexiThread __init__
-        from lexios.core.toolbox import MakeToolBox
+        from lexios.core.toolbox import ToolBox
         from lexios.core.thread_loading import load_assistant_and_orm_data
         from lexios.frontend.session_data import read_session_data_from_backend
         from lexios.database.users import get_user_data_by_user_id
@@ -99,10 +99,11 @@ class LexiAssistantThread():
         self.retrieval_active = retrieval
 
         # Toolbox
-        self.toolbox = toolbox
+        self.root_toolbox = toolbox
+        self.loaded_toolbox = toolbox
         
         # Security: Validate tools authorized for this thread
-        self.root_tools  = MakeToolBox()(self)
+        self.root_tools  = ToolBox()(self)
         # Load tools
         self.loaded_tools = self.root_tools
 
@@ -182,6 +183,9 @@ class LexiAssistantThread():
                 # Update user message, attaching the name to give a special touch
                 self.user_message = f"User {self.session_data.name_first}: '{message or ''}'" 
 
+            # Log message on console
+            LexiLogging(f"User Id: {self.user_id}: Processing message: {self.user_message[:10]}...")
+
             # First check the status 
 
             # Signal its busy attending a request
@@ -227,11 +231,10 @@ class LexiAssistantThread():
                 
                     # Append new instructions for the virtual agent taking over the conversation
                     instructions = "\n".join((instructions, message_from_prev_agent))
-                    
-                    # Update with user message that originated the request for the virtual agent
-                    self.user_message = message = instructions
 
-                
+                    # Load the previous message from the user
+                    message = request.user_message
+
             # Process a new message (creates a Run)
             # Update messages in Thread:
             try:
@@ -267,12 +270,12 @@ class LexiAssistantThread():
                             )
 
                         # Log run status
-                        LexiLogging(f"User Id: {self.user_id}: Processing message: {self.user_message} Status: '{self.run.status}' "
+                        LexiLogging(f"User Id: {self.user_id} run Status: '{self.run.status}' "
                                     f"Last Error: '{self.run.last_error or 'No errors'}'.")
                         
                         # Check if the run failed
                         if self.run.status == 'failed':
-                            raise ValueError(f"openai: {self.run.last_error}")
+                            raise LexiException(f"openai: {self.run.last_error}")
 
                         # Recover meesages from the model
                         messages = openai.beta.threads.messages.list(thread_id=self.loaded_thread.id)
@@ -298,6 +301,7 @@ class LexiAssistantThread():
                             if (
                                 self.lexi.filter_echo is True
                                 and assistant_reply == message
+                                and self.run 
                                 and self.run.status == "requires_action"
                             ):
                                 
@@ -386,7 +390,7 @@ class LexiAssistantThread():
                     raise LexiException(f"Problem running thread. Details: {e}", WARNING)
             
             finally:
-                if self.run.status in ('required_action', 'in_progress'):
+                if self.run and self.run.status in ('required_action', 'in_progress'):
                     # Keep on hold
                     self.running_stat = "on_hold"
                     # Cancel run
@@ -395,7 +399,7 @@ class LexiAssistantThread():
                     except Exception as e:
                         self.running_stat = "reload_needed"
                     
-                elif self.run.status in ("completed", "cancelled", "failed", "expired"):
+                elif self.run and self.run.status in ("completed", "cancelled", "failed", "expired"):
                     # Release the LexiAssistant to attend new requests    
                     self.running_stat = "ready"
                     
@@ -406,11 +410,11 @@ class LexiAssistantThread():
                         # Generate name, update title
                         await generate_conversation_name(self)
 
-
                     # End of Run execution
                     # Save the response generated, used for background tasks
 
-                    if self.run_in_background and self.run.status in ("completed", "cancelled", "failed", "expired"):
+                    if (self.run and self.run_in_background and self.run.status 
+                    in ("completed", "cancelled", "failed", "expired")):
 
                         self.response = {
                             'status': self.run.status,
@@ -462,6 +466,7 @@ class LexiAssistantThread():
             self.loaded_assistant = self.root_assistant
             self.loaded_thread = self.root_thread
             self.loaded_tools = self.root_tools
+            self.loaded_toolbox = self.root_toolbox
             self.has_changed = True
             
             # Try to save conversation
@@ -492,6 +497,7 @@ class LexiAssistantThread():
             # Overwrite assistant related data
             self.virtual_agent_name = agent.virtual_agent_name
             self.loaded_tools = agent.root_tools
+            self.loaded_toolbox = agent.root_toolbox
             self.loaded_thread = agent.loaded_thread
             self.loaded_assistant = agent.loaded_assistant
             self.instructions = agent.instructions
@@ -499,7 +505,6 @@ class LexiAssistantThread():
             self.model = agent.model
             self.can_be_replaced = agent.can_be_replaced
             self.has_changed = True
-            self.run = None
 
             # Update fields in the ORM
             self.conversation_orm.model_loaded_assistant_id = agent.loaded_assistant.id
@@ -521,36 +526,55 @@ class LexiAssistantThread():
             self.running_stat = "ready"
 
     def cancel_run(self, run_id: str = None):
-        # Cancel the run
+        """ 
+        Cancel the current thread run
 
-        run = run_id or self.run
+        - run_id: str The id of the Run object.
+        """ 
+        run_id = run_id or (self.run.id if self.run else None)
         
-        if run and run.status in ["queued", "in_progress", "requires_action"]:
+        if (run_id or (self.run 
+                       and self.run.status in ["queued", "in_progress", "requires_action"])):
 
             try:
+                status = "started"
+
                 # Cancel current run
                 openai.beta.threads.runs.cancel(
                     thread_id=self.loaded_thread.id,
-                    run_id=self.run.id,
+                    run_id=run_id,
                 )
+
+                status = "finished"
+
             except openai.BadRequestError:
                 with CustomLogger("openai") as log:
                     log.warning("At cancel run:", WARNING, e)
+                
+                status = "finished"
 
             except Exception as e:
+                status = "failed"
                 raise LexiException("At cancel run:", WARNING, e)
+            
+            finally:
+                if status == "finished":
+                    self.running_stat = "ready"
     
     def verify_consistency(self):
         # Checks if there are runs open for the object and closes them
         try:
             # Verification started
-            int_status = "started"
+            status = "started"
 
             if self.loaded_thread:
 
-                runs = openai.beta.threads.runs.list(thread_id= self.loaded_thread.id)
+                runs_data = openai.beta.threads.runs.list(thread_id= self.loaded_thread.id)
 
-                #verify is a list
+                # Extract the list
+                runs = runs_data.data
+
+                # Verify is a list
                 if isinstance(runs,list):
 
                     for run in runs:
@@ -563,15 +587,15 @@ class LexiAssistantThread():
                             # Log the inconsistency
                             LexiLogging(f"User Id: {self.user_id}. Inconsistency detected. Cancelling run.")
 
-                        # Verification is finished        
-                        int_status = "finished"
+            # Verification is finished        
+            status = "finished"
 
         except openai.BadRequestError:
             pass
         except Exception as e:
             raise LexiException(f"At verify_consistency().. {e}.", DEBUG)
         finally:
-            if int_status == "finished":
+            if status == "finished":
                 self.running_stat = "ready"
             else:
                 self.running_stat = "inconsistent"

@@ -12,7 +12,7 @@ from lexios.core.exceptions import LexiException
 from lexios.globals import GENERAL_VIRTUAL_AGENT
 
 from lexios.integration.plugin import PluginTemplate
-from lexios.integration.trustedActions import TrustedAction
+from lexios.integration.trusted_actions import TrustedAction
 
 
 class VirtualAgent(PluginTemplate):
@@ -66,7 +66,7 @@ class VirtualAgent(PluginTemplate):
         self.status = "initiated"
 
         # Define commands it can execute & resources it can access
-        self.commands = None
+        self.toolbox = {}
         self.resources = None
         
         # Define instructions & description
@@ -85,9 +85,6 @@ class VirtualAgent(PluginTemplate):
         # Open AI Assistant Builtin Tools
         self.retrieval = retrieval
         self.interpreter = interpreter
-
-        # Custom toolbox for agent
-        self.toolbox = {}
 
         # Asks for the complete toolbox available in lexios
         self.request_full_access = request_full_access
@@ -132,20 +129,32 @@ class VirtualAgent(PluginTemplate):
         super().__init__(plugin_name= "VirtualAgent")
 
     
-    def add_relationship(self, other_agent: 'VirtualAgent'):
-        # Add a relationship between two agents
-        self.neighbors.append(other_agent)
+    def link_to_agent(self, other_agent: 'VirtualAgent'):
+        """ 
+        Add a relationship between two agents
 
-        # Return the other agent reference so it allows to create a chain of
-        # interactions
-        return other_agent
+        Parameters:
+        - `other_agent`: VirtualAgent
+
+        Returns: A reference to other_agent
+
+        """
+        if not any(agent.name == other_agent.name for agent in self.neighbors):
+            self.neighbors.append(other_agent)
+
+            # Return the other agent reference so it allows to create a chain of
+            # interactions
+            return other_agent
 
     def get_neighbors(self)-> List['VirtualAgent']:
-        # Get neighbors of the agent
+        """ Returns a list of neighbors of the agent
+        """
+
         return self.neighbors
     
     def remove_relationship(self, other_agent: 'VirtualAgent'):
-        # Remove a relationship between two agents
+        """ Remove a relationship between two agents
+        """
         if other_agent in self.neighbors:
             self.neighbors.remove(other_agent)
 
@@ -234,11 +243,11 @@ class VirtualAgent(PluginTemplate):
     def append_command(self, command):
         # Append command to Agent ToolBox
 
-        if not self.commands:
-            self.commands = {}
+        if not self.toolbox:
+            self.toolbox = {}
         
         # Append the command to the virtual agent
-        self.commands[command.name] = command
+        self.toolbox[command.name] = command
 
     def append_resource(self, resource: any):
         # Append other plugins or more advanced components, still on the cook
@@ -262,10 +271,10 @@ class VirtualAgent(PluginTemplate):
         self.hidden = False
 
     # Build the thread
-    def build(self, lexi: _LexiOS_Backend):
-        # Build a copy of the model <assistant, instructions, tools>
-        global _internal_id
-
+    def _build(self, lexi: _LexiOS_Backend):
+        """ Build a copy of the model (assistant, instructions & tools)
+        """
+        
         # Determine the initial scope of resources needed by the agent
         # This is just a request, all components go under security clearance
         # Except for the commands required by LexiOS, such as 'time_and_location'
@@ -285,7 +294,7 @@ class VirtualAgent(PluginTemplate):
             raise LexiException(f"Building virtual agent: {e}.")
     
     # Start the service
-    def start_service(self, lexi: _LexiOS_Backend):
+    def _start_service(self, lexi: _LexiOS_Backend):
         # Start virtual agent
         try:
 
@@ -293,7 +302,7 @@ class VirtualAgent(PluginTemplate):
             self.lexi = lexi
 
             # Build the LexiThread 
-            self.main_thread= self.build(lexi)
+            self.main_thread= self._build(lexi)
 
             # Change status
             self.status = "ready"
@@ -315,13 +324,16 @@ class VirtualAgent(PluginTemplate):
         # Increment the counter 
         self.nr_copies += 1     
         # Return a new copy
-        return self.build(lexi)
+        return self._build(lexi)
     
 
+    # VirtualAgent has two additional methods for handling the conversations with the user
+
     @abstractmethod
-    async def before_closing_event(self, action: TrustedAction):
+    async def at_open_event(self, action: TrustedAction):
         """
-        Defines en entrypoint to act before a command (action) is executed.  
+        Defines en entrypoint to act when a Virtual Agent is introduced
+        into a conversation.  
 
         Abstract method to be implemented by child classes.
 
@@ -331,9 +343,10 @@ class VirtualAgent(PluginTemplate):
         pass
 
     @abstractmethod
-    async def after_closing_event(self, action: TrustedAction):
+    async def at_close_event(self, action: TrustedAction):
         """
-        Defines en entrypoint to act after a command (action) is executed.  
+        Defines en entrypoint to act after a Virtual Agent is removed from
+        a conversation.
 
         Abstract method to be implemented by child classes.
 
