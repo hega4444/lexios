@@ -67,7 +67,13 @@ def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conve
         raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}",ERROR, e.args)
     
                 
-async def update_thread_messages(thread: LexiAssistantThread, new_message = None, new_file = None):
+async def update_thread_messages(
+        thread: LexiAssistantThread, 
+        new_message :str = None, 
+        new_file = None,
+        message_to_agent :str = None,
+):
+    
     # Appends messages and attachments to the current user_thread
 
     if new_file:
@@ -110,9 +116,9 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
                 LexiException(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}", WARNING, e)   
 
     # Text messages (with or without attachments):
-    if new_message:
+    if new_message or message_to_agent:
 
-        if not thread.run_in_background:
+        if new_message and not thread.run_in_background:
             
             # Update conversation ORM
             thread.save_message(new_message, "user")
@@ -129,7 +135,8 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
             message_data = {
                 "thread_id": thread.loaded_thread.id,
                 "role": "user",
-                "content": new_message,
+                # small fix to correct the user input when a new virtual agent is taking over the conversation
+                "content": message_to_agent if message_to_agent else new_message,
                 "metadata": thread.metadata(),
             }
 
@@ -163,7 +170,7 @@ async def update_thread_messages(thread: LexiAssistantThread, new_message = None
                 # Starts a Thread with a new message:
                 user_msg = {
                     "role": "user",
-                    "content": new_message,
+                    "content": message_to_agent if message_to_agent else new_message,
                 }
 
                 if file_ref is not None:

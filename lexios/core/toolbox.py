@@ -1,6 +1,6 @@
 # toolbox.py
 
-from lexios.core.logger import CustomLogger
+from lexios.core.common_tools import CustomLogger, LexiException, LEXI_ALIAS
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.security import RolesVerification
 from lexios.core.agents_router import AgentsRouter
@@ -37,24 +37,30 @@ class ToolBox():
         for command in thread.root_toolbox.values():
             
             try:
+                # Specific for root assistant (agent Lexi) Remove route to main assistant
+                if ((thread.virtual_agent_name is None or
+                    thread.virtual_agent_name.lower() == LEXI_ALIAS.lower() ) 
+                    and 
+                    command.name == AgentsRouter.route_to_main_assistant.__name__ ):
+
+                    continue # exclude command
 
                 # Verify if the command is required at lexios level
                 required = command.name in thread.lexi.required_commands
 
                 if required:
-                # Exceptions or more specific rules
 
                     # Filter routing commands for agents that cannot be replaced
                     if thread.can_be_replaced is False and (
                         command.name == AgentsRouter.route_to_main_assistant.__name__ or
                         command.name == AgentsRouter.route_to_virtual_agent.__name__
                     ):
-                        continue # skip command
+                        continue # exclude command
 
                 # For background assistants, filter commands not allowed in background 
                 elif thread.run_in_background and not command.allowed_in_background:
                     
-                    continue # skip command
+                    continue # exclude command
     
                 else:
                     # Run verification

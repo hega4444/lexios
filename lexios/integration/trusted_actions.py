@@ -5,7 +5,7 @@ import json
 from uuid import uuid4
 
 from datetime import datetime, timedelta
-from typing import ForwardRef
+from typing import List
 
 from lexios.settings.main import LEXI_SIGNED_TRX_PASSWORD
 from lexios.core.common_tools import LexiException, WARNING
@@ -73,7 +73,7 @@ class TrustedAction():
             self.execution_result = result
         else:
              raise LexiException("Output for this action has already been signed.")
-    
+        
     def _generate_jwt_token(self):
         # Security #
 

@@ -353,7 +353,7 @@ class LexiExternalCommand(PluginTemplate):
         if hasattr(self, self.custom_input_validation.__name__) and callable(self.custom_input_validation):
             alter_params = None
             try:
-                alter_params = self.custom_input_validation(action, params= kwargs)
+                alter_params = self.custom_input_validation(action=action, params= kwargs)
 
             except Exception:
                 alter_params = None
@@ -382,7 +382,7 @@ class LexiExternalCommand(PluginTemplate):
         elif self.dynamic_object:
             
             # create an instance of the dynamic object that handles the tool call
-            required_object = self.dynamic_object(action)
+            required_object = self.dynamic_object(action=action)
             method_to_call = getattr(required_object, self.name)
 
             # Check whether the function needs a sync or async call
@@ -452,3 +452,7 @@ if __name__ == "__main__":
         # location 'description': "some text"
         """
         pass
+
+    command = LexiExternalCommand(getCurrentWeather)
+
+    print(command)

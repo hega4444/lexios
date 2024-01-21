@@ -1,69 +1,94 @@
+# task_scheduler.py
+
 import re
 import asyncio
 import uuid
 from dateutil import parser
 from datetime import datetime
 
-
+from lexios.globals import Globals
 from lexios.core.common_tools import *
 from lexios.database.models import ScheduledTaskPydantic
 from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
 from lexios.database.tasks import get_all_scheduled_tasks, save_scheduled_task_in_db, update_task_status
 
+from lexios.integration.trusted_actions import TrustedAction
 from lexios.core.builtin.engines.userDataEngine import UserDataManager
 from lexios.core.builtin.functions.email import GmailClient
 from lexios.core.builtin.functions.calendar import GoogleCalendar
+from lexios.core.agents_router import AgentsRouter
 
-REMINDER_FUNCTION = UserDataManager().schedule_reminder.__name__
+from lexios.core.external_command import LexiExternalCommand
+
+
+REESTRICTED_COMMANDS = (AgentsRouter.route_to_main_assistant.__name__,
+                     AgentsRouter.route_to_virtual_agent.__name__,
+                     AgentsRouter.list_virtual_agents.__name__)
 
 class LexiTaskScheduler():
+
+    _instance = None
+    _init_done = False
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(LexiTaskScheduler, cls).__new__(cls)
+        return cls._instance
+
     # Manages the event loop, schedules actions and keeps a persistent state in database.
 
-    def __init__(self, lexi = None):
-        super().__init__()
+    def __init__(self, action: TrustedAction = None, lexi = None):
+        
+        # Use the init as pivot to catch the action context
+        if self._init_done:
+            self.context = action
+            return
+        
+        else:
+            # Link with LexiOS
+            self.lexi = lexi
+        
+            # Retrieve all scheduled tasks from the database into memory
+            self.scheduled_tasks = self.load_scheduled_tasks_from_db()
 
+            # Start background listeners
+            users = retrieve_users_with_background_tasks()
+            for user in users:
 
-        # Link with LexiOS
-        self.lexi = lexi
-    
-        # Retrieve all scheduled tasks from the database into memory
-        self.scheduled_tasks = self.load_scheduled_tasks_from_db()
+                now = datetime.now().replace(microsecond=0) + timedelta(seconds=5)
 
-        # Start background listeners
-        users = retrieve_users_with_background_tasks()
-        for user in users:
-
-            now = datetime.now().replace(microsecond=0) + timedelta(seconds=5)
-
-            if user.gmail_access:
-                try:
-                    # Schedule background task
-                    self.new_time_event(
-                        user_id= user.user_id,
-                        data_id= None,
-                        category= "backgroud_tasks",
-                        start_at= now,
-                        repeat_each= GmailClient.check_frequency, 
-                        notify_to= "email_listener",
-                        save_in_db= False,
-                    )
-                except Exception as e:
-                    pass
-            
-            if user.google_calendar_access:
-                try:
-                    # Schedule background task
-                    self.new_time_event(
-                        user_id= user.user_id,
-                        data_id= None,
-                        category= "backgroud_tasks",
-                        start_at= now,
-                        repeat_each= GoogleCalendar.check_frequency,
-                        notify_to="calendar_listener",
-                        save_in_db= False,
-                    )
-                except Exception as e:
-                    pass
+                if user.gmail_access:
+                    try:
+                        # Schedule background task
+                        self.new_time_event(
+                            user_id= user.user_id,
+                            data_id= None,
+                            category= "backgroud_tasks",
+                            start_at= now,
+                            repeat_each= GmailClient.check_frequency, 
+                            notify_to= "email_listener",
+                            save_in_db= False,
+                        )
+                    except Exception as e:
+                        pass
+                
+                if user.google_calendar_access:
+                    try:
+                        # Schedule background task
+                        self.new_time_event(
+                            user_id= user.user_id,
+                            data_id= None,
+                            category= "backgroud_tasks",
+                            start_at= now,
+                            repeat_each= GoogleCalendar.check_frequency,
+                            notify_to="calendar_listener",
+                            save_in_db= False,
+                        )
+                    except Exception as e:
+                        pass
+                    
+        # Mark the class as initialized            
+        self._init_done = True
 
     def load_scheduled_tasks_from_db(self):
         # Retrieve scheduled tasks from the database as ORM models
@@ -75,7 +100,7 @@ class LexiTaskScheduler():
         # Save the Pydantic models in the class attribute
         return pydantic_tasks
 
-    def attend_action_request(self, user_id, conversation_id, params):
+    def __attend_action_request(self, user_id, conversation_id, params):
         # Receives a request for scheduling an event
         # Resolves some parsing and common scenerarios when the ai model calls the scheduling function
 
@@ -116,7 +141,7 @@ class LexiTaskScheduler():
         ret_status = None
         # Execute scheduling function:
         try:
-            ret_status = self.schedule_new_action(
+            ret_status = self.schedule_new_task(
                 **corr_params)
             
             # Log call to function for scheduling: 
@@ -132,104 +157,214 @@ class LexiTaskScheduler():
 
             return f"{'status': 'Failed', 'details': {e}}"
         
-    def schedule_new_action(
+    def schedule_new_task(
         self,
-        function_name: str,
-        user_id: int,
-        conversation_id: int,
-        action_time: str = None,
-        delay_seconds: int = 0,
+        task_type: str,
+        description : str,
+        function_name: str = None,
+        at_time: str = None,
+        delay_seconds: str = None,
+        repeat_each: str = None,
+        end_at: str = None, 
         arguments=None,
-        annotations=None,
-    ):
-        # KEYS: schedule remind forget remember book task
-        # SUMM: scheduler for executing functions at specefic time or with a delay in (seconds). DO NOT use for reminders (use schedule_reminder() instead)
-        # action_time 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
-        # action_time 'regex': r'^\d{4}-\d{2}-\d{2}/[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$'
-        # delay_seconds 'description' : "Execute the function in <delay> seconds."
-        # function_name 'description': "name".
-        # annotations 'description': "Text description of the task to be executed."
-
-        if function_name.startswith("functions."):
-            # The model adds 'functions.' string sometimes, small fix:
-            try:
-                alternative_name = function_name.split("functions.")[1]
-                if alternative_name in self.lexi.toolbox:
-                    function_name = alternative_name
-            except Exception:
-                pass
         
-        if function_name == REMINDER_FUNCTION:
-            raise ValueError(f"Invalid access. Call tool {REMINDER_FUNCTION} directly.")
-
-        if function_name not in self.lexi.toolbox:
-            # Let know the assistant if the function name is not available.
-            raise ValueError("Error : 'Function name not recognized.")
-
-        # Try to use 'regex' validators in comments to prevent mistakes (only if 'regex' was defined):
+    ):
+        # KEYS: schedule task function reminder forget remember book task
+        # SUMM: scheduler for executing functions at specefic time or with a delay in (seconds).
+        # at_time 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
+        # task_type 'description' : 'reminder' for alarms or reminders or 'function' for function calling. 
+        # task_type 'enum': ["function", "reminder"]
+        # delay_seconds 'description' : "Use it instead of action time to execute the task in x seconds."
+        # function_name 'description': "name".
+        # repeat_each 'description' : "For tasks that need to be executed periodically."
+        # end_at 'description' : " YYYY-MM-DD/HH:MM:SS For periodic jobs, when is the finalization time."
+        # description 'description': "Text description of the reminder or task to be executed."
+        
         try:
-            specs = self.lexi.toolbox.get(function_name).specs
-            param_specs = specs.get("function").get("parameters").get("properties")
-            input_params = json.loads(arguments)
-            for param_name in input_params:
-                if param_name in param_specs and param_specs.get(param_name).get(
-                    "regex", False
-                ):
-                    pattern_string = param_specs.get(param_name).get("regex")[2:-1]
-                    # Compile the pattern with the IGNORECASE flag
-                    pattern = re.compile(pattern_string, re.IGNORECASE)
-
-                    # Use re.match to check if the string matches the pattern from the beginning
-                    param_value = input_params[param_name]
-                    if pattern.match(param_value):
-                        pass
-                    else:
-                        return f"Invalid format for argument '{param_name}'. Expected regex: {pattern}"
-        except Exception as e:
-            pass
-
-        # Format arguments:
-        if arguments == "":
-            params = {}
-        else:
-            if not isinstance(arguments, dict):
-                try:
-                    params = json.loads(arguments)
-                except json.JSONDecodeError as e:
-                    try:
-                        params = custom_json_parser(arguments)
-                    except Exception:
-                        # Communicate with the AI model to check its input:
-                        raise ValueError("Error - Arguments should be passed as dictionary.")
+            # Retrieve the context
+            if self.context:
+                
+                user_id = self.context.user_id
+                conversation_id = self.context.conversation_id
             else:
-                params = arguments
+                raise AttributeError("Missing action context.")
+            
+            # Validate the action type
+            if task_type not in ('reminder', 'function'):
+                raise AttributeError("Valid options for task_type are 'reminder' or 'function'.")
+            
+            if task_type == 'reminder' and function_name:
+                task_type = 'function'
 
-        if action_time:
-            # Parse date and time with custom function (provides flexibility):
-            action_time_formatted = parser.parse(action_time)
+            # Convert the current time to HHMM format as an integer
+            current_time_hhmm = int(datetime.now().strftime("%H%M"))
+            
+            # Determine execution time 
+            action_time_formatted = None
+            
+            if at_time:
+                # Validate is not in the past:
+                entered_action_time = parser.parse(at_time)
 
-        elif delay_seconds:
-            # Set the action time using the time_delta input:
-            action_time_formatted = datetime.now().replace(microsecond=0) + timedelta(seconds=delay_seconds)
+                if entered_action_time <= datetime.now():
+                    raise ValueError(f" Error: action time is in the past. Current time: {current_time_hhmm}")
+                
+                # Keep the formatted date    
+                action_time_formatted = entered_action_time
+            
+            elif delay_seconds:
+                # Set the action time using the time_delta input:
+                action_time_formatted = datetime.now().replace(microsecond=0) + timedelta(seconds=int(delay_seconds))
 
-        # After checks, append action
-        action = ScheduledTaskPydantic(
-            task_id= str(uuid.uuid4()),
-            user_id= user_id,
-            conversation_id= conversation_id,
-            start_at= action_time_formatted,
-            function_name= function_name,
-            arguments= params,
-            annotations= annotations or "",
-            status= "scheduled",
-            category="external_command"
-        )
+            # Logic for function calling
+            if task_type == "function":
+                # Validation over the function name
+                if function_name.startswith("functions."):
+                    # The model adds 'functions.' string sometimes, small fix:
+                    try:
+                        alternative_name = function_name.split("functions.")[1]
+                        if alternative_name in self.lexi.toolbox:
+                            function_name = alternative_name
+                    except Exception:
+                        pass
+                
+                # Filter access to resstricted command 
+                if function_name in REESTRICTED_COMMANDS:
+                    raise ValueError(f"Invalid access. Call tool {function_name} directly.")
 
-        # Append action in-memory
-        self.scheduled_tasks.append(action)
+                if function_name not in self.lexi.toolbox:
+                    # Let know the assistant if the function name is not available.
+                    raise ValueError("Error : 'Function name not recognized.")
 
-        # Save the scheduled task in the database as backup in case recovery is needed
-        save_scheduled_task_in_db(action) 
+                # Try to use 'regex' validators in comments to prevent mistakes (only if 'regex' was defined):
+                try:
+                    if arguments:
+                        # Retrieve the function specs 
+                        specs = self.lexi.toolbox.get(function_name).specs
+                        param_specs = specs.get("function").get("parameters").get("properties")
+                        
+                        # Parse arguments
+                        try:
+                            input_params = json.loads(arguments)
+                        except Exception as e:
+                            raise LexiException(f"Task scheduler could not parse function calling parameters. {e}")
+
+                       # Check if there is a regex rule 
+                        for param_name in input_params:
+                            if param_name in param_specs and param_specs.get(param_name).get(
+                                "regex", False
+                            ):
+                                pattern_string = param_specs.get(param_name).get("regex")[2:-1]
+                                # Compile the pattern with the IGNORECASE flag
+                                pattern = re.compile(pattern_string, re.IGNORECASE)
+
+                                # Use re.match to check if the string matches the pattern from the beginning
+                                param_value = input_params[param_name]
+                                if pattern.match(param_value):
+                                    pass
+                                else:
+                                    return f"Invalid format for argument '{param_name}'. Expected regex: {pattern}"
+                except Exception as e:
+                    LexiLogging(f"Task scheduler: {e}")
+
+                # Format arguments:
+                if arguments == None:
+                    params = {}
+                else:
+                    if not isinstance(arguments, dict):
+                        try:
+                            params = json.loads(arguments)
+                        except json.JSONDecodeError as e:
+                            try:
+                                params = custom_json_parser(arguments)
+                            except Exception:
+                                # Communicate with the AI model to check its input:
+                                raise ValueError("Error - Arguments should be passed as dictionary.")
+                    else:
+                        params = arguments
+
+
+                # After checks, append action
+                action = ScheduledTaskPydantic(
+                    task_id= str(uuid.uuid4()),
+                    user_id= user_id,
+                    conversation_id= conversation_id,
+                    start_at= action_time_formatted,
+                    function_name= function_name,
+                    arguments= params,
+                    annotations= description or "",
+                    status= "scheduled",
+                    category="external_command"
+                )
+
+                # Append action in-memory
+                self.scheduled_tasks.append(action)
+
+                # Save the scheduled task in the database as backup in case recovery is needed
+                save_scheduled_task_in_db(action) 
+            
+            elif task_type == "reminder":
+                
+                try:
+                    if not USER_DATA_MANAGER:
+                        raise ValueError("Reminders are not enabled in the user settings.")
+
+                    # Create a reminder
+                    reminder = {
+                        'start_at' : action_time_formatted.isoformat(),
+                        'repeat_each' : int(repeat_each) if repeat_each else None,
+                        'end_at': end_at.isoformat() if end_at else None,
+                        'content': description,
+                    }
+
+                    # Call the user data manager component
+                    user_dmc = UserDataManager(action=self.context)
+
+                    # Save in database
+                    data_id = user_dmc.add_user_specific_data(
+                        data_category='reminders',
+                        data_content= reminder,
+                        internal_call = True,
+                    )
+
+                    # Validations for periodic reminders
+                    if repeat_each and not end_at:
+                        # Make it repeat three times by default.
+                        end_at = action_time_formatted + timedelta(seconds=(repeat_each * 3 + 1))
+                
+                    elif end_at:
+                        end_at = parser.parse(end_at)
+
+                    if isinstance(data_id, str):
+                        # Creation was successful. Now register as a time event
+                        self.new_time_event(
+                            user_id = user_id,
+                            data_id =data_id, 
+                            conversation_id = conversation_id,
+                            start_at = action_time_formatted or None,
+                            repeat_each = timedelta(seconds=int(repeat_each)) if repeat_each else None,
+                            end_at = end_at or None,
+                            category = "reminder",
+                            notify_to = "userDataManager",
+                            arguments = {'content': description},
+
+                        )
+
+                        # Attach a dynamic required scope by reminders
+                        self.context._add_consent_scope(
+                            scope_name='create_reminder',
+                            template='Create reminder with subject "{description}"',
+                            vars= ["subject"],
+                        )
+
+                        return "Reminder scheduled succesfully."
+
+                except Exception as e:
+                    raise LexiException(f"At schedule new task_ reminder {e}")
+
+        except Exception as e:
+            raise LexiException(f"Schedule new task {e}")
+
 
     def update_status(self, task_id, new_status):
         # Perform an update in the database based on task_id and new_data
@@ -444,11 +579,7 @@ class LexiTaskScheduler():
             if event.category == "reminder":
 
                # Instantiate a UserDataManager 
-               manager = UserDataManager(
-                   lexi = self.lexi, 
-                   user_id = event.user_id, 
-                   conversation_id= event.conversation_id
-                   )
+               manager = UserDataManager(action= self.context)
                
                # Trigger notification process
                await manager.notify_reminder(event.data_id)
@@ -470,5 +601,7 @@ class LexiTaskScheduler():
         event.status = "completed"
         
 
+if __name__ == "__main__":
 
-
+    command = LexiExternalCommand(LexiTaskScheduler.schedule_new_task)
+    print(command)

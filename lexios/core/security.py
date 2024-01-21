@@ -9,12 +9,11 @@ from lexios.database.users import validate_password_in_db
 from lexios.database.roles import get_assigned_roles_by_user_id
 from lexios.frontend.session_data import LexiSessionData
 from lexios.core.session_manager import LexiSessionManager
-from lexios.core.logger import CustomLogger
-from lexios.core.exceptions import LexiException
+from lexios.core.exceptions import LexiException, LexiWarning
 from lexios.globals import ROOT_ID
 
 
-# Roles verification
+# Role verification
 
 class RolesVerification():
     """ Verifies the roles a user or virtual agent have defined to control access to commands & resources.
@@ -33,19 +32,14 @@ class RolesVerification():
                     verification = getattr(user, session_data_check, False)
 
                     if not isinstance(verification, bool):
-                        with CustomLogger("security") as log:
-                            log.warning(f"Attribute {session_data_check} is not bool type. "
-                                        "Check security settings.")
-                            
-                        raise AttributeError(f"Attribute {session_data_check} is not "
+                        raise LexiException(f"Attribute {session_data_check} is not "
                                              "bool type. Check security settings.")
                     
                     if verification is False:
                         raise PermissionError("Permission denied.")
                 
                 except Exception as e:
-                    with CustomLogger("security") as log:
-                        log.warning(f"Attribute {session_data_check} is not present in "
+                    LexiWarning(f"Attribute {session_data_check} is not present in "
                                     f"session data. Permission denied. Check command {e}")
                     
                     raise PermissionError(f"Attribute {session_data_check} is not present "

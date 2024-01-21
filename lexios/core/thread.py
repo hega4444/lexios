@@ -9,8 +9,14 @@ from lexios.core.builtin.functions.greetings import greetings
 PROJECT_FOLDER = find_project_folder()
 
 class LexiAssistantThread():
-    # Represents a conversation with the user
-    
+    """ Represents a conversation with the user.
+
+        Can handle multiple assistants, having set a static root assistand given
+        by Lexi, or a defined Virtual Agent that cannot be replaced. If agent
+        routing settings are enabled, it loads an additional assistant than can 
+        be replaced several times along the conversation. 
+
+    """
     def __init__(
         self,
         lexi=None,
@@ -36,7 +42,7 @@ class LexiAssistantThread():
         # Call the __init__ methods of the base classes
         super().__init__() 
           
-        # Imports needed only by  LexiThread __init__
+        # Imports needed only by  LexiThread __init__()
         from lexios.core.toolbox import ToolBox
         from lexios.core.thread_loading import load_assistant_and_orm_data
         from lexios.frontend.session_data import read_session_data_from_backend
@@ -120,6 +126,7 @@ class LexiAssistantThread():
 
         # Update the first message for the assistant
         self.user_message = user_message
+        self.message_to_agent = None
 
         # Tool_calls:
         self.tool_calls = []
@@ -206,7 +213,12 @@ class LexiAssistantThread():
                 )
             )
 
+
             # Routing requests
+            
+            # Clear just in case
+            self.message_to_agent = None
+            
             if request:
                 # Validate the request as a routing request:
                 if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
@@ -230,21 +242,22 @@ class LexiAssistantThread():
                     )
                 
                     # Append new instructions for the virtual agent taking over the conversation
-                    instructions = "\n".join((instructions, message_from_prev_agent))
+                    self.message_to_agent = "\n".join((instructions, message_from_prev_agent))
 
                     # Load the previous message from the user
-                    message = request.user_message
+                    message = None
 
             # Process a new message (creates a Run)
             # Update messages in Thread:
             try:
-                if message or file:
+                if message or file or self.message_to_agent:
                     try:
-                        await update_thread_messages(self, message, file)
+                        await update_thread_messages(self, message, file, 
+                                                     message_to_agent= self.message_to_agent)
                     except ValueError as e:
                         raise LexiException("Could not update messages in Thread.")
                 
-                if message:
+                if message or self.message_to_agent:
                     try:
                         # Run the thread
                         self.run = openai.beta.threads.runs.create(
@@ -300,7 +313,6 @@ class LexiAssistantThread():
                             # If the Run requires action and shows some echo message, filter it:
                             if (
                                 self.lexi.filter_echo is True
-                                and assistant_reply == message
                                 and self.run 
                                 and self.run.status == "requires_action"
                             ):

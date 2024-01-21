@@ -284,7 +284,7 @@ class VirtualAgent(PluginTemplate):
         try:
             thread = lexi.build_thread(
                 user_id= self.as_user_id,
-                conversation_id= self.channel,
+                conversation_id= str(self.channel),
                 virtual_agent=self,
             )
             

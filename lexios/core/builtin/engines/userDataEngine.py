@@ -2,9 +2,8 @@
 
 import uuid
 import json
-from dateutil import parser
-from datetime import timedelta, datetime
 
+from lexios.globals import Globals
 from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 from lexios.database.models import UserSpecificData
@@ -22,12 +21,15 @@ from lexios.database.users import (
 class UserDataManager():
     def __init__(self, action: TrustedAction = None) -> None:
 
+        # Save context 
         if action:
 
-            self.lexi = action.lexi
+            self.context = action
             self.user_id = action.user_id
             self.conversation_id = action.conversation_id
-            self.context = action
+        
+        # Keep a reference to lexi
+        self.lexi = Globals().lexi
 
         # Define base categories (These are shown to the model as existing from the beginning)
         self.base_categories = ['reminders', 'preferences', 'memories']
@@ -35,7 +37,17 @@ class UserDataManager():
         # Define hidden categories (These wont be accesible for the AI model)
         self.hidden_categories = ["processed_emails"]
 
-    def schedule_reminder(self, start_at: str, subject:str, repeat_each: str = None, end_at:str = None, content: str = None):
+    """
+    deprecated
+    def __schedule_reminder(self, 
+                          start_at: str, 
+                          subject:str, 
+                          repeat_each: str = None, 
+                          end_at:str = None, 
+                          content: str = None
+    ):
+        
+
         # SUMM: Creates a reminder for the user at specific datetime with subject/content, it can also <repeat_each> number of seconds until <end_at>. Returns the data_id.
         # SUMM: DO NOT USE IT FOR SCHEDULING OTHER FUNCTIONS IN THE FUTURE (use "schedule_new_action() instead.")
         # KEYS: Reminder, alert, alarm, remember, remind.
@@ -99,7 +111,7 @@ class UserDataManager():
                 raise ValueError("Could not create record. Try again.")
         except Exception as e:
             return {'error' : e}
-    
+    """
     def create_automated_email_response_rule(self, sender_email_address: str, instructions: str):
         # SUMM: Create a rule for answering emails coming from a 'sender', following the specified 'rules'.
         # sender_email_address 'description': valid email address from the sender (just email, no alias).
@@ -156,7 +168,7 @@ class UserDataManager():
 
             # Build message
             data = json.loads(reminder.data_content)
-            message = f"\nReminder for you... \n\nSubject: {data['subject']}\n Details: {data['content']}"
+            message = f"\nReminder for you... \n\nDetails: {data['content']}"
 
             # Send a message to user
             await frontend_output(

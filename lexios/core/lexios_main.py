@@ -106,7 +106,7 @@ class LexiOS_Backend():
 
         # Set up LexiScheduler:
         from lexios.core.task_scheduler import LexiTaskScheduler
-        self.scheduler = LexiTaskScheduler(lexi=self)
+        self.scheduler = LexiTaskScheduler(lexi = self)
 
         # Commands needed for the system, creates the minimun toolbox
         self.required_commands = {}

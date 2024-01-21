@@ -211,7 +211,7 @@ async def google_callback(
 
     # Check valid state        
     if state not in google_backend:
-        raise HTTPException(status_code=401, detail='Invalid OAuth state')
+        raise HTTPException(status_code=401, detail='Invalid OAuth state.')
 
     flow = google_backend.get(state).get("flow")
 
@@ -228,7 +228,11 @@ async def google_callback(
         # Retrieve account info
         req = google_auth_request.Request()
         id_token_info = id_token.verify_oauth2_token(
-            flow.credentials.id_token, req, flow.credentials.client_id)
+            flow.credentials.id_token, 
+            req, 
+            flow.credentials.client_id,
+            clock_skew_in_seconds=5,
+        )
 
         # Load the user info
         google_details = id_token_info

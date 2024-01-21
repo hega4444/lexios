@@ -61,11 +61,20 @@ def append_basic_IO(lexi: LexiOS_Backend):
                     before="Weather data by Open-Meteo.com")
             )
             # Schedule an action:
-            lexi.append_command(
-                LexiExternalCommand(
-                    LexiTaskScheduler.schedule_new_action, show_return_to_user=False
-                )
+
+            schedule_tasks = LexiExternalCommand(
+                    LexiTaskScheduler.schedule_new_task, 
+                    requires_dynamic_object=LexiTaskScheduler,
+                    show_return_to_user=False,
             )
+            # Create a required scope
+            schedule_tasks.add_consent_scope(
+                scope_name="create_reminder",
+                template='Schedule this action: "{description}"',
+                vars=["description"],
+            )
+
+            lexi.append_command(schedule_tasks)
         
         if USER_DATA_MANAGER:
 
@@ -78,6 +87,10 @@ def append_basic_IO(lexi: LexiOS_Backend):
             # Google suite for Email and Calendar built-in tools
             from lexios.core.builtin.functions.calendar import GoogleCalendar
             from lexios.core.builtin.functions.email import GmailClient 
+            
+            """
+            deprecated, now it is called under schedule_new_task interface together with
+            function calling 
 
             # Create reminders, alarms, alerts
             create_reminder = LexiExternalCommand(
@@ -87,13 +100,15 @@ def append_basic_IO(lexi: LexiOS_Backend):
                     session_data_check="lexi_learns",
                 )
             lexi.append_command(create_reminder)
+            
 
             create_reminder.add_consent_scope(
                 scope_name="create_reminder",
                 template='Create reminder with subject "{subject}"',
                 vars=["subject"],
             )
-
+            """
+            
             # Delete reminders, alarms, alerts
             lexi.append_command(
                 LexiExternalCommand(
@@ -391,3 +406,8 @@ def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
         
     except Exception as e:
             raise LexiException(f"Lexios, at setup virtual agents: {e}.")
+    
+
+
+
+    
