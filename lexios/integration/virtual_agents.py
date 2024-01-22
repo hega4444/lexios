@@ -17,7 +17,21 @@ from lexios.core.lexios_main import LexiOS_Backend
 
 
 class VirtualAgent(PluginTemplate):
-    # Create a virtual agent that interacts within the system
+    """
+      Create a virtual agent that interacts within the system.
+
+      VirtualAgents are assistants created and defined under the Lexi framework. They can get access
+      to Lexi's toolbox or define new tools as methods of their class. If a new tool is to be included
+      in a Virtual Agent, please use the class and method decorators @virtual_agent and @agent_command
+      respectively. This will help Lexi identify and index the tools to be included in the agent. 
+
+      By defining instructions and a description of the agent, a directory is created at startup. Then 
+      whenever the ai model determines an agent is needed, it routes the conversation and loads the 
+      assistant related to the virtual agent, updating its tools and access scope. 
+
+      Agents can also work solely in background attending requests and giving back an answer to the running
+      asisstant on the thread. 
+    """
 
     # Agents have conversation_id ranging above 400 for easier identification
     _internal_id = 401
@@ -132,9 +146,9 @@ class VirtualAgent(PluginTemplate):
         super().__init__(plugin_name= "VirtualAgent")
 
     
-    def link_to_agent(self, other_agent: 'VirtualAgent'):
+    def link_to_agent(self, other_agent: 'VirtualAgent') -> 'VirtualAgent':
         """ 
-        Add a relationship between two agents
+        Add a relationship between two virtual agents.
 
         Parameters:
         - `other_agent`: VirtualAgent
@@ -150,7 +164,7 @@ class VirtualAgent(PluginTemplate):
             return other_agent
 
     def get_neighbors(self)-> List['VirtualAgent']:
-        """ Returns a list of neighbors of the agent
+        """ Returns a list of neighbors of the virtual agent
         """
 
         return self.neighbors

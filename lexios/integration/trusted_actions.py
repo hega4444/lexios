@@ -13,12 +13,15 @@ from lexios.frontend.session_data import LexiSessionData
 
 class TrustedAction():
     """
-    This class serves as a point of truth for saving the context of an external command. 
+    This class serves as a point of truth for saving the context of an external command.
+    Whenever the Ai model decides to execute a command on behalf of a user, a TrustedAction
+    is created. It first captures the context of the thread in that moment and shares a copy
+    with the external command executing the class method before_execution_event(). 
     It creates a template to store all relevant data used in making the next decision. 
-    Additionally, it attaches a Token response to itself, which contains a more detailed 
+    Additionally, after execution it attaches a Token response to itself, which contains a more detailed 
     dictionary including the transaction name, its result, and datetime data. This class 
     can also be utilized for submitting POST requests outside Lexi while also being capable
-    of signing documents, providing an extra layer of security and data encapsulation."
+    of signing transactions, providing an extra layer of security and data encapsulation."
     """
 
     def __init__(self, **kwargs):
@@ -62,19 +65,38 @@ class TrustedAction():
         self.next_agent = next_agent_name
 
     def _add_message(self, message):
+        """
+        Adds a custom message to the action.
+        """
         self.messages.append(message)
 
-    def _add_exception(self, exception):
+    def _add_exception(self, exception: Exception):
+        """
+        Attaches an exception to the action. In case the execution raised an exception.
+        """
         self.exceptions.append(exception)
 
     def _add_execution_result(self, result: any):
-        
+        """
+        Submitt the output of the transaction.
+        """
         if not (self.output_submitted and self.signed):
             self.execution_result = result
+            self.output_submitted = True
         else:
-             raise LexiException("Output for this action has already been signed.")
+             raise LexiException("Output for this action has already been submitted.")
         
     def _generate_jwt_token(self):
+        """
+        After the action is executed and the output submitted, this method encrypts the 
+        the output, transaction id, datetime data and user name into a token 
+        signed either by:
+        - The command itself: By setting the field `signature`. This will be the secret of the encryption.
+        - Lexi: By default using as secret the global setting LEXI_SIGNED_TRX_PASSWORD. 
+
+        Returns:
+        - The signed JWT token.
+        """
         # Security #
 
         # Generate an unique action id, convert to str for JSON
@@ -99,7 +121,10 @@ class TrustedAction():
             raise LexiException(f"TrustedAction, generate_jwt_token(), {e}")
 
     def _sign_results(self, result: any):
-
+        """
+        Adds the execution result and signs the action.
+        Once signed the result cannot be modified.
+        """
         try:
             # Add the result to the action
             self._add_execution_result(result=result)
@@ -107,14 +132,11 @@ class TrustedAction():
             # Sign the action with a self-generated token
             self.signed = self._generate_jwt_token()
 
-            # Update the status
-            self.output_submitted = True
-
             # Return the signed action as TrustedAction -> or transaction 
             return self
         
         except Exception as e:
-            raise LexiException(f"TrustedAction sign_with_results()... {e}")
+            raise LexiException(f"TrustedAction cannot be signed...{e}")
 
 if __name__ == '__main__':
 
