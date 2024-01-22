@@ -186,70 +186,72 @@ class LexiAssistantThread():
             from lexios.core.downloads import manage_downloads, manage_links
             from lexios.core.thread_conversations import generate_conversation_name
             
-            if message:
-                # Update user message, attaching the name to give a special touch
-                self.user_message = f"User {self.session_data.name_first}: '{message or ''}'" 
 
-            # Log message on console
-            LexiLogging(f"User Id: {self.user_id}: Processing message: {self.user_message[:10]}...")
-
-            # First check the status 
-
-            # Signal its busy attending a request
-            self.running_stat = "processing"
-
-            # clear the thread refrence if there is a reset signal request
-            if self.reset_signal:
-                self.loaded_thread = None
-                self.reset_signal = False
-
-        
-            # Define scpecific instructions for the run
-            instructions = "\n".join(
-                (
-                f"Your name is {self._name_}.\n",
-                self.instructions,
-                str(self.metadata()),
-                )
-            )
-
-
-            # Routing requests
-            
-            # Clear just in case
-            self.message_to_agent = None
-            
-            if request:
-                # Validate the request as a routing request:
-                if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
-
-                    # Generate an automatic salutation when switching assistants
-                    salutation = greetings(agent_name=self.virtual_agent_name or LEXI_ALIAS, 
-                                           user_name=self.session_data.name_first or None)
-                    
-                    # Create a context for the next virtual agent using a predefined template
-                    message_from_prev_agent = (
-                        
-                        # Context #
-                        f"\nIMPORTANT:\n"
-                        f"This conversation is being routed to you by request of virtual agent {request.from_agent}. \n"
-                        f"Details:\n"
-                        f"User '{self.session_data.name_first}', Original request: '{request.user_message}'.\n"
-                        f"Prev. generated metadata: '{request.information}'.\n"
-                        # New directives #
-                        f"DIRECTIVES:\n"
-                        f"Start with this '{salutation}' or resolving user's request."
-                    )
-                
-                    # Append new instructions for the virtual agent taking over the conversation
-                    self.message_to_agent = "\n".join((instructions, message_from_prev_agent))
-
-                    # Load the previous message from the user
-                    message = None
-
-            # Process a new message (creates a Run)
-            # Update messages in Thread:
             try:
+                if message:
+                    # Update user message, attaching the name to give a special touch
+                    self.user_message = f"User {self.session_data.name_first}: '{message or ''}'" 
+
+                # Log message on console
+                LexiLogging(f"User Id: {self.user_id}: Processing message: {self.user_message[:10]}...")
+
+                # First check the status 
+
+                # Signal its busy attending a request
+                self.running_stat = "processing"
+
+                # clear the thread refrence if there is a reset signal request
+                if self.reset_signal:
+                    self.loaded_thread = None
+                    self.reset_signal = False
+
+            
+                # Define scpecific instructions for the run
+                instructions = "\n".join(
+                    (
+                    f"Your name is {self._name_}.\n",
+                    self.instructions,
+                    str(self.metadata()),
+                    )
+                )
+
+
+                # Routing requests
+                
+                # Clear just in case
+                self.message_to_agent = None
+                
+                if request:
+                    # Validate the request as a routing request:
+                    if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
+
+                        # Generate an automatic salutation when switching assistants
+                        salutation = greetings(agent_name=self.virtual_agent_name or LEXI_ALIAS, 
+                                            user_name=self.session_data.name_first or None)
+                        
+                        # Create a context for the next virtual agent using a predefined template
+                        message_from_prev_agent = (
+                            
+                            # Context #
+                            f"\nIMPORTANT:\n"
+                            f"This conversation is being routed to you by request of virtual agent {request.from_agent}. \n"
+                            f"Details:\n"
+                            f"User '{self.session_data.name_first}', Original request: '{request.user_message}'.\n"
+                            f"Prev. generated metadata: '{request.information}'.\n"
+                            # New directives #
+                            f"DIRECTIVES:\n"
+                            f"Start with this '{salutation}' or resolving user's request."
+                        )
+                    
+                        # Append new instructions for the virtual agent taking over the conversation
+                        self.message_to_agent = "\n".join((instructions, message_from_prev_agent))
+
+                        # Load the previous message from the user
+                        message = None
+
+                # Process a new message (creates a Run)
+                # Update messages in Thread:
+            
                 if message or file or self.message_to_agent:
                     try:
                         await update_thread_messages(self, message, file, 
@@ -402,14 +404,18 @@ class LexiAssistantThread():
                     raise LexiException(f"Problem running thread. Details: {e}", WARNING)
             
             finally:
-                if self.run and self.run.status in ('required_action', 'in_progress'):
+                if (self.run and self.run.status in ('required_action', 'in_progress') 
+                    or self.running_stat == 'inconsistent'
+                ):
+
                     # Keep on hold
                     self.running_stat = "on_hold"
                     # Cancel run
                     try:
-                        self.cancel_run()
+                        self.verify_consistency()
+
                     except Exception as e:
-                        self.running_stat = "reload_needed"
+                        self.running_stat = "unexpected_error"
                     
                 elif self.run and self.run.status in ("completed", "cancelled", "failed", "expired"):
                     # Release the LexiAssistant to attend new requests    
@@ -425,15 +431,16 @@ class LexiAssistantThread():
                     # End of Run execution
                     # Save the response generated, used for background tasks
 
-                    if (self.run and self.run_in_background and self.run.status 
-                    in ("completed", "cancelled", "failed", "expired")):
+                    if self.run_in_background:
 
                         self.response = {
                             'status': self.run.status,
                             'output': assistant_reply,
                         }
+
                         # Return the response
                         return self.response
+                    
             
     # Update conversation ORM
     def save_message(self, message: str, source: str= "system",type: str = "text", metadata: any = None):

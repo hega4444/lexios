@@ -178,7 +178,7 @@ async def process_input(
     try:
 
         # Send message to Lexi and get response
-        await lexi.process_user_request(data=message)
+        await lexi._process_user_request(data=message)
 
         return JSONResponse(content={"status": "Message sent to Lexi."})
     
@@ -194,7 +194,7 @@ async def reset_user_thread_request(
 ):
     try:
         # Send command to Lexi:
-        await lexi.reset_user_thread_request(
+        await lexi._reset_user_thread_request(
             user_id= session_data.user_id, 
             conversation_id= session_data.conversation_id_focus
             )

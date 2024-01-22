@@ -13,28 +13,25 @@ from lexios.database.users import create_user_account_in_db
 from lexios.database.roles import assign_role
 from lexios.database.conversations import Conversation
 
-
-class LexiSessionManager():
+class LexiSessionManager:
     """
     - Manages open user sessions, acts as an intermediary between frontend and backend data
-
-    - Isolates the frontend from direct access to the Database
-
+    - Isolates the frontend from direct access to the Database and Backend logic
     """
-
 
     _instance = None
 
-    def __new__(cls, lexi: LexiOS_Backend = None):
-
+    def __new__(cls, lexi=None):
         if not cls._instance:
             cls._instance = super(LexiSessionManager, cls).__new__(cls)
             cls._instance.active_connections = {}
-
-        if lexi:
-            cls._instance.lexi = lexi
-
         return cls._instance
+
+    def __init__(self, lexi: LexiOS_Backend = None):
+        if lexi:
+            self.lexi = lexi
+        else:
+            self.lexi = None
 
     def new_lexi_account(self, email: str, password: str, user_data=None, gmail_data=None):
         """ Create an ORM for the user"""
@@ -55,7 +52,7 @@ class LexiSessionManager():
             thread = self.active_connections.get((user_id, conversation_id))
             if not thread:
                 # Request a new thread
-                thread = self.lexi.build_thread(
+                thread = self.lexi._build_thread(
                     user_id=user_id,
                     conversation_id=conversation_id,
                     restore_conversation=conversation
@@ -65,27 +62,64 @@ class LexiSessionManager():
             return thread
 
         except Exception as e:
-            raise SessionManagerException(f"At load conversation. {e}", ERROR, e.args)
+            raise SessionManagerException(f"At load conversation. {e}")
 
     def get_thread(self, user_id: int, conversation_id: str):
-        """ Retrieves the thread object for a user/conversation"""
+        """ Retrieves the thread object for a user/conversation
+        
+        Parameters:
+        - `user_id`: int
+        - `conversation_id`: str 
+        
+        """
 
         return self.active_connections.get((user_id, conversation_id))
 
+    def delete_thread(self, user_id: int, conversation_id: str) -> LexiAssistantThread:
+        """ Deletes the thread object for a user/conversation
+        
+        Parameters:
+        - `user_id`: int
+        - `conversation_id`: str 
+
+        Returns:
+        The thread deleted or None if no thread is found for 
+        the user_id/conversation_id given
+        
+        """
+
+        key = (user_id, conversation_id)
+        
+        # Use pop() to get and remove the thread if it exists, or return None
+        thread = self.active_connections.pop(key, None)
+
+        return thread
+
+
     def register_thread_as_conversation(self, thread: LexiAssistantThread):
+        """
+        When a new thread is created for a new conversation, this method adds 
+        the user_id / conversation_id key to its internal cache and keeps a 
+        reference to the thread object.
+
+        Parameters:
+        `thread`: LexiAssistantThread created from the backend. 
+        """
         if thread.user_id and thread.conversation_id:
             self.active_connections[(thread.user_id, thread.conversation_id)] = thread
 
     def close_session(self, user_id: int):
         """ Handles the close of active connections"""
         try:
-            for key, thread in list(self.active_connections.items()):
+            for key, thread in list(self.active_connections.items()):#
                 u_id, _ = key
                 if u_id == user_id:
                     save_conversation(thread)
 
-                    if thread.running_stat != "ready":
-                        # Cancel the thread
+                    # Type hint for the thread variable
+                    if isinstance(thread, LexiAssistantThread) and thread.running_stat != "ready":
+
+                        # Stop any current activity in the thread
                         thread.cancel_run()
 
                     # Remove key from active connections
@@ -142,14 +176,15 @@ class LexiSessionManager():
         """ Finds the associated thread and marks it for deletion.\n
          Also deletes the orm from Database."""
 
-        thread = self.get_thread(user_id, conversation_id)
+        # Check if the associated thread is in cache (conversation has new messsages)
+        # and remove it if so
+        thread = self.delete_thread(user_id, conversation_id)
+
         if thread:
             # In this case the thread will take care of the orm itself
             mark_thread_as_deleted(thread)
 
         else:
             # Directly delete the orm
-            delete_conversation_in_db(conversation_id)            
-
-
+            delete_conversation_in_db(conversation_id)        
         

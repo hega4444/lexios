@@ -31,28 +31,29 @@ document.addEventListener("DOMContentLoaded", async function () {
     // New conversation button
     const newConversationButton = document.getElementById("create-conversation-button");
 
-    // Check if chat history is empty (you need to implement this logic)
+    // Check if chat history is empty 
     try {
         const result = await fetchConversationData();
 
-        // Load the conversation titles
-        const chatList = document.querySelector('.conversations-list'); // Updated selector
+        // Capture the conversations list container
+        const chatList = document.querySelector('.conversations-list'); 
 
         if (result.conversations_list && result.conversations_list.length > 0) {
+
+            // Load each title
             for (const customTitle of result.conversations_list) {
                 // Create custom conversation elements for each title
                 const customConversationElement = await createConversationElement(customTitle);
                 chatList.appendChild(customConversationElement);
             }
+             // Load conversation messages
+            await load_conversation_messages(result.conversation_focus)
+            moveConversationToTop(result.conversation_focus)
+
         } else {
             // Handle the case when there are no other titles
             console.log('No other titles to create conversation elements for.');
-        }
-        
-        // Load conversation in main view screen
-        await load_conversation_messages(result.conversation_focus)
-        moveConversationToTop(result.conversation_focus)
-        
+        }        
     } catch (error) {
         // Handle any errors that occur during the fetch or processing
         console.error('Error:', error);
@@ -61,47 +62,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Event listener for the new conversation button
     newConversationButton.addEventListener("click", async function (event) {
         event.preventDefault(); // Prevent the default link behavior
-        const chatList = document.querySelector('.conversations-list'); // Updated selector
         const chatMessages = document.querySelector(".msg-body ul");
 
         // Check if chatMessages is not empty
         if (chatMessages.children.length > 0) {
-            try {
-                const apiUrl = '/get_next_conversation_id';
+            // Create and append a new conversation
+            await createAndAppendNewConversationElement()
 
-                // Make the GET request
-                const response = await fetch(apiUrl);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
-                // Parse the response as JSON
-                const data = await response.json();
-
-                // Access the next conversation ID from the response
-                const next_conversation_id = data.next_conversation_id;
-
-                // Create and append new conversation element 
-                const customTitle = ["new chat..", next_conversation_id];
-                const customConversationElement = await createConversationElement(customTitle);
-
-                // Assuming chatList is the parent container
-                // Use the firstChild property to get the first child of the container
-                // If it exists, insert the new element before it; otherwise, append it
-                if (chatList.firstChild) {
-                    chatList.insertBefore(customConversationElement, chatList.firstChild);
-                } else {
-                    chatList.appendChild(customConversationElement);
-                }
-                // Move the focus 
-                moveConversationToTop(next_conversation_id)
-                // Empty messages area
-                chatMessages.innerHTML = "";
-
-            } catch (error) {
-                console.error('Error fetching next conversation ID:', error);
-            }
         } else {
             // Optionally provide feedback or take other actions if chatMessages is empty
             console.log('Chat messages are empty. Skipping action.');
@@ -109,6 +76,60 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
 });
+
+// Function to create new conversations on screen / do not reflect in the backend until the first message is 
+// sent
+async function createAndAppendNewConversationElement() {
+    // Capture the main messages area container
+    const chatMessages = document.querySelector(".msg-body ul");
+    // Capture the conversations list container
+    const chatList = document.querySelector('.conversations-list'); 
+    const apiUrl = '/get_next_conversation_id';
+
+    try {
+        // Make the GET request
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        // Parse the response as JSON
+        const data = await response.json();
+
+        // Access the next conversation ID from the response
+        const next_conversation_id = data.next_conversation_id;
+
+        // Create and append new conversation element 
+        const customTitle = ["new chat..", next_conversation_id];
+        const customConversationElement = await createConversationElement(customTitle);
+
+        // Assuming chatList is the parent container
+        // Use the firstChild property to get the first child of the container
+        // If it exists, insert the new element before it; otherwise, append it
+        if (chatList.children.length > 0) {
+
+            // Use firstElementChild to get the first element node
+            const firstChild = chatList.firstElementChild; 
+            chatList.insertBefore(customConversationElement, firstChild);
+
+        } else {
+            // Append first element
+            chatList.appendChild(customConversationElement);
+        }
+
+        // Move the focus 
+        moveConversationToTop(next_conversation_id);
+
+        // Empty messages area
+        chatMessages.innerHTML = "";
+
+    } catch (error) {
+        console.error('Error creating and appending new conversation element:', error);
+    }
+}
+
+
 
 // Function to update the conversation title with a POST request
 function updateConversationTitle(conversation_id, new_title) {
@@ -333,88 +354,56 @@ function confirmDeleteConversation(conversation_id) {
     });
 }
 
-// Delete a conversation
 async function deleteConversation(conversation_id) {
-    // Find the conversation element with the given conversation_id
+    // Find the conversation id of the element to be deleted
     const conversationElement = document.querySelector(`.conversations-list .conversation-element[data-conversation_id="${conversation_id}"]`);
+    // Reference to chat messages area
+    const chatMessages = document.querySelector(".msg-body ul");
 
-    // Check if the conversation element exists before trying to remove it
+    // Verify the conversation exists and has messages inside
     if (conversationElement) {
-        // Remove the conversation element
         conversationElement.remove();
 
-        // Find first element in the list and load conversation
         const firstConversationElement = document.querySelector('.conversations-list .conversation-element');
-        if (firstConversationElement){
-            
-            // Load the conversation id of the found element
+
+        // Check if there is a next conversation to load
+        if (firstConversationElement) {
+
+            // Load conversation by its id
             await load_conversation_messages(firstConversationElement.dataset.conversation_id);
-        }
-        else {
+        } else {
 
-            // Load conversations again to validate consistency (code below can be packed as a function)
-
-            try {
-                const result = await fetchConversationData();
-        
-                // Load the conversation titles
-                const chatList = document.querySelector('.conversations-list'); // Updated selector
-        
-                if (result.conversations_list && result.conversations_list.length > 0) {
-                    for (const customTitle of result.conversations_list) {
-                        // Create custom conversation elements for each title
-                        const customConversationElement = await createConversationElement(customTitle);
-                        chatList.appendChild(customConversationElement);
-                    }
-                } else {
-                    // Handle the case when there are no other titles
-                    console.log('No other titles to create conversation elements for.');
-                }
-                
-                // Load conversation in main view screen
-                await load_conversation_messages(result.conversation_focus)
-                moveConversationToTop(result.conversation_focus)
-                
-            } catch (error) {
-                // Handle any errors that occur during the fetch or processing
-                console.error('Error:', error);
-            }
+            // Create a new conversation 
+            await createAndAppendNewConversationElement()
         }
 
-        // Send a post request to the server for conversation deletion
-        const csrfToken = document.querySelector('input[name="csrf_token"]').value; // Get CSRF token from the form
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
         const apiUrl = '/delete_conversation_id';
 
-        // Prepare the form data
-        const formData = new FormData();
-        formData.append('conversation_id', conversation_id);
+        try {
+            const formData = new FormData();
+            formData.append('conversation_id', conversation_id);
 
-        // Prepare the request payload
-        const requestBody = {
-            method: 'POST',
-            headers: {
-                'X-CSRF-Token': csrfToken,
-            },
-            body: formData,
-        };
-
-        // Send the POST request
-        fetch(apiUrl, requestBody)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Handle the response data if needed
-                console.log('Conversation deleted successfully.', data);
-            })
-            .catch(error => {
-                console.error('Error deleting conversation title:', error);
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrfToken,
+                },
+                body: formData,
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Conversation deleted successfully.', data);
+        } catch (error) {
+            console.error('Error deleting conversation title:', error);
+        }
     }
 }
+
 
 function moveConversationToTop(conversation_id) {
     // Find the conversation element with the given conversation_id

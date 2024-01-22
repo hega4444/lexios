@@ -11,8 +11,20 @@ from lexios.core.thread import LexiAssistantThread
 
 
 class LexiOS_Backend():
-    # Singleton class for LexiOS_Backend
+    """ LexiOS_Backend
 
+        Manages the threads creation and routing of messages. 
+
+        Parameters:
+
+        `model` : The GPT model that would be used for the main instance of Lexi and the root assistants on each Thread.
+        `instructions`: Instructions for the root assistant.
+        `active_user`: Dictionary shared with the frontend to retrieve the session_id and route messages to thhe user in a secure way.
+        `virtual_agents` : A list of VirtualAgent or child classes passed by the IntegrationsManager during startup.
+        `databases` : A list of DatabaseConnection objects representing the different DBs Lexi has access to. 
+
+        
+    """
     _instance = None
     _init_done = False
 
@@ -21,7 +33,7 @@ class LexiOS_Backend():
             cls._instance = super(LexiOS_Backend, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, model=LEXI_GPT_MODEL, instructions=None, active_users=None, virtual_agents=None, databases=None):
+    def __init__(self, model=LEXI_GPT_MODEL, instructions=None, active_users = None, virtual_agents=None, databases=None):
         # Initialize only once
         if self._init_done:
             return
@@ -41,8 +53,9 @@ class LexiOS_Backend():
         self.set_up_admin = False
         self.admin_assistant = None
 
-        # Users - Lexi can manage multi-user conversations
-        self.users = active_users
+        # Active users from frontend
+        self.active_users = active_users
+
         # Threads
         self.open_threads = {}
 
@@ -112,15 +125,15 @@ class LexiOS_Backend():
         self.required_commands = {}
 
         # Add Lexi built- in functions:
-        from lexios.core.setup import append_basic_IO
-        append_basic_IO(self)
+        from lexios.core.setup import _append_basic_IO
+        _append_basic_IO(self)
 
         # Setup Virtual Agents
-        from lexios.core.setup import set_up_virtual_agents_and_routing
+        from lexios.core.setup import _set_up_virtual_agents_and_routing
         self.agents_router = None
         self.virtual_agents = virtual_agents
         
-        set_up_virtual_agents_and_routing(self)
+        _set_up_virtual_agents_and_routing(self)
 
         # Setup SQL Engine:
 
@@ -130,15 +143,19 @@ class LexiOS_Backend():
         # SQL Engine
         self.sql_engine = None
 
-        from lexios.core.setup import set_up_db_integration
-        set_up_db_integration(self)
+        from lexios.core.setup import _set_up_db_integration
+        _set_up_db_integration(self)
+
+        # Check if admin assistant needs initialization
+        if self.admin_assistant is None and self.set_up_admin is True:
+            self._set_up_admin_assistant()
 
         # Mark the class as initialized
         self._init_done = True
 
-    def set_up_admin_assistant(self):
+    def _set_up_admin_assistant(self):
         # Create a list of available tools for the Assistant
-        toolbox = self.build_toolbox()
+        toolbox = self._build_toolbox()
 
         # Create the Admin assistant role
         self.admin_assistant = openai.beta.assistants.create(
@@ -164,7 +181,7 @@ class LexiOS_Backend():
             # Save in separate toolbox
             self.required_commands[command.name] = command
     
-    def build_toolbox(self, code_interpreter=True, retrieval=True):
+    def _build_toolbox(self, code_interpreter=True, retrieval=True):
         # Create a list of tools available for the assistant:
         tools = []
 
@@ -187,7 +204,7 @@ class LexiOS_Backend():
         for tool in self.toolbox.values():
             print(tool)
 
-    async def process_user_request(
+    async def _process_user_request(
         # Entry point to receive all the requests from the frontend    
 
         self, user_input: str = None, 
@@ -209,85 +226,77 @@ class LexiOS_Backend():
                     filename = data.get('filename', None)
 
             try:
-                # Check if admin assistant needs initialization
-                if self.admin_assistant is None and self.set_up_admin is True:
-                    self.set_up_admin_assistant()
+                # Try to recover thread
+                thread : LexiAssistantThread = self.session_manager.get_thread(user_id, conversation_id)
+                if thread:
 
-                # Check if the user has an initiated Thread already:
-                user_profile = self.users.get(user_id, None)
-                if user_profile:
+                    # Thread found and ready, process new request
+                    if thread.running_stat == "ready":
+                        # Send the message to the corresponding Thread
+                        await thread.process_input(user_input, filename)
 
-                    # Try to recover thread:
-                    thread : LexiAssistantThread = self.session_manager.get_thread(user_id, conversation_id)
-                    if thread:
+                    else: 
+                        # Reaching the limit, try cancelling the thread
+                        if thread.nr_retries > 0:  # Feel free to adjust
+                            
+                            # Run a validation over the thread consistency
+                            # to unstuck the conversation
+                            self._reset_user_thread_request(thread=thread)
+                
+                            # Send a predefined message to the interface
+                            await frontend_output(
+                                content= "Sorry about that, let me try again...", 
+                                user_id= user_id,
+                                conversation_id= conversation_id,
+                                alias=thread._name_ or self.name
+                            )
+                            # Give some time to push the meesage faster
+                            await sleep(0.2)
 
-                        # Thread found and ready, process new request
-                        if thread.running_stat == "ready":
-                            # Send the message to the corresponding Thread
+                            # Run the thread again
                             await thread.process_input(user_input, filename)
 
-                        else: 
-                            # Reaching the limit, try cancelling the thread
-                            if thread.nr_retries > 0:  # Feel free to adjust
-                                
-                                # Run a validation over the thread consistency
-                                # to unstuck the conversation
-                                self.reset_user_thread_request(thread=thread)
-                    
-                                # Send a predefined message to the interface
-                                await frontend_output(
-                                    content= "Sorry about that, let me try again...", 
-                                    user_id= user_id,
-                                    conversation_id= conversation_id,
-                                    alias=thread._name_ or self.name
-                                )
-                                # Give some time to push the meesage faster
-                                await sleep(0.1)
+                            # Reset the counter
+                            thread.nr_retries = 0
 
-                                # Run the thread again
-                                await thread.process_input(user_input, filename)
+                        else:
+                            # Thread found but busy, inform the user on the chat interface
+                            await frontend_output(
+                                content= "I'm still processing your last request. Just a moment please...", 
+                                user_id= user_id,
+                                conversation_id= conversation_id,
+                                alias=thread._name_ or self.name
+                            )
+                            # Increment the counter of retries on this thread
+                            thread.nr_retries += 1
 
-                                # Reset the counter
-                                thread.nr_retries = 0
+                else:
+                    # No thread found, create one
+                    new_thread = self._build_thread(
+                        user_id = user_id,
+                        conversation_id = conversation_id,
+                    )
+                    # Save a reference to better handle the exceptions
+                    thread = new_thread
+                    # Update session manager reference
+                    self.session_manager.register_thread_as_conversation(new_thread)
 
-                            else:
-                                # Thread found but busy, inform the user on the chat interface
-                                await frontend_output(
-                                    content= "I'm still processing your last request. Just a moment please...", 
-                                    user_id= user_id,
-                                    conversation_id= conversation_id,
-                                    alias=thread._name_ or self.name
-                                )
-                                # Increment the counter of retries on this thread
-                                thread.nr_retries += 1
-    
-                    else:
-                        # No thread found, create one
-                        new_thread = self.build_thread(
-                            user_id = user_id,
-                            conversation_id = conversation_id,
-                        )
-                        # Save a reference to better handle the exceptions
-                        thread = new_thread
-                        # Update session manager reference
-                        self.session_manager.register_thread_as_conversation(new_thread)
-
-                        # Send the message to the initiated Thread as background task
-                        await new_thread.process_input(user_input, filename)
+                    # Send the message to the initiated Thread as background task
+                    await new_thread.process_input(user_input, filename)
             
             except MainAssistantRequested as request:
                     await thread.process_input(request=request)
 
             except VirtualAgentRequested as request:
                 # Route a thread to a Virtual Agent
-                self.route_virtual_agent(thread, request)
+                self._route_virtual_agent(thread, request)
                 # Process the user request with the new context loaded
                 await thread.process_input(request= request)
 
         except Exception as e:
             LexiException(f"At process user request. {e}")
 
-    def reset_user_thread_request(
+    def _reset_user_thread_request(
             self, user_id: int = None, 
             conversation_id: str = None, 
             thread: LexiAssistantThread = None,
@@ -313,7 +322,7 @@ class LexiOS_Backend():
         except Exception:
             LexiException(f"At user thread request: {e}.")
     
-    def route_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
+    def _route_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
         # Load an instance of a virtual agent
         from lexios.integration.virtual_agents import VirtualAgent
         
@@ -329,7 +338,7 @@ class LexiOS_Backend():
             thread.load_virtual_agent(cloned_virtual_agent, request)
 
     
-    def build_thread(
+    def _build_thread(
             self, 
             user_id:int, 
             conversation_id:str, 

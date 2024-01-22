@@ -6,13 +6,14 @@ from abc import abstractmethod
 
 from lexios.core.common_tools import frontend_output
 from lexios.settings.main import LEXI_ALIAS
-from lexios.core.signatures import _LexiOS_Backend
+
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import LexiException
-from lexios.globals import GENERAL_VIRTUAL_AGENT
+from lexios.globals import Globals, GENERAL_VIRTUAL_AGENT
 
 from lexios.integration.plugin import PluginTemplate
 from lexios.integration.trusted_actions import TrustedAction
+from lexios.core.lexios_main import LexiOS_Backend
 
 
 class VirtualAgent(PluginTemplate):
@@ -44,6 +45,8 @@ class VirtualAgent(PluginTemplate):
 
         # Generate a new Token identification for security
         self.id = None
+
+
 
         # Name
         self.name = name
@@ -123,7 +126,7 @@ class VirtualAgent(PluginTemplate):
         # A wildcard reference to the backend, the field is actually initiated at
         # method start_service()
 
-        self.lexi : _LexiOS_Backend = None
+        self.lexi : LexiOS_Backend = None
 
         # Call construtor of the PluginTemplate class
         super().__init__(plugin_name= "VirtualAgent")
@@ -271,7 +274,7 @@ class VirtualAgent(PluginTemplate):
         self.hidden = False
 
     # Build the thread
-    def _build(self, lexi: _LexiOS_Backend):
+    def _build(self, lexi: LexiOS_Backend):
         """ Build a copy of the model (assistant, instructions & tools)
         """
         
@@ -282,7 +285,7 @@ class VirtualAgent(PluginTemplate):
 
         # Request Lexi to build the LexiThread needed
         try:
-            thread = lexi.build_thread(
+            thread = lexi._build_thread(
                 user_id= self.as_user_id,
                 conversation_id= str(self.channel),
                 virtual_agent=self,
@@ -294,7 +297,7 @@ class VirtualAgent(PluginTemplate):
             raise LexiException(f"Building virtual agent: {e}.")
     
     # Start the service
-    def _start_service(self, lexi: _LexiOS_Backend):
+    def _start_service(self, lexi: LexiOS_Backend):
         # Start virtual agent
         try:
 

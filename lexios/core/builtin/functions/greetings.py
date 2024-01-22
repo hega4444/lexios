@@ -2,13 +2,22 @@
 
 import random
 
-def greetings(agent_name=None, user_name=None) -> str:
+def greetings(agent_name: str = None, user_name :str = None) -> str:
     
-    """ Simple function to create dynamic salutations
+    """ Simple function to create dynamic salutations. Depending on the names
+    given (both are optional) it will render a random picked predefined greeting
+    that matches the escenario.
+
+    Parameters
+    - `agent_name` Optional[str] The assistant name who is talking to the uper.
+    - `user_name` Optional[str] The user's name. 
+
+    Returns:
+    A random predefined greeting from a list of templates.
     """
 
     # Probability distribution weights
-    weights = [0.6, 0.1, 0.1]     # For 1st, 2nd and 3rd lists below..
+    weights = [0.6, 0.2, 0.2]     # For 1st, 2nd and 3rd lists below..
 
     # Salutations when both agent and user names are available
     salutations_both_names = [
@@ -60,18 +69,12 @@ def greetings(agent_name=None, user_name=None) -> str:
         "Hi there! How may I help you?",
         "Greetings! What can I do for you?",
         "Hey there! What can I do for you?",
-        "This is Lexi. How can I assist you today?",
-        "Lexi here. What brings you here?",
         "Good day! How may I assist you?",
         "Hi! How can I help?",
         "Welcome! I'm your personal assistant.",
-        "This is Lexi. How can I make your day better?",
-        "Meet Lexi. What can I do for you?",
         "Hello! How can I be of service?",
-        "This is Lexi. How can I assist you today?",
         "Greetings! What can I do for you?",
         "Good to see you! How may I help?",
-        "This is Lexi. How can I assist you?",
         "Hi! What brings you here?",
     ]
 
@@ -81,7 +84,6 @@ def greetings(agent_name=None, user_name=None) -> str:
         salutations_agent_only,
         salutations_user_only
     )
-
 
     # Randomly select a salutation based on the availability of agent and user names
     if agent_name and user_name:

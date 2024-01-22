@@ -350,13 +350,6 @@ class LexiTaskScheduler():
 
                         )
 
-                        # Attach a dynamic required scope by reminders
-                        self.context._add_consent_scope(
-                            scope_name='create_reminder',
-                            template='Create reminder with subject "{description}"',
-                            vars= ["subject"],
-                        )
-
                         return "Reminder scheduled succesfully."
 
                 except Exception as e:

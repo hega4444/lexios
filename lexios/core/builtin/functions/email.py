@@ -21,7 +21,8 @@ from lexios.settings.main import *
 
 
 class GmailClient():
-    # Class to access Gmail data, read and send emails
+    """ Class to access Gmail data, read and send emails.
+    """
 
     # Define how often is the email checked
     check_frequency = timedelta(minutes=10) 
@@ -74,8 +75,12 @@ class GmailClient():
             self.people_service = None
             
             raise AttributeError(f"Could not refresh google credentials. {e}")
+        
 
     async def retrieve_unread_emails(self):
+        """
+        Connects to Gmail api service and retrieves a list of unread messages.
+        """
 
         if not self.gmail_service:
             return "Gmail service could not be loaded." 

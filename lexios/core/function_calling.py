@@ -416,85 +416,96 @@ async def create_tool_calls(thread: LexiAssistantThread):
 
 async def attend_tool_calls(thread: LexiAssistantThread):
     # Execute tool actions:
+    try:
 
-    while not thread.consent_dialog or thread.consent_dialog.status not in ("expired", "cancelled"):
+        while not thread.consent_dialog or thread.consent_dialog.status not in ("expired", "cancelled"):
 
-        # Manage tasks pending to execute inside a required action:
-        for tool_call in thread.tool_calls:
-            
-            # Create a flag to control the call execution
-            ready_to_execute = False
+            # Manage tasks pending to execute inside a required action:
+            for tool_call in thread.tool_calls:
+                
+                # Create a flag to control the call execution
+                ready_to_execute = False
 
-            # Verifiy if there is an active consent dialog
-            if thread.consent_dialog:
+                # Verifiy if there is an active consent dialog
+                if thread.consent_dialog:
 
-            # Validate the call with the dialog
-                call_consent_status = thread.consent_dialog.validate_call(tool_call)
+                # Validate the call with the dialog
+                    call_consent_status = thread.consent_dialog.validate_call(tool_call)
 
-                if call_consent_status == "granted":
+                    if call_consent_status == "granted":
+                        ready_to_execute = True
+
+                    elif call_consent_status in ("denied", "expired", "cancelled"):
+                        # Reject the tool call
+                        tool_call.reject()
+
+                else:
+                    # If there is no active dialog go ahead
                     ready_to_execute = True
 
-                elif call_consent_status in ("denied", "expired", "cancelled"):
-                    # Reject the tool call
-                    tool_call.reject()
+                # Execute the actions if they are still pending
+                if ready_to_execute and tool_call.status == "queued":
+                    try:
+
+                        # Each action
+                        await tool_call.async_tool_run()
+
+                        # Check if the tool generated a custom output
+                        if tool_call.custom_output:
+                            
+                            # Update conversation ORM
+                            thread.conversation_orm.app_messages_content.append({
+                                                    'source':'system',
+                                                    'time': format_datetime(str(datetime.now()))[:-3],
+                                                    'text': tool_call.custom_output.get("text", None),
+                                                    'images': tool_call.custom_output.get("images", None),
+                                                }                    
+                            )
+
+                    # Handle request to route the conversation to the main assistant (root)     
+                    except MainAssistantRequested as request:
+                        if (request.from_agent.lower() == thread._name_.lower() == LEXI_ALIAS.lower() or
+                            not thread.can_be_replaced):
+                            # For now, do nothing.
+                            pass
+                        else:
+                            # Raise exception at Thread Level
+                            raise
+                        
+                    # Handle request to route the conversation to a Vritual Agent    
+                    except VirtualAgentRequested as request:
+                        # Verifiy the requested agent is not already loaded
+                        if request.to_agent == thread._name_:
+                            pass
+                        else:
+                            # Raise at Thread
+                            raise
+
+                    except Exception:
+                        LexiException("At function calling, attend_tool_calls(), ", DEBUG)
+        
+
+            # Update the status of the pending calls
+            if all(tool_action.status in ("completed", "failed", "rejected", "expired") \
+                for tool_action in thread.tool_calls):
+                
+                break
 
             else:
-                # If there is no active dialog go ahead
-                ready_to_execute = True
+                # Wait some time
+                await asyncio.sleep(1)
+    
+    except (MainAssistantRequested, VirtualAgentRequested):
+        raise
 
-            # Execute the actions if they are still pending
-            if ready_to_execute and tool_call.status == "queued":
-                try:
-                    # Each action
-                    await tool_call.async_tool_run()
+    except Exception:
+        thread.running_stat = "inconsistent"
 
-                    # Check if the tool generated a custom output
-                    if tool_call.custom_output:
-                        
-                        # Update conversation ORM
-                        thread.conversation_orm.app_messages_content.append({
-                                                'source':'system',
-                                                'time': format_datetime(str(datetime.now()))[:-3],
-                                                'text': tool_call.custom_output.get("text", None),
-                                                'images': tool_call.custom_output.get("images", None),
-                                            }                    
-                        )
-
-                # Handle request to route the conversation to the main assistant (root)     
-                except MainAssistantRequested as request:
-                    if (request.from_agent.lower() == thread._name_.lower() == LEXI_ALIAS.lower() or
-                        not thread.can_be_replaced):
-                        # For now, do nothing.
-                        pass
-                    else:
-                        # Raise exception at Thread Level
-                        raise
-                    
-                # Handle request to route the conversation to a Vritual Agent    
-                except VirtualAgentRequested as request:
-                    # Verifiy the requested agent is not already loaded
-                    if request.to_agent == thread._name_:
-                        pass
-                    else:
-                        # Raise at Thread
-                        raise
-
-                except Exception:
-                    LexiException("At function calling, attend_tool_calls(), ", DEBUG)
-
-        # Update the status of the pending calls
-        if all(tool_action.status in ("completed", "failed", "rejected", "expired") \
-                for tool_action in thread.tool_calls):
-            
-            break
-
-        # Wait some time
-        await asyncio.sleep(1)
-
-    # Clear the consent token
-    if thread.consent_dialog:
-        thread.consent_dialog.clear()
-        thread.consent_dialog = None
+    finally:
+        # Clear the consent dialog
+        if thread.consent_dialog:
+            thread.consent_dialog.clear()
+            thread.consent_dialog = None
 
 
 def submit_function_outputs(thread: LexiAssistantThread):

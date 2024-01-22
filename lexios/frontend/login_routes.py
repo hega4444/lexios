@@ -1,6 +1,6 @@
 
 # login_router.py
-from .service import templates, frontend_active_users, GOOGLE_ID
+from lexios.frontend.service import templates, session_manager, frontend_active_users
 from uuid import uuid4
 
 from fastapi import Query, Depends, Form, Request, APIRouter
@@ -14,16 +14,16 @@ from google.auth.transport import requests as google_auth_request
 from googleapiclient.discovery import build
 
 from lexios.settings.main import *
-from lexios.core.session_manager import LexiSessionManager
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie, backend
 from lexios.core.security import UserAuthentication
 from lexios.database.users import update_user_data_in_db
 
-# Define router and backend components
+GOOGLE_ID = 'GOOGLE_ID'
 
-google_backend = {} # Backend data storage for managing user authentication
+# Google cloud dedicated backend
+google_backend = {} 
 
-# Google cloud services
+# Router for login routes
 login_router = APIRouter()
 
 # Endpoint to render the HTML form
@@ -278,6 +278,10 @@ async def logout(
     # Save user data
     update_user_data_in_db(session_data)    
 
-    # conversation history 
-    LexiSessionManager().close_session(session_data.user_id)
+    # Conversation history 
+    session_manager.close_session(session_data.user_id)
+
+    # Remove from active users 
+    frontend_active_users.pop(session_data.user_id, None)
+
     return RedirectResponse(url='/')

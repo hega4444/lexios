@@ -94,6 +94,9 @@ def delete_conversation_in_db(conversation_id: str):
             session.delete(conversation_to_delete)
             session.commit()  # Commit the changes
 
+            # Flush the session to make sure changes are immediately visible
+            session.flush()
+
     except Exception as e:
         session.rollback()  # Rollback changes in case of an error
         raise  # Re-raise the exception for proper error handling

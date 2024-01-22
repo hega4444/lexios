@@ -9,11 +9,9 @@ from dateutil import parser
 
 from lexios.settings.main import *
 from lexios.core.exceptions import *
-from lexios.core.signatures import _LexiAssistantThread, _LexiOS_Backend, _LexiSessionManager
 from lexios.globals import Globals, GENERAL_VIRTUAL_AGENT, GENERAL_VIRTUAL_AGENT_LABEL, ROOT_ID
 from lexios.core.logger import CustomLogger, DEBUG, WARNING, ERROR, INFO, CRITICAL
 
-lexi_instance = None
 
 def get_adjusted_time():
     # Adjust time delta if neccesary
@@ -95,25 +93,18 @@ async def frontend_output(
     metadata: dict = None,
     alias: str = None
 ):
-    
-    global lexi_instance
-
     # process outbound messages to the frontend
     # msg_type : "text", "sys_notif", "title_update"
 
     try:
-
-        # Load lexi instance
-        if not lexi_instance:
-            lexi_instance = Globals().lexi
+        lexi = Globals().lexi
 
         # Log virtual agents messages
         if user_id == GENERAL_VIRTUAL_AGENT:
-            with CustomLogger("lexios") as log:
-                log.info(f"Virtual Agent message: {content}")
+           LexiLogging(f"Virtual Agent message: {content}")
 
         # Recover session id from session data backend
-        session_id = lexi_instance.users.get(user_id).session_id
+        session_id = lexi.active_users.get(user_id).session_id
 
         if session_id:
             outbound_message = {
@@ -125,7 +116,7 @@ async def frontend_output(
                     "alias": alias,
                 }
             
-            name = alias or lexi_instance.name
+            name = alias or LEXI_ALIAS
             width = 8 # Adjust the width as needed
 
             # Left-align the string within the specified width
@@ -136,7 +127,7 @@ async def frontend_output(
             truncated_content = content[:max_content_length] + '...' if len(content) > max_content_length else content + "."
 
             # Command line output:
-            if lexi_instance.command_line is True:
+            if lexi.command_line is True:
                 LexiLogging(f"User Id: {user_id}: Agent: {formatted_alias}- Output : {truncated_content}")
             
             # Message
@@ -148,7 +139,7 @@ async def frontend_output(
                 outbound_message['images']  = images
 
             # Send message using broker
-            async with aioredis.from_url(lexi_instance.broker_url) as broker:
+            async with aioredis.from_url(lexi.broker_url) as broker:
                 await broker.publish("fastapi_channel", json.dumps(outbound_message))
 
     except Exception as e:

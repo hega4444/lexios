@@ -21,7 +21,8 @@ from lexios.core.builtin.engines.SQLEngine import SimpleSQL
 DATABASE_URI = f"{LEXI_DATABASE_ENGINE.lower()}://{LEXI_DB_ADMIN_USER}:{LEXI_DB_ADMIN_PASS}@{LEXI_DATABASE_HOST}/{LEXI_DATABASE_NAME}"
 
 # Create the database engine
-engine = create_engine(DATABASE_URI)
+# Set the isolation level to "Read committed" to improve accuracy and consistency
+engine = create_engine(DATABASE_URI, isolation_level="READ COMMITTED")
 
 # Create a session to interact with the database
 Session = sessionmaker(bind=engine)

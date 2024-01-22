@@ -2,6 +2,13 @@ import os
 import sys
 
 def find_project_folder(filename="main.py"):
+    """
+    This is an admin function that helps finding the current executing project folder.
+
+    Parameters:
+    - `filename`: str , by default maiin.py which is the standard starting point of any Lexi project.
+    
+    """
     try:
         # Get the path of the script that was executed
         script_path = os.path.abspath(sys.argv[0])

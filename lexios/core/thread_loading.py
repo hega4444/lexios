@@ -137,7 +137,7 @@ async def update_thread_messages(
                 "role": "user",
                 # small fix to correct the user input when a new virtual agent is taking over the conversation
                 "content": message_to_agent if message_to_agent else new_message,
-                "metadata": thread.metadata(),
+                #"metadata": thread.metadata(),
             }
 
             if file_ref is not None:

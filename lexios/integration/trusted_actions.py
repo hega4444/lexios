@@ -13,12 +13,12 @@ from lexios.frontend.session_data import LexiSessionData
 
 class TrustedAction():
     """
-     This class defines a point of truth to save the context of an external command.
-     It creates a template to save all the relevant data that is used to make the next
-     decision. It attaches to itself a Token response with a more detailed dictionary
-     containing the transaction name, its result and datetime data.
-     It can be used for submitting POSTs requests outside Lexi and at the same time "
-     be able to sign documents and add an extra layer of security and data encapsullation.
+    This class serves as a point of truth for saving the context of an external command. 
+    It creates a template to store all relevant data used in making the next decision. 
+    Additionally, it attaches a Token response to itself, which contains a more detailed 
+    dictionary including the transaction name, its result, and datetime data. This class 
+    can also be utilized for submitting POST requests outside Lexi while also being capable
+    of signing documents, providing an extra layer of security and data encapsulation."
     """
 
     def __init__(self, **kwargs):

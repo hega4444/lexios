@@ -6,7 +6,7 @@ from lexios.core.common_tools import *
 from lexios.core.lexios_main import LexiOS_Backend
 # Appends the builtin commands of lexi as baseline
 
-def append_basic_IO(lexi: LexiOS_Backend):
+def _append_basic_IO(lexi: LexiOS_Backend):
 
     # External commands definition
     from lexios.core.external_command import LexiExternalCommand
@@ -218,7 +218,7 @@ def append_basic_IO(lexi: LexiOS_Backend):
     except Exception as e:
             raise LexiException(f"Problem setting up builtin features: {e}")
 
-def set_up_db_integration(lexios: LexiOS_Backend):
+def _set_up_db_integration(lexios: LexiOS_Backend):
     # Sets up the integration steps for exchanging data with a local database
 
     from lexios.core.external_command import LexiExternalCommand
@@ -281,7 +281,7 @@ def set_up_db_integration(lexios: LexiOS_Backend):
         except Exception as e:
                 raise LexiException(f"Problem setting up SQL / Mining features: {e}")
 
-def set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
+def _set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
     # Set up the virtual agents functionality
     # Automatic routing for switching between assistants
 
