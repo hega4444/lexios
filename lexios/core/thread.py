@@ -12,9 +12,8 @@ class LexiAssistantThread():
     """ Represents a conversation with the user.
 
         Can handle multiple assistants, having set a static root assistand given
-        by Lexi, or a defined Virtual Agent that cannot be replaced. If agent
-        routing settings are enabled, it loads an additional assistant than can 
-        be replaced several times along the conversation. 
+        by Lexi. If agent routing settings are enabled, it loads an additional 
+        assistant than can be replaced several times along the conversation. 
 
     """
     def __init__(
@@ -215,20 +214,38 @@ class LexiAssistantThread():
                     )
                 )
 
-
                 # Routing requests
                 
                 # Clear just in case
                 self.message_to_agent = None
                 
                 if request:
-                    # Validate the request as a routing request:
-                    if isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
 
-                        # Generate an automatic salutation when switching assistants
-                        salutation = greetings(agent_name=self.virtual_agent_name or LEXI_ALIAS, 
-                                            user_name=self.session_data.name_first or None)
-                        
+                    # Generate an automatic salutation when switching assistants
+                    salutation = greetings(agent_name=self.virtual_agent_name or LEXI_ALIAS, 
+                                            user_name=self.session_data.name_first or None
+                                )
+                    
+                    # Determine the kind of opening an agent will have in a conversation
+                    if (isinstance(request, VirtualAgentRequested) 
+                        and hasattr(request, 'just_say_hi')
+                        and request.just_say_hi is True
+                    ):
+                        # Render the automated salutation 
+                        await frontend_output(
+                            content = salutation,
+                            user_id= self.user_id, 
+                            conversation_id= self.conversation_id,
+                            alias= self._name_,
+                        )
+
+                        # End and await for further user input
+                        self.running_stat = "ready"
+                        return
+
+                    # Elaborate a context for the agent to follow up on an specific topic
+                    elif isinstance(request, (VirtualAgentRequested, MainAssistantRequested)):
+
                         # Create a context for the next virtual agent using a predefined template
                         message_from_prev_agent = (
                             
@@ -249,9 +266,7 @@ class LexiAssistantThread():
                         # Load the previous message from the user
                         message = None
 
-                # Process a new message (creates a Run)
                 # Update messages in Thread:
-            
                 if message or file or self.message_to_agent:
                     try:
                         await update_thread_messages(self, message, file, 
@@ -404,6 +419,8 @@ class LexiAssistantThread():
                     raise LexiException(f"Problem running thread. Details: {e}", WARNING)
             
             finally:
+
+                # Verify the consistency of the thread after execution
                 if (self.run and self.run.status in ('required_action', 'in_progress') 
                     or self.running_stat == 'inconsistent'
                 ):
@@ -416,9 +433,9 @@ class LexiAssistantThread():
 
                     except Exception as e:
                         self.running_stat = "unexpected_error"
-                    
-                elif self.run and self.run.status in ("completed", "cancelled", "failed", "expired"):
-                    # Release the LexiAssistant to attend new requests    
+
+                # Release the LexiAssistant to attend new requests  
+                elif self.run and self.run.status in ("completed", "cancelled", "failed", "expired"): 
                     self.running_stat = "ready"
                     
                     # Autogenerate conversation title
@@ -427,6 +444,10 @@ class LexiAssistantThread():
 
                         # Generate name, update title
                         await generate_conversation_name(self)
+                
+                # For cases where a run was no needed
+                else:
+                    self.running_stat = "ready"
 
                     # End of Run execution
                     # Save the response generated, used for background tasks

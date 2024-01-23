@@ -19,6 +19,18 @@ from lexios.database.users import (
 )
 
 class UserDataManager():
+    """
+    This component enables the Ai model to store personal data from the user in a secure way.
+    It can save memories, names, dates, user preferences in an abstract and flexible way.
+    User reminders are also stored using the UDM.
+
+    Most of its methods are implemented with a special comments area to be shared directly 
+    with the Ai model as external commands.
+    
+    The UserDataManager is enabled by changing the global setting USER_DATA_MANAGER to True. 
+
+    
+    """
     def __init__(self, action: TrustedAction = None) -> None:
 
         # Save context 

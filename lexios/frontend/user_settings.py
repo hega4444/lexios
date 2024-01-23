@@ -10,6 +10,23 @@ from lexios.frontend.session_data import LexiSessionData, verifier, cookie
 # Settings
 settings_router = APIRouter()
 
+# Define a set of theme color combinations
+theme_colors = {
+    'lexi_default': {'background': '#C4660E', 'text': '#FDFDF6'},
+    'night_sky': {'background': '#000000', 'text': '#FFFFFF'},
+    'moonlight_serenade': {'background': '#001F3F', 'text': '#E6E6E6'},
+    'daybreak_delight': {'background': '#FDF6E3', 'text': '#333333'},
+    'deep_sea': {'background': '#001848', 'text': '#00BFFF'},
+    'sunset_bliss': {'background': '#FF6F61', 'text': '#2F4F4F'},
+    'forest_canopy': {'background': '#006400', 'text': '#F5F5DC'},
+    'cherry_blossom': {'background': '#FFB6C1', 'text': '#4B0082'},
+    'golden_hour': {'background': '#FFD700', 'text': '#8B4513'},
+    'polar_breeze': {'background': '#FFFFFF', 'text': '#40E0D0'},
+    'midnight_mystery': {'background': '#191970', 'text': '#7B68EE'},
+    'tropical_paradise': {'background': '#008000', 'text': '#FFD700'},
+    'vintage_vibes': {'background': '#7B68EE', 'text': '#FFE4B5'},
+}
+
 # Endpoint to render the main Dashboard
 @settings_router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(cookie)])
 async def settings(
@@ -39,22 +56,6 @@ async def settings(
 @settings_router.get("/get_theme_colors", response_class=JSONResponse)
 async def get_theme_colors(theme: str = Query(..., description="The name of the theme")):
 
-    theme_colors = {
-        'lexi_default': {'background': '#C4660E', 'text': '#FDFDF6'},
-        'night_sky': {'background': '#000000', 'text': '#FFFFFF'},
-        'moonlight_serenade': {'background': '#001F3F', 'text': '#E6E6E6'},
-        'daybreak_delight': {'background': '#FDF6E3', 'text': '#333333'},
-        'deep_sea': {'background': '#001848', 'text': '#00BFFF'},
-        'sunset_bliss': {'background': '#FF6F61', 'text': '#2F4F4F'},
-        'forest_canopy': {'background': '#006400', 'text': '#F5F5DC'},
-        'cherry_blossom': {'background': '#FFB6C1', 'text': '#4B0082'},
-        'golden_hour': {'background': '#FFD700', 'text': '#8B4513'},
-        'polar_breeze': {'background': '#FFFFFF', 'text': '#40E0D0'},
-        'midnight_mystery': {'background': '#191970', 'text': '#7B68EE'},
-        'tropical_paradise': {'background': '#008000', 'text': '#FFD700'},
-        'vintage_vibes': {'background': '#7B68EE', 'text': '#FFE4B5'},
-    }
-
     # Check if the theme name exists in the theme_colors dictionary
     if theme in theme_colors:
         # Return the theme colors as JSON
@@ -80,8 +81,8 @@ async def get_theme_user_colors(session_data: LexiSessionData = Depends(verifier
     else:
         # Return Lexi default colors
         return JSONResponse(content={
-            'textColor': '#fdf6f6',
-            'backgroundColor': '#e25a5a',
+            'textColor': '#FDFDF6',
+            'backgroundColor': '#C4660E',
         })
 
 
@@ -143,8 +144,16 @@ async def update_user_settings(
                 session_data.gmail_access = gmail_access if gmail_access is not None else session_data.gmail_access
                 session_data.google_calendar_access = google_calendar_access if google_calendar_access is not None else session_data.google_calendar_access
                 session_data.theme_selection = theme_selection if theme_selection is not None else session_data.theme_selection
-                session_data.text_color = text_color if text_color is not None else session_data.text_color
-                session_data.background_color = background_color if background_color is not None else session_data.background_color
+
+                # Update theme colors
+                if theme_selection in theme_colors:
+                    # Load from the themes dictionary
+                    session_data.text_color = theme_colors[theme_selection]['text']
+                    session_data.background_color = theme_colors[theme_selection]['background']
+                else:
+                    # Load from custom user selection
+                    session_data.text_color = text_color if text_color is not None else session_data.text_color
+                    session_data.background_color = background_color if background_color is not None else session_data.background_color
 
             return JSONResponse({'success': True})
             

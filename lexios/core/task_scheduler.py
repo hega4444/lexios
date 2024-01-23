@@ -6,7 +6,6 @@ import uuid
 from dateutil import parser
 from datetime import datetime
 
-from lexios.globals import Globals
 from lexios.core.common_tools import *
 from lexios.database.models import ScheduledTaskPydantic
 from lexios.database.users import retrieve_users_with_background_tasks, get_user_data_by_user_id
@@ -26,6 +25,17 @@ REESTRICTED_COMMANDS = (AgentsRouter.route_to_main_assistant.__name__,
                      AgentsRouter.list_virtual_agents.__name__)
 
 class LexiTaskScheduler():
+    """
+    The LexiTaskScheduler is a component that works as a clock for the system. It executes 
+    schdeduled tasks in the background, and if a session with the user is open it renders 
+    a message to inform the correct execution. It also helps creating reminders and alarms
+    for the user. All scheduled tasks are stored in Database for the event of system shutdown. 
+    Whenever the system is back up again the tasks are restored from database.
+
+    It's active listerner method is check_pending_tasks, running in async mode to share resources
+    with the rest of the backend solution.
+    
+    """
 
     _instance = None
     _init_done = False
@@ -100,63 +110,7 @@ class LexiTaskScheduler():
         # Save the Pydantic models in the class attribute
         return pydantic_tasks
 
-    def __attend_action_request(self, user_id, conversation_id, params):
-        # Receives a request for scheduling an event
-        # Resolves some parsing and common scenerarios when the ai model calls the scheduling function
 
-        # Adjust time format:
-        try:
-            original_action_time = params.get("action_time", None)
-            if original_action_time:
-
-                # Validate is not in the past:
-                entered_action_time = parser.parse(original_action_time)
-                if entered_action_time <= datetime.now():
-                    raise ValueError(" Error: action time is in the past.")
-
-                action_time = format_datetime(original_action_time)
-            else:
-                action_time = None
-            
-            # If the function is called with a time delta it has priority over a specific time
-            delay = params.get("delay_seconds", None)
-            if delay:
-                delay_seconds = int(delay)
-                action_time = None
-            else:
-                delay_seconds = 0
-
-            corr_params = {
-                "action_time": action_time,
-                "delay_seconds": delay_seconds,
-                "function_name": params.get("function_name"),
-                "user_id": user_id,
-                "conversation_id": conversation_id,
-                "arguments": params.get("arguments", {}),
-                "annotations": params.get("annotations", ""),
-            }
-        except Exception as e:
-            return f"{'status': 'Failed', 'details': {e}}"
-
-        ret_status = None
-        # Execute scheduling function:
-        try:
-            ret_status = self.schedule_new_task(
-                **corr_params)
-            
-            # Log call to function for scheduling: 
-            with CustomLogger("func_calls") as log:
-                log.info(f"Function 'add_scheduled_action' executed with parameters: {corr_params}.")
-
-            return "{'status': 'Scheduled'}"
-            
-        except Exception as e:
-            # Log the problem
-            with CustomLogger("func_calls") as log:
-                log.error(f"Errors executing function 'add_scheduled_action'. Used parameters: {corr_params}. Details: {e}")
-
-            return f"{'status': 'Failed', 'details': {e}}"
-        
     def schedule_new_task(
         self,
         task_type: str,
@@ -169,6 +123,22 @@ class LexiTaskScheduler():
         arguments=None,
         
     ):
+        """
+        Schedule a new task in the system. It can be either a function execution or a reminder. This method is offered to 
+        the Ai model as an external command.
+
+        - KEYS: schedule task function reminder forget remember book task
+        - SUMM: scheduler for executing functions at specefic time or with a delay in (seconds).
+        - at_time 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
+        - task_type 'description' : 'reminder' for alarms or reminders or 'function' for function calling. 
+        - delay_seconds 'description' : "Use it instead of action time to execute the task in x seconds."
+        - function_name 'description': "name".
+        - repeat_each 'description' : "For tasks that need to be executed periodically."
+        - end_at 'description' : " YYYY-MM-DD/HH:MM:SS For periodic jobs, when is the finalization time."
+        - description 'description': "Text description of the reminder or task to be executed."
+        
+        The comment section below is used to parse the tool definition in JSON format.
+        """
         # KEYS: schedule task function reminder forget remember book task
         # SUMM: scheduler for executing functions at specefic time or with a delay in (seconds).
         # at_time 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
@@ -218,13 +188,13 @@ class LexiTaskScheduler():
 
             # Logic for function calling
             if task_type == "function":
+
                 # Validation over the function name
                 if function_name.startswith("functions."):
                     # The model adds 'functions.' string sometimes, small fix:
                     try:
-                        alternative_name = function_name.split("functions.")[1]
-                        if alternative_name in self.lexi.toolbox:
-                            function_name = alternative_name
+                        # Remove the `functions.` prefix
+                        function_name = function_name.replace("functions.", "", 1)
                     except Exception:
                         pass
                 
@@ -364,7 +334,9 @@ class LexiTaskScheduler():
         update_task_status(task_id, new_status)
 
     async def check_pending_tasks(self):
-
+        """
+        Periodically checks for tasks that are ready to be executed.
+        """
         try:
             while True:
                 # Check for tasks that are ready to be executed
@@ -413,13 +385,23 @@ class LexiTaskScheduler():
             return
 
     def is_task_ready(self, task: ScheduledTaskPydantic):
-        # Return True if the task is ready, False otherwise
+        """ Return True if the task is ready, False otherwise
+
+        Parameters:
+        - `task`: ScheduledTaskPydantic model.
+        """
         current_time = datetime.now().replace(microsecond=0)
 
         # Check time and status
         return task.start_at == current_time and task.status == "scheduled"
 
     async def execute_scheduled_action(self, action: ScheduledTaskPydantic):
+        """
+        Executes a task.
+
+        Parameters:
+        - `action` ScheduledTaskPydantic to be executd.
+        """
         try:
             function_name = action.function_name
 
@@ -478,8 +460,9 @@ class LexiTaskScheduler():
                        save_in_db: bool = True,
     ):
         
-        # Define an internal time event for lexi processes
-        
+        """ Creates an internal time event for lexi processes
+        """
+
         # Calculate time
         if delay_seconds:
             action_time_formatted = datetime.now().replace(microsecond=0) + timedelta(seconds=delay_seconds)

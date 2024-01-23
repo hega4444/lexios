@@ -290,8 +290,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Event listener for the Settings button
     settingsButton.addEventListener("click", function (event) {
+        
         event.preventDefault(); // Prevent the default link behavior
-        // Add your logic for the Settings button here
+        window.location.href = '/settings';  // Navigate settings
+
         console.log("Settings button clicked");
     });
 

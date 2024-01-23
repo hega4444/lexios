@@ -8,7 +8,8 @@ from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
 
 class LexiLogging(Exception):
-    # A simple exception for easier logging
+    """ A simple exception for easier logging. It logs both on console and file.
+    """
     def __init__(self, message=None, type=INFO, **kwargs):
         default_message = f"{message} {kwargs or ''}"
 
@@ -16,7 +17,8 @@ class LexiLogging(Exception):
             log.info(default_message)
 
 class LexiWarning(Exception):
-    # A simple exception for easier logging
+    """A simple warning Exception. It logs on console and file. 
+    """
     def __init__(self, message=None, type=WARNING, **kwargs):
         default_message = f"{message} {kwargs or ''}"
 
@@ -24,7 +26,9 @@ class LexiWarning(Exception):
             log.warning(default_message)       
 
 class LexiException(Exception):
-    # A more elaborate exception for logging errors
+    """ A custom exception that logs both on console and file.
+    """
+
     def __init__(self, message=None, type=ERROR, **kwargs):
         # Get details from frame 0
         frame_info = self.get_calling_frame_info()
@@ -64,18 +68,31 @@ class CreateAssistantFailed(LexiException):
 
 class VirtualAgentRequested(LexiException):
     """Handle a request for cloning a virtual agent in the routing process."""
-    def __init__(self, to_agent:str=None, from_agent: str = None, user_message:str=None, information:str=None, **kwargs):
+
+    def __init__(self, to_agent:str=None, 
+                 from_agent: str = None, 
+                 user_message:str=None, 
+                 information:str=None, 
+                 just_say_hi:bool = True,
+                 **kwargs
+    ):
+
         default_message = f"Routing message to Virtual Agent {to_agent} {kwargs or ''}"
         
         self.to_agent = to_agent
         self.from_agent = from_agent
         self.user_message = user_message
         self.information = information
+        self.just_say_hi = just_say_hi
         super().__init__(default_message, type=INFO, **kwargs)
 
 class MainAssistantRequested(LexiException):
     """Handle a request for routing back to a main assistant."""
-    def __init__(self, from_agent:str=None, user_message:str=None, information:str=None, **kwargs):
+    def __init__(self, from_agent:str=None, 
+                 user_message:str=None, 
+                 information:str=None, 
+                 **kwargs
+    ):
 
         default_message = f"Virtual Agent {from_agent} raised this exception:{information} originated from user message:{user_message} {kwargs or ''}"
 

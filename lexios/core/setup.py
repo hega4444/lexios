@@ -1,4 +1,4 @@
-# lexios_builtin.py
+# lexios_setup.py
 
 from uuid import uuid4
 

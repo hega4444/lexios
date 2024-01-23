@@ -1,7 +1,7 @@
 // Create a global object to store variables
 const globalSettings = {
     textColor: '#000000',   // Default text color is black
-    backgroundColor: '#FFFFFF'  // Default background color is white
+    backgroundColor: '#000000'  // Default background color is white
   };
   
   // Function to update styles based on global settings

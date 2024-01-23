@@ -18,19 +18,18 @@ class LexiExternalCommand(PluginTemplate):
     """This class encapsulates the details for connecting an external command to Lexi.
 
     Parameters:
-    - func (callable): The external command function to be executed.
-    - requires_object (PluginTemplate): An optional external command plugin that is required for executing the command.
-    - requires_dynamic_object (PluginTemplate): Similar to `requires_object` but in this case the instance of the class is created at the 
+    - `func` (callable): The external command function to be executed.
+    - `requires_object` (PluginTemplate): An optional external command plugin that is required for executing the command.
+    - `requires_dynamic_object` (PluginTemplate): Similar to `requires_object` but in this case the instance of the class is created at the 
     moment of executing the command.
-    - show_return_to_user (bool): A flag indicating whether the command result should be shown to the user.
-    - if_error (str): A text to be shown if an error occurs during command execution.
-    - before (str): A text to be shown before executing the command.
-    - after (str): A text to be shown after executing the command.
-    - printer (callable): A printer function for custom logging or output handling.
-    - roles_required (List[str]): A list of roles required to execute the command.
-    - scopes (List[str]): A list of scopes (or 'roles' names) required to execute the command.
-    - session_data_check (str): str of the label on user settings checks, if given Lexi will verify this value is active on the user profile.
-    - allowed_in_background (bool): A flag indicating whether the command is allowed to execute in the background.
+    - `show_return_to_user` (bool): A flag indicating whether the command result should be shown to the user.
+    - `if_error` (str): A text to be shown if an error occurs during command execution.
+    - `before` (str): A text to be shown before executing the command.
+    - `after` (str): A text to be shown after executing the command.
+    - `roles_required` (List[str]): A list of roles required to execute the command.
+    - `scopes` (List[str]): A list of scopes of consent required to execute the command.
+    - `session_data_check` (str): str with the field name on user profile settings checkboxes, if given Lexi will verify this value is active on the user profile.
+    - `allowed_in_background` (bool): A flag indicating whether the command is allowed to execute in the background.
 
     Note: This class extends PluginTemplate and inherits its properties and methods.
     """
@@ -93,7 +92,10 @@ class LexiExternalCommand(PluginTemplate):
         super().__init__(plugin_name="External_Command_Interface")
 
     def generate_specs(self):
-        
+        """
+        Generates automatic JSON structures with the function definition
+        to share with the AI model. 
+        """
         try:
             sig = inspect.signature(self.func)
             det_annotation = self.func.__annotations__
@@ -262,6 +264,8 @@ class LexiExternalCommand(PluginTemplate):
             return "float"
         elif "bool" in text:
             return "boolean"
+        else:
+            return "string"
 
     def __str__(self) -> str:
         # Manually construct the JSON string
@@ -304,8 +308,12 @@ class LexiExternalCommand(PluginTemplate):
     def update_custom_messages(
         self, event_type: str, text = None, images = None
     ):
-        # Method to update custom content to share with the user while the command is being executed
-        # Recognized event types: 'BEFORE', 'AFTER', 'IF_ERROR'.
+        """
+        Method to update custom content to share with the user while the command is being executed
+        
+        Recognized event types: 
+        'BEFORE', 'AFTER', 'IF_ERROR'.
+        """
 
         if event_type.lower() not in self.keys:
             raise ValueError("Key is not valid. Check class definition.")

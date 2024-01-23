@@ -34,7 +34,7 @@ class TrustedAction():
         self.virtual_agent_name: str = kwargs.get("virtual_agent_name")
         self.can_be_replaced: bool = kwargs.get("can_be_replaced", False)
         self.timestamp: datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.signature: str = kwargs.get("signature", None)
+        self.secret_signature: str = kwargs.get("secret_signature", None)
 
         # Variables for storing execution result, messages, and exceptions
         self.execution_result = None
@@ -42,7 +42,7 @@ class TrustedAction():
         self.exceptions = []
 
         # JWT configuration
-        self.jwt_secret = self.signature or LEXI_SIGNED_TRX_PASSWORD 
+        self.jwt_secret = self.secret_signature or LEXI_SIGNED_TRX_PASSWORD 
         self.jwt_algorithm = "HS256"
         self.jwt_expiration = timedelta(days=1)
 

@@ -14,6 +14,10 @@ from lexios.core.logger import CustomLogger, DEBUG, WARNING, ERROR, INFO, CRITIC
 
 
 def get_adjusted_time():
+    """
+    Internal shared function to adjust time zone if needed.
+    """
+    
     # Adjust time delta if neccesary
 
     try:
@@ -47,6 +51,9 @@ def format_datetime(datetime_str):
         return None  # Return None for invalid datetime strings
 
 def curr_day_short():
+    """
+    Util to get the shorter version of the weekday name.
+    """
     # Get the current datetime
     now = datetime.now() + timedelta(minutes=TIME_DELTA)
     # Get the current day's name (e.g., 'Monday')
@@ -55,6 +62,17 @@ def curr_day_short():
     return day_name[:3]
 
 def custom_json_parser(json_formatted_str: str):
+    """
+    This custom json parser makes the transition from json like structures 
+    to python dictionaries a bit smother, as it does not rely solely in 
+    standarized JSON but accepts some variations (specially regarding the 
+    use of '' or ""). It is used in different parts of the solution. To name:
+
+    - Function caliing: To parse the arguments given by the AI model.
+    - Task scheduling: Again to parse the input parameters when scheduling 
+    a function execution.
+    
+    """
     try:
         # Try to parse the string as JSON
         return json.loads(json_formatted_str)
@@ -82,8 +100,6 @@ def custom_json_parser(json_formatted_str: str):
     
 # Send a message to the frontend  
 async def frontend_output(
-    
-
     content: str, 
     spell: bool = True, 
     user_id: int = None,
@@ -93,9 +109,21 @@ async def frontend_output(
     metadata: dict = None,
     alias: str = None
 ):
-    # process outbound messages to the frontend
-    # msg_type : "text", "sys_notif", "title_update"
+    """ 
+    Processes the outbound messages to the frontend
+    
+    Parameters:
 
+    -`content`: str The content of the message to be rendered.\n
+    -`spell` <True> by default. Meaning if the message will have a typing effect when being rendered.
+    -`user_id`: int
+    -`conversation_id`: int
+    -`msg_type` : "text", "sys_notif", "title_update"
+    -`images`: dict with metadata used by the frontend to render images.
+    -`metadata`: used by different components to send their specific details at rendering.
+    -`alias`: str The name of the assistant the message comed from. Can be by default the root assistant name, or a virtual agent name.
+    
+    """
     try:
         lexi = Globals().lexi
 

@@ -3,6 +3,24 @@ from typing import List
 from lexios.integration.plugin import PluginTemplate
 
 class DatabaseConnection(PluginTemplate):
+    """
+    A class representing a database connection.
+
+    Parameters:
+
+    `engine` (str): The type of database engine (default is 'PostgreSQL').
+    `database_name` (str): The name of the database.
+    `admin_user` (str): The username for administrative access.
+    `admin_pass` (str): The password for administrative access.
+    `host` (str): The host address of the database server.
+    `port` (int): The port number for the database connection.
+    `test_mode` (bool): A flag indicating whether to use the database in test mode (default is False).
+    `load_setup_script` (bool): A flag indicating whether to load the setup script (default is False).
+    `security_object`: Can be used to register the database and reestric the access to different users.
+    `load_files` (List[str]): A list of files to load into the database.
+    `force` (bool): Forces the creation of the DB and deletes after finishing execution, only for test mode. (default is False).
+
+    """
 
     def __init__( 
         self,

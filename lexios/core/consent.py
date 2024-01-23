@@ -9,6 +9,13 @@ from lexios.core.common_tools import frontend_output, LexiException
 _consent_backend = {}
 
 class ConsentScreen():
+    """
+    The ConsentScreen is a component that allows to verify directly with the user if a specif permission is to 
+    to be granted. External commands can define scopes of access required to execute the command. Whenever the
+    command is chosen by the Ai model to be executed, if a scope is required a message will be shown to the user
+    asking for permission to take the action. 
+
+    """
 
     def __init__(self, **kwargs):
         

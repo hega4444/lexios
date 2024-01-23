@@ -22,6 +22,10 @@ from lexios.settings.main import *
 
 class GmailClient():
     """ Class to access Gmail data, read and send emails.
+
+    It uses the user credentials stored to refresh the oauth2 token.
+
+    It also implements logic to create and send automatic email replies.
     """
 
     # Define how often is the email checked

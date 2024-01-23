@@ -90,22 +90,12 @@ class printSql():
         print(cs(f"{title}", color if color else f"{title}:"))
         print(table)
     
-    def show_color_list(self):
-
-        print('List of colors:')
-        colors = _load_colors()
-        for i, c in enumerate(colors.values()):
-            print(cs(f"{c['name']}  ", color=c['name']), end="", flush=True)
-            if (i+1) % 5 == 0:
-                print()
-        return
-    
 # SimpleSQL Class // manages the connection to the DB and creates a python friendly access to it
 
 class SimpleSQL():
-    #This is a simple class to open/ connect (or create if does not exists) to a Database and query it without handling connections.
-    #It also wraps PrettyTablePlus so you can print your results very easily.
-
+    """
+    This is a simple class to open/ connect (or create if does not exists) to a Database and query it without manually handling connections.
+    """
     def __init__(self, db_name = None, force = True, load_setup_script = None, drop_after = False, user = None, password = None, port = None) -> None:
 
         self.db_name = db_name
@@ -701,6 +691,15 @@ class SimpleSQL():
 # LexiDatabase Class // creates an additional abstraction level for communicating with an AI model
 
 class LexiDatabase(SimpleSQL):
+    """
+    This component serves as a brigde for the Ai model to interact with SQL databases in a flexible
+    yet secure way. It lets the Ai model execute queries on data and create predictive models to help
+    on user requests related to such data. 
+
+    Important:\n
+    For now it only accepts Postgres database connections. 
+    
+    """
     
     def __init__(self, **kwargs) -> None:
 
@@ -768,6 +767,16 @@ class LexiDatabase(SimpleSQL):
 
         
     def execute_fetch_sql_query(self, query:str , fetch_one = False) ->str:
+        """
+        Executes a query over the database.
+
+        Parameters:
+        - `query`  A valid Postgres SQL query.
+
+        Returns:
+        - The output from the given query in JSON format or None.
+
+        """
         # KEYS: SQL query SELECT EXECUTE
         # SUMM: Executes a SQL query and retrieves the fetchall() result in json format
         # query 'description': PostgreSQL syntax
@@ -802,7 +811,13 @@ class LexiDatabase(SimpleSQL):
         except Exception as e:
             return {'status': 'Failed', 'details':e}
 
-    def retrieve_database_erd(self):
+    def retrieve_database_erd(self) -> str:
+        """
+        Creates a dynamic structure representing the database ERD to share with the Ai model.
+
+        Returns:
+        - A JSON with the ERD structure. 
+        """
         # KEYS: ERD Entity Relation Diagram Database Tables SQL
         # SUMM: Retrieves a complete Entity Relationship Diagram of the existing Database
 

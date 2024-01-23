@@ -9,7 +9,11 @@ from lexios.core.exceptions import LexiException
 
 PROJECT_FOLDER = find_project_folder()
 
-def manage_downloads(self, message):
+def manage_downloads(self, message: str):
+    """
+    It handles the parsing of messages containing attachments. It recovers files from 
+    openAI endpoint.
+    """
     # Extract the message content
 
     message_content = message.content[0].text.value
@@ -73,7 +77,10 @@ def manage_downloads(self, message):
     
 
 def manage_links(text: str) -> str:
-    # Identify links and create appropiate containers
+    """ 
+    Identify links and create appropiate containers.
+    
+    """
     try:
         # Define a regular expression pattern for matching URLs and text within square brackets
         pattern = re.compile(r'(?P<text>[^\[]+)(?:\[(?P<text_in_brackets>[^\]]+)\])?(?:\((?P<link>https?://[^\)]+)\))?')

@@ -80,7 +80,12 @@ class AgentsRouter(PluginTemplate):
             )
 
     # Route to a virtual agent
-    async def route_to_virtual_agent(self, virtual_agent_name: str, information: str= None, no_callback: bool = True):
+    async def route_to_virtual_agent(self, 
+                                     virtual_agent_name: str, 
+                                     information: str= None, 
+                                     no_callback: bool = True,
+                                     just_say_hi: bool = True,
+    ):
         """
         Forward the user input to another VirtualAgent.
 
@@ -96,6 +101,7 @@ class AgentsRouter(PluginTemplate):
         # viertual_agent_name  'description' : Virtual assistant name that will receive the message.
         # information 'description' : A brief comment for the next agent to gain context on how to help the user.
         # no_callback 'description' : <default>True: Next assistant takes over conversation with user. False: await results from virtual agent.
+        # just_say_hi 'description' : <default>True: No need for follow up, the agent will open with "hi..". False: Agent is required to solve an specific issue.
 
         # Identify the virtual agents at play
         root = self.by_name(LEXI_ALIAS)
@@ -130,6 +136,7 @@ class AgentsRouter(PluginTemplate):
                         to_agent= requested_agent.name,
                         user_message= self.action.user_message,
                         information = information,
+                        just_say_hi= just_say_hi,
             )
 
         else:
@@ -275,6 +282,6 @@ class AgentsRouter(PluginTemplate):
 
 if __name__ == "__main__":
 
-    command = LexiExternalCommand(AgentsRouter.list_virtual_agents)
+    command = LexiExternalCommand(AgentsRouter.route_to_virtual_agent)
 
     print(command)

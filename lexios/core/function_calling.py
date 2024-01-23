@@ -264,6 +264,7 @@ class ToolCall():
 
             return self.call_output
         
+        # Handle the re routing exceptions
         except VirtualAgentRequested as request:
             self.status = "completed"
             self.call_output = f"Virtual agent {request.to_agent} will handle the request."
@@ -273,6 +274,7 @@ class ToolCall():
             self.call_output = "Routing to main assistant."
             raise
         
+        # Other unexpected exceptions
         except Exception as e:
             # Change status to "failed"
             self.status = "failed"
@@ -329,8 +331,11 @@ class ToolCall():
 
         
 async def create_tool_calls(thread: LexiAssistantThread):
-    # Create a ToolCall for each required action:
-
+    """ Create a ToolCall for each required action:
+    
+    Parameters:
+    -`thread` : LexiAssistantThread
+    """
     requires_consent_screen = False
 
     # Attend required action, an action can include more than a tool call:
@@ -350,8 +355,14 @@ async def create_tool_calls(thread: LexiAssistantThread):
     # Create Tool_calls:
     for call in calls:
 
+        # Extract the function name from the call
+        function_name = call["function"]["name"]
+
+        # Remove the `functions.` prefix
+        function_name = function_name.replace("functions.", "", 1)
+
         # Retrieve the external command associated to the Call
-        ext_command : LexiExternalCommand = thread.loaded_toolbox.get(call["function"]["name"], None)
+        ext_command : LexiExternalCommand = thread.loaded_toolbox.get(function_name, None)
 
         if ext_command:
             
@@ -381,13 +392,10 @@ async def create_tool_calls(thread: LexiAssistantThread):
                     requires_consent_screen = True
 
             except Exception as e:
-                # Tool cannot be used (most probably wrong name):
-                with CustomLogger("lexios") as log:
-                    log.error(f"Tool '{call['function']['name']}' could not be created. {e}")
+                LexiWarning(f"Tool '{function_name}' could not be created. {e}")
         
         else:
-            if call["function"]["name"]:
-                raise LexiException(f"Tool {call['function']['name']} was not found in the designated Toolbox.")
+            raise LexiException(f"Tool {function_name} was not found in the designated Toolbox.")
                     
 
            # Check if the action requires a consent screen
@@ -415,7 +423,12 @@ async def create_tool_calls(thread: LexiAssistantThread):
 
 
 async def attend_tool_calls(thread: LexiAssistantThread):
-    # Execute tool actions:
+    """
+    Execute tool actions.
+
+    Parameters:
+    - `thread`: LexiAssistantThread
+    """
     try:
 
         while not thread.consent_dialog or thread.consent_dialog.status not in ("expired", "cancelled"):
@@ -509,7 +522,12 @@ async def attend_tool_calls(thread: LexiAssistantThread):
 
 
 def submit_function_outputs(thread: LexiAssistantThread):
-    # Create JSON output for function and submit to Run:
+    """
+    Creates a JSON output to submit to the current Run.
+
+    Parameters:
+    -`thread`: LexiAssistantThread
+    """
     outputs = [tool.submit_function_output() for tool in thread.tool_calls]
     try:
         openai.beta.threads.runs.submit_tool_outputs(

@@ -14,6 +14,13 @@ from lexios.settings.main import *
 from lexios.core.logger import CustomLogger
 
 class GoogleCalendar():
+    """
+    This component connects to Google Calendar API and retrieves the events for the user.
+
+    It uses the user credentials stored and refreshes the oauth2 token if needed.
+
+    It also creates new events in the calendar.
+    """
 
     check_frequency = timedelta(minutes=30)
 
