@@ -177,6 +177,11 @@ class LexiAssistantThread():
             """
             Handles the execution of an external Run. 
             
+            Parameters:
+            - `message`(str): The user message.
+            - `file` (str): A string with a filepath to attach to the conversation.
+            - `request` (Optional[Union[VirtualAgentRequested, MainAssistantRequested]]) an internal exception
+            generated to re route the assistant to a new vertial agent or back to the root assistant. 
 
             """
             # Child methods
@@ -465,7 +470,15 @@ class LexiAssistantThread():
             
     # Update conversation ORM
     def save_message(self, message: str, source: str= "system",type: str = "text", metadata: any = None):
+        """
+        Saves a message in the conversation.
 
+        Parameters:
+        - `message` (str): message content.
+        - `source` (str): (default)'system' or 'user'. Indicates who wrote that message.
+        - `type` (str): (default)'text' or 'image'. Indicates if the message attaches images paths or plain text.
+        - `metadata` (any): Additional content to attach to the message, can be used for different plugins to store additional data.
+        """
         if not self.run_in_background:
             try:
                 record = {
@@ -492,7 +505,9 @@ class LexiAssistantThread():
 
     # Load the main assiatant
     def load_root_assistant(self, agent_request: MainAssistantRequested):
-
+        """
+        When the main assiatant is requested, it loads the context back in the thread.
+        """
         from lexios.core.thread_conversations import save_conversation
 
         try:
@@ -524,8 +539,13 @@ class LexiAssistantThread():
             raise agent_request
 
     # Load the context of a virtual agent
-    def load_virtual_agent(self, agent: 'LexiAssistantThread', request: VirtualAgentRequested):
+    def load_virtual_agent(self, agent: 'LexiAssistantThread'):
+        """
+        It loads the context of a VirtualAgent ontos the thread.
 
+        Parameters:
+        - `agent` (LexiAssistantThread) The thread with the context of the Virtual Agent to be loaded.
+        """
         from lexios.core.thread_conversations import save_conversation
         
         try:
@@ -567,7 +587,7 @@ class LexiAssistantThread():
 
     def cancel_run(self, run_id: str = None):
         """ 
-        Cancel the current thread run
+        Cancels the current thread run
 
         - run_id: str The id of the Run object.
         """ 
@@ -602,7 +622,9 @@ class LexiAssistantThread():
                     self.running_stat = "ready"
     
     def verify_consistency(self):
-        # Checks if there are runs open for the object and closes them
+        """ 
+        Checks if there are runs open for the thread and closes them.
+        """
         try:
             # Verification started
             status = "started"

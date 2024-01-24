@@ -17,6 +17,9 @@ async def get_conversation_data(
     select_conversation_id: str = Query(default=None),
     session_data: LexiSessionData = Depends(verifier)
 ):
+    """
+    Retrieves conversation data from the user.
+    """
     async with session_data:
 
         # Load a particular conversation by it's conversation_id
@@ -92,7 +95,9 @@ async def update_conversation_title(
     csrf_protect: CsrfProtect = Depends(), 
     session_data: LexiSessionData = Depends(verifier),
 ):
-
+    """
+    Update conversation title in database.
+    """
     session_manager.update_conversation_title(session_data.user_id, conversation_id, new_title)
 
     return JSONResponse({'message': 'Conversation title updated successfully'})
@@ -117,7 +122,10 @@ async def get_next_conversation_id(
 def get_conversation_id_focus(
     session_data: LexiSessionData = Depends(verifier)
 
-):
+)->str:
+    """
+    Returns a (str) with the index of the conversation to be loaded on the screen main viewer.
+    """
     return JSONResponse({'conversation_id_focus': session_data.conversation_id_focus})
 
 
@@ -127,6 +135,12 @@ def delete_conversation(
     conversation_id: str = Form(...),
     session_data : LexiSessionData = Depends(verifier),
 ):
+    """
+    Deletes a conversation from the database.
+
+    Parameters:
+    - `conversation_id`(str): Conversation identifier.
+    """
     # Call lexi session manager to take care of the task
     session_manager.delete_conversation(session_data.user_id, conversation_id)
 

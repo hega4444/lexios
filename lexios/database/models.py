@@ -40,6 +40,9 @@ class CustomModelPydantic(BaseModel):
 
 # User model (there is an associated pydantic model in lexios.api.session_data )
 class User(Base):
+    """
+    Database model for user profile and settings.
+    """
     __tablename__ = 'users'
 
     user_id = Column(Integer, primary_key=True, autoincrement=True)
@@ -110,7 +113,9 @@ class User(Base):
     roles = relationship('Role', back_populates='user')
 
 class Role(Base):
-    # Roles assigned to an user_id
+    """ 
+    Roles assigned to an user_id
+    """
     __tablename__ = 'roles'
 
     role_id = Column(Integer, primary_key=True, autoincrement=True)
@@ -132,6 +137,9 @@ class Role(Base):
 
 # User conversations
 class Conversation(Base):
+    """
+    Database model for storing conversation messages.
+    """
     __tablename__ = 'conversations'
 
     id = Column(Integer, primary_key=True)
@@ -192,6 +200,12 @@ class UserSpecificDataORM(Base):
 
 # Pydantic model
 class UserSpecificData(CustomModelPydantic):
+    """
+    User specific data model
+
+    It provides a flexible way of storing user data and preferences easy to access for
+    the AI model.
+    """
     data_id: str
     user_id: int
     data_category: Optional[str]
@@ -199,6 +213,9 @@ class UserSpecificData(CustomModelPydantic):
     created_at: Optional[str] = None
 
 class ScheduledTaskORM(Base):
+    """
+    Task Database model for sotring scheduled tasks and reminders.
+    """
     __tablename__ = 'scheduled_tasks'
     
     task_id = Column(String, primary_key=True)
@@ -236,8 +253,14 @@ class ScheduledTaskPydantic(BaseModel):
 
 # This function is called by the admin tool when creating a new project to have a separate database
 def initial_database_setup(name="lexi_template", remake: bool = False):
-    # This function is called by the admin tool when creating a new project to have a separate database
-    
+    """
+    This function is called by the admin tool when creating a new project to have a deicated database.
+
+    Parameters:
+    - `name` (str): Project name.
+    - `remake` (bool): (default) False. If True it erases any previous version of the Database.
+    """
+
     session = Session()
 
     options = {

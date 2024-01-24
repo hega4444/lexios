@@ -9,15 +9,23 @@ from lexios.settings.main import *
 from lexios.frontend.session_data import LexiSessionData
 from lexios.database.models import Session, User, UserSpecificData, UserSpecificDataORM
 
-def create_user_account_in_db(email, password, user_data = None , gmail_data = None):
-    # Create a new account in the database 
+def create_user_account_in_db(email: str, password: str, user_data: LexiSessionData = None , google_data: dict = None):
+    """ 
+    Create a new account in the database 
+    
+    Parameters:
+    - `email`(str): User email account.
+    - `password`(str): User password.
+    - `user_data`(LexiSessionData) The user profile details.
+    - `google_data`(dict): The Goole identification details (email, and refresh token) when logging in with Google.
+    """
     session = Session()
     try:
-        if gmail_data:
+        if google_data:
             try:
-                name_first = gmail_data.get('given_name')
-                name_last = gmail_data.get('family_name')
-                email = gmail_data.get('email')
+                name_first = google_data.get('given_name')
+                name_last = google_data.get('family_name')
+                email = google_data.get('email')
             except Exception:
                 pass
             password = 'GMAIL_ACCOUNT'
@@ -31,10 +39,10 @@ def create_user_account_in_db(email, password, user_data = None , gmail_data = N
             name_last=name_last, 
             username=email, 
             password=password,
-            google_id=gmail_data['email'],
+            google_id=google_data['email'],
             google_details={
-                'refresh_token': gmail_data['refresh_token'],
-                'state': gmail_data['state'],                
+                'refresh_token': google_data['refresh_token'],
+                'state': google_data['state'],                
                 # Add more if needed
             },
             conversation_index=0)

@@ -1,10 +1,17 @@
 # roles.py
+from typing import List
 
 from lexios.database.models import Session, Role
 
 
-def get_assigned_roles_by_user_id(user_id: int):
-   # Function to retrieve assigned roles to a user_id
+def get_assigned_roles_by_user_id(user_id: int) -> List[Role]:
+    """
+    Retrieve the roles assigned to a user_id.
+    
+    Parameters:
+    - `user_id` (int): User identification.
+    - `role_name` (str): Role to be assigned.
+    """
     session = Session()
     try:
         return session.query(Role).filter_by(user_id=user_id).all()
@@ -14,7 +21,15 @@ def get_assigned_roles_by_user_id(user_id: int):
         session.close() 
 
 def assign_role(user_id: int, role_name: str, read: bool, write: bool, execute: bool):
-    # Assign a role to a user_id
+    """
+    Assign a role to a user_id
+    
+    Parameters:
+    - `user_id` (int): User identification.
+    - `role_name` (str): Role to be assigned.
+    - `read`, `write`, `execute` (bool): Permissions assigned within the role.
+    
+    """
     try:
         session = Session()
 
@@ -47,7 +62,13 @@ def assign_role(user_id: int, role_name: str, read: bool, write: bool, execute: 
         session.close()
 
 def delete_role(user_id: int, role_name: str):
-    # Delete a role assigned to a user_id
+    """ 
+    Delete a role assigned to a user_id
+
+    Parameters:
+    - `user_id` (int): User identification.
+    - `role_name` (str): Role to be deleted from the user.
+    """
     try:
         session = Session()
 

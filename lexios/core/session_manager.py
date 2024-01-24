@@ -1,5 +1,7 @@
 # session_manager.py
 
+from lexios.frontend.session_data import LexiSessionData
+
 from lexios.core.common_tools import *
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.lexios_main import LexiOS_Backend
@@ -33,9 +35,17 @@ class LexiSessionManager:
         else:
             self.lexi = None
 
-    def new_lexi_account(self, email: str, password: str, user_data=None, gmail_data=None):
-        """ Create an ORM for the user"""
-        new_user = create_user_account_in_db(email, password, user_data, gmail_data)
+    def new_lexi_account(self, email: str, password: str, user_data: LexiSessionData=None, google_data=None):
+        """
+        Create a new user record.
+
+        Parameters:
+        - `email`(str): User email account.
+        - `password`(str): User password.
+        - `user_data`(LexiSessionData) The user profile details.
+        - `google_data`(dict): The Goole identification details (email, and refresh token) when logging in with Google.
+        """
+        new_user = create_user_account_in_db(email, password, user_data, google_data)
 
         # Assign the general role as baseline
         assign_role(new_user.user_id, "user", True, True, False)
@@ -43,7 +53,13 @@ class LexiSessionManager:
         return new_user
 
     def load_conversation(self, conversation: Conversation):
-        """ Loads an existing conversation"""
+        """
+        Loads an existing conversation
+        
+        Parameters:
+        - `conversation`(Conversation): The conversation to be loaded.
+
+        """
         try:
             user_id = conversation.user_id
             conversation_id = conversation.conversation_id
@@ -64,13 +80,16 @@ class LexiSessionManager:
         except Exception as e:
             raise SessionManagerException(f"At load conversation. {e}")
 
-    def get_thread(self, user_id: int, conversation_id: str):
-        """ Retrieves the thread object for a user/conversation
+    def get_thread(self, user_id: int, conversation_id: str) -> LexiAssistantThread:
+        """ 
+        Retrieves the thread object 
         
         Parameters:
-        - `user_id`: int
-        - `conversation_id`: str 
+        - `user_id`(int): User identification.
+        - `conversation_id`(str): Conversation identification.
         
+        Returns:
+        - A LexiAssistantThread
         """
 
         return self.active_connections.get((user_id, conversation_id))
@@ -79,8 +98,8 @@ class LexiSessionManager:
         """ Deletes the thread object for a user/conversation
         
         Parameters:
-        - `user_id`: int
-        - `conversation_id`: str 
+        - `user_id`(int): User identification.
+        - `conversation_id`(str): Conversation identification. 
 
         Returns:
         The thread deleted or None if no thread is found for 
@@ -109,7 +128,12 @@ class LexiSessionManager:
             self.active_connections[(thread.user_id, thread.conversation_id)] = thread
 
     def close_session(self, user_id: int):
-        """ Handles the close of active connections"""
+        """ 
+        Handles the close of active connections
+        
+        Parameters:
+        - `user_id`(int): User identification.
+        """
         try:
             for key, thread in list(self.active_connections.items()):#
                 u_id, _ = key
@@ -135,7 +159,13 @@ class LexiSessionManager:
                 raise SessionManagerException(f"Could not close session correctly. User_id:{user_id}. Details:{e}")
 
     def save_session(self, user_id: int):
-        """ Handles the close of active connections"""
+        """ 
+        Handles the close of active connections
+        
+        Parameters:
+
+        - `user_id`(int): User identification.
+        """
         try:
             for key, thread in list(self.active_connections.items()):
                 u_id, _ = key
@@ -146,7 +176,14 @@ class LexiSessionManager:
                 raise SessionManagerException(f"Could not save conversation data. User_id:{user_id}. Details:{e}")
 
     def update_conversation_title(self, user_id: int, conversation_id: str, new_title: str):
-        """ Sends a message to LexiAssistantThread to update its conversation title"""
+        """ 
+        Sends a message to LexiAssistantThread to update its conversation title
+        
+        Parameters:
+        - `user_id`(int): User identification.
+        - `conversation_id`(str): Conversation identification.
+        - `new_title`(str): New title conversation.
+        """
 
         thread = self.get_thread(user_id, conversation_id)
         if thread:
@@ -167,14 +204,25 @@ class LexiSessionManager:
             # Return the messages
             return conversation.app_messages_content
     
-    def find_user_conversations(self, user_id:int):
-        """ Return the conversations ORM objects linked to the user_id"""
+    def find_user_conversations(self, user_id:int) -> Conversation:
+        """ 
+        Return the conversations ORM objects linked to a user_id
+
+        Parameters:
+        - `user_id`(int): User identification.
+        """
         return get_user_conversations(user_id)
 
 
     def delete_conversation(self, user_id: int, conversation_id: str):
-        """ Finds the associated thread and marks it for deletion.\n
-         Also deletes the orm from Database."""
+        """ 
+        Finds the associated thread and marks it for deletion.
+        Also deletes the orm from Database.
+        
+        Parameters:
+        - `user_id`(int): User identification.
+        - `conversation_id`(str): Conversation identification.
+        """
 
         # Check if the associated thread is in cache (conversation has new messsages)
         # and remove it if so

@@ -83,7 +83,7 @@ class UserAuthentication():
             if user == 'NEW_GOOGLE_ACCOUNT':
                 
                 # Create a new account
-                user = LexiSessionManager().new_lexi_account(email, password, gmail_data= gmail_data) 
+                user = LexiSessionManager().new_lexi_account(email, password, google_data= gmail_data) 
 
             if user:
                 

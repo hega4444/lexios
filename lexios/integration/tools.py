@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # Usage
     # Load external commands from the specified folder
     integrations_folder = "new_lexi_project/integrations"
-    collector.load_external_commands(integrations_folder)
+    collector.load_project_integrations(integrations_folder)
 
     print("Collected:")
     for command in collector.commands:

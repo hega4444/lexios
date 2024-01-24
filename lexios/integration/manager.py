@@ -14,7 +14,7 @@ class IntegrationsManager():
     or any child class of PluginTemplate, though for implementing such the logic of how to integrate into Lexi's setup 
     should be included here.
 
-    After collecting all the components defined at framework level it initiates the backend instance of Lexi.
+    After collecting all the components defined at framework level, it initiates the backend instance of Lexi.
 
     """
     _instance = None
@@ -35,7 +35,11 @@ class IntegrationsManager():
   
 
     def _add_command(self, *commands: Union[Callable, None]):
-        """ Appends commands for AI integration.
+        """ 
+        Appends commands (standalone functions) for AI integration.
+
+        Parameters:
+        - `commands`(callable): A callable or list of callable objects.
         """
         try:
             for command in commands:
@@ -52,7 +56,12 @@ class IntegrationsManager():
             raise IntegrationsManagerException(f"Integrations Manager add_command: {e}")
 
     def _add_method(self, *methods: Union[Callable, None]):
-        """ Appends Virtual Agents methods for AI integration.
+        """ 
+        Appends Virtual Agents methods for AI integration.
+
+
+        Parameters:
+        - `methods`(callable): A callable or list of callable objects.
         """
         try:
             for method in methods:
@@ -71,7 +80,12 @@ class IntegrationsManager():
             raise IntegrationsManagerException(f"Integrations Manager add_method: {e}")
 
     def _add_plugin(self, plugin: PluginTemplate):
-        """ Adds a plugin to the integrations setup
+        """ 
+        Adds a plugin to the integrations setup
+        
+        Parameters:
+        - `plugin`(PluginTemplate): The plugin to be added to the project.
+        
         """
 
         # Databases 
@@ -107,8 +121,16 @@ class IntegrationsManager():
                     plugin.append_command(new_command)
 
             
-    def make_lexi(self, **kwargs):
-        
+    def make_lexi(self, **kwargs)-> LexiOS_Backend:
+        """
+        Creates an instance of the backend wuth all the integrations found.
+
+        Parameters:
+        - All the parameters that LexiOS_Backend can accept.
+
+        Returns:
+        An instance to the backend (LexiOS_Backend).
+        """
         # Append the virtual agents
         if self.virtual_agents:
             kwargs['virtual_agents'] = self.virtual_agents
@@ -127,8 +149,14 @@ class IntegrationsManager():
 
         return lexi
     
-    def load_external_commands(self, folder_path):
-        # Load external commands from Python files in the specified folder
+    def load_project_integrations(self, folder_path):
+        """ 
+        Loads the declared integrations (functions, agents, databases, etc.) from files in the specified folder.
+        
+        Parameters:
+        - `folder_path`(str): The path of the running Lexi's project root folder.
+
+        """
         for filename in os.listdir(folder_path):
             if filename.endswith(".py") and filename != "__init__.py":
                 module_name = filename[:-3]  # Remove ".py" extension

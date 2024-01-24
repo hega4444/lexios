@@ -1,6 +1,6 @@
 # conversations.py
 
-from typing import Union, Optional, List
+from typing import Union, List
 
 from sqlalchemy.orm import object_session  
 from lexios.database.models import Session, Conversation
@@ -10,10 +10,13 @@ from lexios.core.exceptions import LexiException
 def get_user_conversations(user_id: int, conversation_id : str =None) -> Union[List[Conversation], Conversation]:
     """ Retrieves stored conversations from database
 
-        - Given a user_id + conversation_id, it returns a single instance of Conversation
-        - Given a user_id alone, it returns a list of Conversations 
-
-
+    Parameters:
+    - `user_id`(int): User identification.
+    - `conversation_id` Optional[str]: Conversation identification.
+    
+    Returns:
+    - Given a user_id + conversation_id: Returns a single instance of Conversation.
+    - Given a user_id alone: Returns a list of Conversations.
     """
 
     # Create a session
@@ -40,8 +43,14 @@ def get_user_conversations(user_id: int, conversation_id : str =None) -> Union[L
         # Close the session
         session.close()
 
-def save_conversation_in_db(conversation: Conversation):
-    """ Save a conversation orm in Database"""
+def save_conversation_in_db(conversation: Conversation)-> None:
+    """ 
+    Save a conversation orm in Database
+    
+    Parameters:
+    - `conversation`(Conversation): The conversation to be saved.
+    
+    """
 
     # Create a session
     with Session() as session:
@@ -79,8 +88,14 @@ def save_conversation_in_db(conversation: Conversation):
             session.close()  # Close the session
 
 
-def delete_conversation_in_db(conversation_id: str):
-    """Delete a conversation from Database"""
+def delete_conversation_in_db(conversation_id: str) -> None:
+    """
+    Delete a conversation from Database
+    
+    Parameters:
+    -`conversation_id`(str): Conversation identifier.
+    
+    """
     
     # Create a session
     session = Session()

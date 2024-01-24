@@ -1,7 +1,17 @@
+#tasks.py
+
+from datetime import datetime
+
 from lexios.database.models import Session, ScheduledTaskPydantic, ScheduledTaskORM
 
 def save_scheduled_task_in_db(action: ScheduledTaskPydantic):
-    # Function to add a scheduled task to the database
+    """ 
+    Function to add a scheduled task to the database
+    
+    Parameters:
+    - `action` (ScheduledTaskPydantic) The task to be scheduled.
+
+    """
     session = Session()
     try:
 
@@ -19,8 +29,26 @@ def save_scheduled_task_in_db(action: ScheduledTaskPydantic):
         session.close()
 
 
-def update_task_status(task_id, new_status, new_start_at=None, new_end_at=None, new_repeat_each=None, new_arguments=None):
-    # Function to update the status (and optionally start_at) of a task
+def update_task_status(
+        task_id :str, 
+        new_status :str, 
+        new_start_at :datetime = None, 
+        new_end_at :datetime =None, 
+        new_repeat_each:int = None, 
+        new_arguments: dict = None
+):
+    """ 
+    Update an existing task in the database. 
+    
+    Parameters:
+    - `task_id`(str): Task unique identifier.
+    - `new_status`(str): New status for the task.
+    - `new_start_at`(datetime): Reschedule the task start.
+    - `new_end_at`(datetime): Reschedule the task end.
+    - `new_repaeat_each`(int): Adjust the task periodicity.
+    - `new_arguments`(dict): The arguments for the funtion to be called.
+
+    """
     session = Session()
     try:
         update_data = {'status': new_status}
@@ -44,8 +72,10 @@ def update_task_status(task_id, new_status, new_start_at=None, new_end_at=None, 
         session.close()
 
 # Function to retrieve scheduled tasks
-def get_all_scheduled_tasks():
-   # Function to retrieve scheduled tasks
+def get_all_scheduled_tasks() -> ScheduledTaskORM:
+    """ 
+    Retrieve all scheduled tasks.
+    """
     session = Session()
     try:
         return session.query(ScheduledTaskORM).filter_by(status='scheduled').all()

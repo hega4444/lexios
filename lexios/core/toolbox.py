@@ -1,4 +1,5 @@
 # toolbox.py
+from typing import List
 
 from lexios.core.common_tools import CustomLogger, LexiException, LEXI_ALIAS
 from lexios.core.thread import LexiAssistantThread
@@ -8,15 +9,21 @@ from lexios.core.agents_router import AgentsRouter
 
 class ToolBox():
     """
-     - Creates a tailored toolbox for a thread
-     - Checks every LexiExternalCommand object for roles and security management
+     - Creates a tailored toolbox for a thread.
+     - Checks every LexiExternalCommand object for roles and security control.
+
+     Parameters: 
+     - tehad (LexiAssistantThread) : The thread to be checked.
+
+     Returns:
+     - A list of tools descriptions to be shared with the AI model.
 
     """
 
     def __call__(
             self,
             thread: LexiAssistantThread
-    ):
+    ) -> List[str]:
         # Definitions needed at setup
 
         # Create a list of tools available for the assistant:

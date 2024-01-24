@@ -4,6 +4,7 @@ import os
 import openai
 from datetime import timedelta
 from asyncio import sleep
+from typing import ForwardRef
 
 from lexios.core.common_tools import *
 from lexios.core.external_command import LexiExternalCommand
@@ -323,7 +324,10 @@ class LexiOS_Backend():
             LexiException(f"At user thread request: {e}.")
     
     def _route_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
-        # Load an instance of a virtual agent
+        """ 
+        Loads an instance of a virtual agent
+        
+        """
         from lexios.integration.virtual_agents import VirtualAgent
         
         # Find the agent
@@ -335,20 +339,21 @@ class LexiOS_Backend():
             cloned_virtual_agent = agent._clone(lexi=self)
 
             # Load the cloned agent into the thread
-            thread.load_virtual_agent(cloned_virtual_agent, request)
+            thread.load_virtual_agent(cloned_virtual_agent)
 
     
     def _build_thread(
             self, 
             user_id:int, 
             conversation_id:str, 
-            virtual_agent = None,
+            virtual_agent: ForwardRef('VirtualAgent') = None,
             instructions:str = None,
             restore_conversation = None,
             run_in_background: bool = False,
-    ):
-        # Builds a new thread
-    
+    ) -> LexiAssistantThread:
+        
+        """ Builds a new LexiAssistantThread
+        """
         try:
             # Baseline 
             thread_context = {

@@ -293,9 +293,12 @@ class ToolCall():
 
                         
     def submit_function_output(self):
-        # Prepare JSON to reply the AI model with the return from the external command
-        # It prepares the structure but is actually the 'Required Action'
-        # that collects all the tool outputs and sends them.
+        """
+        Prepare JSON to reply the AI model with the return from the external command.
+        It prepares the structure but is actually the 'Required Action' that collects 
+        all the tool outputs and sends them.
+        
+        """
         self.output = " "
         
         if self.status in ["completed", "rejected"]:
@@ -314,14 +317,17 @@ class ToolCall():
         return self.output
     
     def reject(self):
-        # Reject a tool call, denied at the Consent dialog
+        """
+        Reject a tool call, denied at the Consent dialog.
+        """
 
         self.status = "rejected"
         self.call_output = "The user denied the execution of this tool."
     
     def cancel(self):
-        # Reject a tool call, denied at the Consent dialog
-
+        """ 
+        Cancell a tool call, denied at the Consent dialog.
+        """
         self.status = "cancelled"
         self.call_output = "Action is no longer needed."        
 

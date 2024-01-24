@@ -11,7 +11,13 @@ from lexios.core.thread_conversations import save_conversation
 
 
 def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conversation):
-    # Handles the load of both the assistant and the thread if possible
+    """ 
+    Handles the load of both the assistant (and conversation thread, if possible).
+    
+    Parameters:
+    - `thread`(LexiAssistantThread): Thread to load.
+    - `conversation`(Conversation): The conversation to be loaded.
+    """
 
     try:
         loaded = False
@@ -74,8 +80,15 @@ async def update_thread_messages(
         message_to_agent :str = None,
 ):
     
-    # Appends messages and attachments to the current user_thread
-
+    """ 
+    Appends messages and attachments to the current user_thread
+    
+    Parameters:
+    - `thread` (LexiAssistantThread): The thread object managing the assistant.
+    - `new_message` (str): Optional. The new message content.
+    - `new_file`: Optional. The new file to be added.
+    - `message_to_agent`(str): Optional. Custom message to the next VirtualAgent.
+    """
     if new_file:
         # Upload File:
         try:
@@ -224,7 +237,13 @@ async def update_thread_messages(
 
 
 async def render_annotations(thread: LexiAssistantThread, links, attachments):
-    # Issues messages to the frontend with onformation on how to render links and downloads
+    """ 
+    Issues messages to the frontend with onformation on how to render links and downloads.
+    
+    
+    Parameters:
+    - `thread`(LexiAssistantThread): Thread.
+    """
     try:
         # Handle links
         if links:
@@ -262,8 +281,13 @@ async def render_annotations(thread: LexiAssistantThread, links, attachments):
 
     
 def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new: bool = False):
-    # Validate consistency and load assistant / virtual agents on thread
+    """ 
+    Validate consistency and load assistant / virtual agents on thread
 
+    Parameters:
+    - `thread`(LexiAssistantThread): Thread to load.
+    - `conversation`(Conversation): The conversation to be loaded.
+    """
     # Here runs all the logic to determine, load, and refresh assistants and threads references, both
     # for the root assistant and the loaded virtual agent if defined in the thread.
 
@@ -467,8 +491,13 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
     return True
 
 def refresh_assistant_references(thread: LexiAssistantThread, conversation: Conversation):
-    # Update assistants in the ORM object
-
+    """ 
+    Update assistants in the ORM object
+    
+    Parameters:
+    - `thread`(LexiAssistantThread): Thread to load.
+    - `conversation`(Conversation): The conversation to ORM to refresh.
+    """
     conversation.virtual_agent_name = thread.virtual_agent_name or None
     conversation.model_root_assistant_id = thread.root_assistant.id if thread.root_assistant else None
     conversation.model_root_thread_id = thread.root_thread.id if thread.root_thread else None
