@@ -8,6 +8,35 @@ from datetime import date
 from uuid import UUID
 
 class LexiSessionData(BaseModel):
+    """
+
+    BaseModel representing the session data associated to a user account.
+
+    Attributes:
+    `session_id` (Optional[UUID]): Unique identifier for the user session.
+    `user_id` (Optional[int]): Identifier for the user.
+    `is_active` (bool): Flag indicating whether the session is active or not.
+        Here could be implemented logic for blocking user ID if needed.
+    `validated` (bool): Flag indicating whether the user is validated.
+    `name_first` (Optional[str]): User's first name.
+    `name_last` (Optional[str]): User's last name.
+    `username` (Optional[str]): User's username.
+    `birth_date` (Optional[date]): User's birth date.
+    `conversation_index` (int): Index representing the ongoing conversation.
+    `conversation_id_focus` (int): Identifier for the focused conversation.
+    `location` (Optional[str]): User's location.
+    `bing_searches` (bool): Flag indicating whether Bing searches are enabled.
+    `lexi_learns` (bool): Flag indicating whether Lexi learning features are enabled.
+    `google_id` (Optional[str]): User's Google ID.
+    `oauth_state` (Optional[str]): State information for OAuth.
+    `google_details` (Optional[dict]): Additional details from Google.
+    `gmail_access` (bool): Flag indicating whether Gmail access is granted.
+    `google_calendar_access` (bool): Flag indicating whether Google Calendar access is granted.
+    `theme_selection` (str): User's selected theme (default: 'Lexi default Theme').
+    `text_color` (str): User's selected text color.
+    `background_color` (str): User's selected background color .
+    """
+    
     session_id: Optional[UUID] = None
     user_id: Optional[int] = None
     is_active: bool = True  # here could be implemented a logic for blocking user id i.e.
@@ -89,7 +118,7 @@ class CustomDataVerifier(SessionVerifier[UUID, LexiSessionData]):
     def auth_http_exception(self):
         return self._auth_http_exception
 
-    def verify_session(self, model: LexiSessionData) -> bool:
+    def verify_session(self, user: LexiSessionData) -> bool:
         """If the session exists, it is valid"""
         return True
 

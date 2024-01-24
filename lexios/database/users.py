@@ -56,7 +56,14 @@ def create_user_account_in_db(email: str, password: str, user_data: LexiSessionD
     finally:
         session.close()
 
-def validate_password_in_db(email, password):
+def validate_password_in_db(email: str, password: str) ->User:
+    """
+    It checks whether the user credentials are valid.
+
+    Parameters:
+    - `email`(str): User's email address.
+    - `password`(str): User's password or constant "GOOGLE_ID" meaning the user has been validated with Google services.
+    """
     # Create a session
     session = Session()
     try:
@@ -87,9 +94,16 @@ def validate_password_in_db(email, password):
         # Close the session
         session.close()
 
-def get_user_data_by_user_id(user_id: int):
-    # Returns user data by user id
+def get_user_data_by_user_id(user_id: int) -> LexiSessionData:
+    """ 
+    Returns the user data by user id.
 
+    Parameters:
+    - `user_id`(int): User identifier.
+
+    Returns:
+    - LexiSessionData record.
+    """
     # Create a session
     session = Session()
 
@@ -111,9 +125,11 @@ def get_user_data_by_user_id(user_id: int):
     finally:
         # Close session
         session.close()
-def retrieve_users_with_background_tasks():
-    # Returns all the users with any background tasks enabled
+def retrieve_users_with_background_tasks() -> List[LexiSessionData]:
+    """ 
+    Returns a list of users(LexiSessionData) with any active background tasks.
 
+    """
     # Create a session
     session = Session()
 
@@ -142,7 +158,14 @@ def retrieve_users_with_background_tasks():
         session.close()
 
 # Update user data in the database
-def update_user_data_in_db(lexi_user):
+def update_user_data_in_db(lexi_user: LexiSessionData):
+    """
+    Updates user profile and settings in the Database.
+
+    Parameters:
+    - `lexi_user`(LexiSessionData): The user data to be updated.
+    """
+
     # Create a session
     session = Session()
 
@@ -184,6 +207,12 @@ def update_user_data_in_db(lexi_user):
 # Methods for managing user specifc data
 
 def create_user_specific_data(user_specific_data: UserSpecificData):
+    """
+    Creates a record in the database containing user specific data.
+
+    Parameters:
+    - `user_specific_data`(UserSpecificData): The object to be recorded.
+    """
     session = Session()
     try:
         db_user_specific_data = UserSpecificDataORM(**user_specific_data.model_dump())
@@ -198,14 +227,19 @@ def create_user_specific_data(user_specific_data: UserSpecificData):
     finally:
         session.close()
 
-def get_user_specific_data(user_id: int, data_category: str):
-    session = Session()
-    try:
-        return session.query(UserSpecificDataORM).filter_by(user_id=user_id, data_category=data_category).first()
-    finally:
-        session.close()
-
 def update_user_specific_data(user_id: int, data_id: str, new_data: Dict[str, Any]):
+    """
+    Updates a record of user specific data in the Database.
+
+     Parameters:
+    - `user_id` (int): Identifier for the user whose data needs to be updated.
+    - `data_id` (str): Identifier for the specific data record to be updated.
+    - `new_data` (Dict[str, Any]): Dictionary containing the new data to be applied.
+
+    Returns:
+    - None.
+    """
+
     session = Session()
     try:
         db_user_specific_data = session.query(UserSpecificDataORM).filter_by(user_id=user_id, data_id=data_id).first()
@@ -219,6 +253,17 @@ def update_user_specific_data(user_id: int, data_id: str, new_data: Dict[str, An
         session.close()
 
 def delete_user_specific_data(user_id: int, data_id: str):
+    """
+    Deletes a record of user-specific data from the Database.
+
+    Parameters:
+    - `user_id` (int): Identifier for the user whose data needs to be deleted.
+    - `data_id` (str): Identifier for the specific data record to be deleted.
+
+    Returns:
+    - None: The function does not return anything; it deletes the specified data from the Database.
+    """
+
     session = Session()
     try:
         db_user_specific_data = session.query(UserSpecificDataORM).filter_by(user_id=user_id, data_id=data_id).first()
@@ -234,6 +279,15 @@ def delete_user_specific_data(user_id: int, data_id: str):
         session.close()
 
 def retrieve_existing_data_categories(user_id: int) -> List[str]:
+    """
+    Retrieves a list of existing data categories associated with a user.
+
+    Parameters:
+    - `user_id` (int): Identifier for the user whose data categories are to be retrieved.
+
+    Returns:
+    - List[str]: A list of strings representing existing data categories for the specified user.
+    """
     db = Session()
     try:
         categories = (
@@ -246,7 +300,18 @@ def retrieve_existing_data_categories(user_id: int) -> List[str]:
     finally:
         db.close()
 
-def retrieve_category_content(user_id: int, data_category: str):
+def retrieve_category_content(user_id: int, data_category: str) -> List[UserSpecificData]:
+    """
+    Retrieves all the records associated to a specific user id and data_category key.
+
+    Parameters:
+    - `user_id`(int): Identifier for the user.
+    - `data_category`(str): The label identifier of the data category to retrieve ('reminders', 'preferences', etc.)
+
+    Returns:
+    - A list of records matching the criteria.
+    """
+
     # Create a session to interact with the database
     session = Session()
 
@@ -263,7 +328,18 @@ def retrieve_category_content(user_id: int, data_category: str):
         # Close the session when you're done
         session.close()
 
-def retrieve_content_by_id(user_id: int, data_id: str):
+def retrieve_content_by_id(user_id: int, data_id: str) -> UserSpecificData: 
+    """
+    Retrieves a record associated to a specific user id and data_id key.
+
+    Parameters:
+    - `user_id`(int): Identifier for the user.
+    - `data_id`(str): The identifier of the data element to retrieve (it is a string repr. of a UUID4)
+
+    Returns:
+    - The requested data record or None if not found.
+    """
+
     # Create a session to interact with the database
     session = Session()
 

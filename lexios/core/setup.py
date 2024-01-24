@@ -92,27 +92,6 @@ def _append_basic_IO(lexi: LexiOS_Backend):
             from lexios.core.builtin.functions.calendar import GoogleCalendar
             from lexios.core.builtin.functions.email import GmailClient 
             
-            """
-            deprecated, now it is called under schedule_new_task interface together with
-            function calling 
-
-            # Create reminders, alarms, alerts
-            create_reminder = LexiExternalCommand(
-                    UserDataManager.schedule_reminder,
-                    requires_dynamic_object=UserDataManager,
-                    show_return_to_user=False,
-                    session_data_check="lexi_learns",
-                )
-            lexi.append_command(create_reminder)
-            
-
-            create_reminder.add_consent_scope(
-                scope_name="create_reminder",
-                template='Create reminder with subject "{subject}"',
-                vars=["subject"],
-            )
-            """
-            
             # Delete reminders, alarms, alerts
             lexi.append_command(
                 LexiExternalCommand(

@@ -29,7 +29,12 @@ def __main__():
 
 # Create a new project
 def create_project(project_name):
-    
+    """
+    Creates a new project file structure and database model.
+
+    Parameters:
+    - `project_name`: The given new project name.
+    """
     try:
 
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -40,7 +45,7 @@ def create_project(project_name):
         try:
             os.makedirs(project_dir)
         except FileExistsError:
-            print(f"Project folder {project_name} already exists. Please try with another identifier.")
+            print(f"Project folder {project_name} already exists. Please choose a different project name.")
 
         # Create __init__.py files
         open(os.path.join(project_dir, "__init__.py"), "a").close()
@@ -70,7 +75,7 @@ def create_project(project_name):
         main_file_path = os.path.join(project_dir, "main.py")
         with open(main_file_path, "w") as main_file:
             main_file.write(
-                f'# my_async_script.py\n'
+                f'# {project_name}_main.py\n'
                 f'from lexios import lexiOS\n\n'
                 f'def main():\n'
                 f'    server = lexiOS()\n\n'
@@ -82,7 +87,11 @@ def create_project(project_name):
         example_file_path = os.path.join(integrations_dir, "example.py")
         with open(example_file_path, "w") as example_file:
             example_file.write(
-                f'from lexios.integrations.tools import external_command\n'
+                f'# {project_name}_example.py'
+                f'\n'
+                f'from lexios.globals import GENERAL_VIRTUAL_AGENT\n'
+                f'from lexios.integration.tools import external_command\n'
+                f'from lexios.integration.tools import virtual_agent\n'
                 f'\n'
                 f'"""\n'
                 f'@external_command\n'
@@ -93,6 +102,20 @@ def create_project(project_name):
                 f"# unit 'enum': ['c', 'f']\n"
                 f"# location 'description': 'some text'\n"
                 f'  pass\n'
+
+                f'\n'
+                f'# Use the VirtualAgent template and adjust its settings to get your desired result\n'
+                f'Clarisa = VirtualAgent(\n'
+                f'    name="Clarisa",\n'
+                f'    instructions="You are a helpful math teacher.",\n'
+                f'    description="Use this assistant to solve user\'s doubts about maths, logical problems and similar.",\n'
+                f'    can_be_cloned=True,\n'
+                f'    can_be_replaced=True,\n'
+                f'    as_user_id=GENERAL_VIRTUAL_AGENT,\n'
+                f'    retrieval=True,\n'
+                f'    interpreter=True,\n'
+                f')\n'
+
                 f'"""\n'
             )
         
@@ -111,8 +134,9 @@ def create_project(project_name):
         try:
             from lexios.database.models import initial_database_setup
 
-            initial_database_setup()
+            initial_database_setup(database_name= project_name)
             print(f"Database for '{project_name}' was created.")
+
         except Exception as e:
             print(f"Could not create database models for {project_name}. Details: {e}")
 
@@ -126,7 +150,12 @@ def create_project(project_name):
 
 # Run a project
 def run_project(project_name):
+    """
+    Executes the server for the current project.
 
+    Parameters:
+    - `project_name`: The given project name.
+    """
     try:
 
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -152,13 +181,19 @@ def run_project(project_name):
 
 
 def rebuild_project(project_name):
+    """
+    Erases the current project database model and creates a brand new model.
+
+    Parameters:
+    - `project_name`: The given project name.
+    """
     try:
         confirmation = input(f"This action will rebuild the models and erase the database. Please be cautious..\n"
                              f"Are you sure you want to rebuild the project '{project_name}'? (yes/no)").lower()
 
         if confirmation == 'yes':
             from lexios.database.models import initial_database_setup
-            initial_database_setup(name= project_name, remake= True)
+            initial_database_setup(database_name= project_name, remake= True)
             print(f"Database for '{project_name}' was created.")
         else:
             print("Update canceled.")

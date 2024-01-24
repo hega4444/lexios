@@ -49,82 +49,17 @@ class UserDataManager():
         # Define hidden categories (These wont be accesible for the AI model)
         self.hidden_categories = ["processed_emails"]
 
-    """
-    deprecated
-    def __schedule_reminder(self, 
-                          start_at: str, 
-                          subject:str, 
-                          repeat_each: str = None, 
-                          end_at:str = None, 
-                          content: str = None
-    ):
-        
 
-        # SUMM: Creates a reminder for the user at specific datetime with subject/content, it can also <repeat_each> number of seconds until <end_at>. Returns the data_id.
-        # SUMM: DO NOT USE IT FOR SCHEDULING OTHER FUNCTIONS IN THE FUTURE (use "schedule_new_action() instead.")
-        # KEYS: Reminder, alert, alarm, remember, remind.
-        # datetime 'description' : "Time in format YYYY-MM-DD/HH:MM:SS"
-        # subject 'description' : "Subject for reminder."
-        # content 'description' : "Detailed information. Save a text as assistant reminding the event. Example: It is time for your xxxx apointment at yyyy"
-        # repeat_each 'description' : "Repeat the reminder each <repeat_each> number of seconds." Please specify a <end_at> value when using periodic reminders.
-        # end_at 'description' : periodic reminder finished at <end_at> time.
-
-        # Build data structure
-        try:
-
-            # First validate start_at
-            if start_at:
-                start_at = parser.parse(start_at)
-                now = datetime.now()
-                # Check the event is not in the past
-                if start_at <= now:
-                    return {'error' : f'start_at is in the past. Current time: {now.isoformat()}'}
-            
-            # Validations for periodic reminders
-            if repeat_each and not end_at:
-                # Make it repeat three times by default.
-                end_at = start_at + timedelta(seconds=(repeat_each * 3 + 1))
-            
-            elif end_at:
-                end_at = parser.parse(end_at)
-
-            reminder = {
-                'start_at' : start_at.isoformat() if start_at else None,
-                'repeat_each' : int(repeat_each) if repeat_each else None,
-                'end_at': end_at.isoformat() if end_at else None,
-                'subject': subject,
-                'content': content,
-            }
-            # Save in database
-            data_id = self.add_user_specific_data(
-                data_category='reminders',
-                data_content= reminder,
-                internal_call = True,
-            )
-
-            if isinstance(data_id, str):
-                # Creation was successful. Now register with TaskScheduler
-                self.lexi.scheduler.new_time_event(
-                    user_id = self.user_id,
-                    data_id =data_id, 
-                    conversation_id = self.conversation_id,
-                    start_at = start_at or None,
-                    repeat_each = timedelta(seconds=int(repeat_each)) if repeat_each else None,
-                    end_at = end_at or None,
-                    category = "reminder",
-                    notify_to = "userDataManager",
-                    arguments = {'subject': subject, 'content': content},
-
-                )
-
-                return {'status': 'created', 'reminder_id': id}
-            else:
-                # Else return the error details 
-                raise ValueError("Could not create record. Try again.")
-        except Exception as e:
-            return {'error' : e}
-    """
     def create_automated_email_response_rule(self, sender_email_address: str, instructions: str):
+        """
+        Create a rule for answering emails coming from a specific sender, following the specified instructions.
+
+        Parameters:
+        - `sender_email_address` (str): Valid email address from the sender (just email, no alias).
+        - `instructions` (str): Attach instructions for a GPT model to create a response requested by the user.
+
+        """
+
         # SUMM: Create a rule for answering emails coming from a 'sender', following the specified 'rules'.
         # sender_email_address 'description': valid email address from the sender (just email, no alias).
         # instructions 'description': attach instructions for a GPT model to create a response requested by the user.
@@ -137,13 +72,29 @@ class UserDataManager():
                     'rule_id': str(uuid.uuid4())[:4],
                     'sender' : sender_email_address,
                     'original_user_request': self.context.user_message,
+                    'instructions': instructions,
                 },
                 internal_call = True,
             )
         except Exception as e:
             pass
 
-    def update_reminder_element(self, data_id: str, start_at: str= None,repeat_each: str = None, end_at:str = None, subject: str = None, content: str = None):
+    def update_reminder_element(self, data_id: str, start_at: str= None,repeat_each: str = None, end_at:str = None, content: str = None):
+        """
+        Updates a reminder element in the system.
+
+        Parameters:
+        - `data_id` (str): Identifier for the reminder element to be updated.
+        - `start_at` (str, optional): Start time for the reminder.
+        - `repeat_each` (str, optional): Interval for repeating the reminder.
+        - `end_at` (str, optional): End time for the reminder.
+        - `subject` (str, optional): Subject or title of the reminder.
+        - `content` (str, optional): Detailed content or description of the reminder.
+
+        Returns:
+        - None: It updates the reminder element in the system.
+        """
+        
         # SUMM: Update a data_id. Just populate fields to update.
 
         # Retrieve the original version 
@@ -155,8 +106,6 @@ class UserDataManager():
             new_version['repeat_each'] = repeat_each
         if end_at:
             new_version['end_at'] = end_at
-        if subject:
-            new_version['subject'] = subject
         if content:
             new_version['content'] = content
         
@@ -173,6 +122,12 @@ class UserDataManager():
         )
 
     async def notify_reminder(self, data_id):
+        """
+        This method handles the communication with the user to a reminder on screen.
+
+        Parameters:
+        - `data_id`(str): The unique identifier (UUID4) for the user specific data. 
+        """
 
         try:
             # Retrieve data_id from database
@@ -199,6 +154,15 @@ class UserDataManager():
 
 
     def delete_reminder(self, data_id: str):
+        """
+        Deletes a reminder element from the system.
+
+        Parameters:
+        - `data_id` (str): Identifier for the reminder element to be deleted.
+
+        Returns:
+        - None: It deletes the specified reminder element from the system.
+        """
         # SUMM: Delete a reminder by its data_id.
         
         try:
@@ -214,6 +178,9 @@ class UserDataManager():
             return f"error: {e}"
 
     def retrieve_user_data_categories(self):
+        """
+        Retrieves the data categories keys found under the user profile.
+        """
         # SUMM: Find which data categories are already implemented for the user.
 
         categories = retrieve_existing_data_categories(user_id= self.user_id)
@@ -227,7 +194,18 @@ class UserDataManager():
             'categories available' :json.dumps(list(set(self.base_categories + categories)))
         }
 
+
     def read_user_data_category_content(self, data_category):
+        """
+        Retrieves all the records associated to a specific user id and data_category key.
+
+        Parameters:
+        - `user_id`(int): Identifier for the user.
+        - `data_category`(str): The label identifier of the data category to retrieve ('reminders', 'preferences', etc.)
+
+        Returns:
+        - A list of records matching the criteria.
+        """
         # SUMM: Retrieve data_content for the specified data_category. It will return a list with all the data elements of such category.
         # data_category 'description' : "Type of data to save (use retrieve_existing_data_categories() if needed."
         
@@ -242,7 +220,18 @@ class UserDataManager():
             available_categories = self.retrieve_user_data_categories()
             return json.dumps({'status': f'No data found under "{data_category}". Available categories:{available_categories}.'})    
     
+
     def retrieve_user_data_content_by_id(self, data_id: str):
+        """
+        Retrieves a record associated to a specific user id and data_id key.
+
+        Parameters:
+        - `user_id`(int): Identifier for the user.
+        - `data_id`(str): The identifier of the data element to retrieve (it is a string repr. of a UUID4)
+
+        Returns:
+        - The requested data record or None if not found.
+        """
         # SUMM: Retrieve the data_content for a specific data_id.
 
         data = retrieve_content_by_id(user_id=self.user_id, data_id=data_id)
@@ -254,7 +243,19 @@ class UserDataManager():
         else:
             return json.dumps({'status': 'data_id not found.'})
 
-    def add_user_specific_data(self, data_category: str, data_content: str, **kwargs):
+    def add_user_specific_data(self, data_category: str, data_content: str, **kwargs) -> str:
+        """
+        Add user specific data records to the database. This method is used both by Lexi itself to storage user preferences and other
+        system variables (under the user_id decicated to system functions) and by the AI model directly.
+
+        Parameters:
+        - `data_category`(str): A label representing the quality of the data to be stored ('reminders', 'preferences', etc.) 
+        - `data_content`(str): A JSON representation of the data to store under the given category.
+
+        Returns:
+        - The unique identifier (UUID4) for the user specific record just created.
+
+        """
         # SUMM: Save user specific data. Use this method for new and custom specific data like user preferences, facts to remember.. 
         # SUMM: DO NOT use for reminders. DO NOT USE KWARGS, THATS FOR INTERAL USE ONLY.
         # SUMM: Example: "data_category='birthdays' data_content={'Tom':'10.11.99'}"

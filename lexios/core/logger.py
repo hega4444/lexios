@@ -6,6 +6,11 @@ from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 from lexios.settings.main import LOG_FOLDER, LOGS_VERBOSITY_LEVEL, CONSOLE_VERBOSITY_LEVEL
 
 class CustomLogger:
+    """
+    The CustomLogger class is a common tool shared across the project. It logs both on console and 
+    file depending the logging level defined in the settings.py file.
+    
+    """
     log_path = LOG_FOLDER
 
     def __init__(self, log_type):

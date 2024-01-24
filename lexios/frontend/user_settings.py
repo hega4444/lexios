@@ -27,13 +27,16 @@ theme_colors = {
     'vintage_vibes': {'background': '#7B68EE', 'text': '#FFE4B5'},
 }
 
-# Endpoint to render the main Dashboard
+
 @settings_router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(cookie)])
 async def settings(
     request: Request,
     csrf_protect: CsrfProtect = Depends(), 
     session_data: LexiSessionData = Depends(verifier),
 ):
+    """
+    - Endpoint to render the main Dashboard
+    """
     if session_data.is_authenticated:
 
         # Generate CSRF token
@@ -52,9 +55,12 @@ async def settings(
 
         return response
  
-# Get the color combination for a specific theme
 @settings_router.get("/get_theme_colors", response_class=JSONResponse)
 async def get_theme_colors(theme: str = Query(..., description="The name of the theme")):
+
+    """
+     Get the color combination for a specific theme
+    """
 
     # Check if the theme name exists in the theme_colors dictionary
     if theme in theme_colors:
@@ -86,11 +92,15 @@ async def get_theme_user_colors(session_data: LexiSessionData = Depends(verifier
         })
 
 
-# Get user settings:
+
 @settings_router.get('/get_user_settings', response_class=JSONResponse, dependencies=[Depends(cookie)])
 def get_user_settings(
     session_data : LexiSessionData = Depends(verifier),
 ):
+    """
+    Get user settings.
+
+    """
     if session_data.is_authenticated:
         # Assuming LexiUser is the user class you defined
         user_settings = {
@@ -130,6 +140,10 @@ async def update_user_settings(
     csrf_protect: CsrfProtect = Depends(),
     session_data: LexiSessionData = Depends(verifier),  # Assuming you have a dependency for session verification
 ):
+    """
+    Update the backend with the user settings and profile data.
+    """
+
     if session_data.is_authenticated:
         try:
             async with session_data:

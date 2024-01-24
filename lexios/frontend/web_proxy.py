@@ -1,4 +1,4 @@
-# proxy_link_data.py
+# web_proxy.py
 
 import os
 import requests
@@ -47,7 +47,10 @@ _cache_content = {}
 cache_lock = threading.Lock()
 
 def update_cache_in_db():
-
+    """
+    This function updates the cache for links shared on the frontend. It makes rendering of links much faster.
+    
+    """
     global cache_data_id
 
     # Acquire the lock
@@ -87,8 +90,18 @@ def update_cache_in_db():
         # Release the lock in a finally block to ensure it's released even if an exception occurs
         cache_lock.release()
     
-async def get_link_icon_and_title(url, preferred_size=(120, 120)):
+async def get_link_icon_and_title(url: str, preferred_size=(120, 120)) -> dict:
+    
+    """
+    It retrieves the icon and title from a given url.
 
+    Parameters:
+    - `url`(str): Valid url path.
+    
+    Returns:
+    - A dict with with the icon and title from the url.
+
+    """
     # Acquire the lock
     cache_lock.acquire()
 
