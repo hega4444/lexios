@@ -1,28 +1,30 @@
-# websocket_logic.py
+# websocket.py
+
 import aioredis
 import json
 import asyncio
 from uuid import UUID
 
-from fastapi import WebSocket, WebSocketDisconnect, HTTPException, APIRouter
+from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from fastapi.responses import JSONResponse
 from typing import Dict
 
-from lexios.core.common_tools import BROKER_URL, LexiLogging
+from lexios.frontend.service import Session_manager
 from lexios.frontend.session_data import backend
 from lexios.database.users import update_user_data_in_db
-from lexios.core.session_manager import LexiSessionManager
-from lexios.core.logger import CustomLogger
+from lexios.core.common_tools import BROKER_URL, BROKER_URL, LexiLogging
 
-session_manager = LexiSessionManager()
 
-# Websocket connections, both for message exchange and session login / logout events
-messages_router = APIRouter()
 
 # Websocket connections, both for message exchange and session login / logout events
-messages_router = APIRouter()
+websocket_router = APIRouter()
+
 
 class ConnectionManager:
+    """
+    This class manages the active websocket connections in the frontend.
+    
+    """
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
 
@@ -46,16 +48,16 @@ class ConnectionManager:
             # Handle missing WebSocket, maybe reconnect or notify user
             print("WebSocket not found for session_id:", session_id)
 
-manager = ConnectionManager()
+Manager = ConnectionManager()
 
 # Stablish a new client connection
-@messages_router.websocket("/ws/{session_id}")
+@websocket_router.websocket("/ws/{session_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     session_id: str,
 ):
     try:
-        await manager.connect(session_id, websocket)
+        await Manager.connect(session_id, websocket)
         # Keep the connection open
         while True:
             data = await websocket.receive_json()
@@ -69,15 +71,19 @@ async def websocket_endpoint(
         update_user_data_in_db(session_data)
 
         # Save conversations
-        session_manager.save_session(session_data.user_id)
+        Session_manager.save_session(session_data.user_id)
 
         # Handle disconnect
-        manager.disconnect(session_id)
+        Manager.disconnect(session_id)
     
     return JSONResponse({'status':'connected'})
 
+
 async def listen_to_redis():
-    # Listen to Redis messages and forward them to the corresponding WebSocket connections
+    """ 
+    Listen to Redis messages and forward them to the corresponding WebSocket connections.
+    """
+
     async with aioredis.from_url(BROKER_URL) as broker:
         channel = broker.pubsub()
         await channel.subscribe("fastapi_channel")
@@ -91,7 +97,7 @@ async def listen_to_redis():
                     session_id = message_data.get('session_id')
                     if session_id:
                         try:
-                            await manager.send_json(
+                            await Manager.send_json(
                                 session_id=session_id,
                                 message=message_data,
                             )
@@ -110,7 +116,3 @@ async def listen_to_redis():
 
         finally:
             await channel.close()
-
-
-
-          

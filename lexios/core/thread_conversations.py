@@ -3,7 +3,9 @@
 import json
 import openai
 
-from lexios.core.common_tools import LEXI_GPT_MODEL, frontend_output
+from lexios.frontend.messages import render_message
+
+from lexios.core.common_tools import LEXI_GPT_MODEL
 from lexios.database.conversations import save_conversation_in_db, delete_conversation_in_db
 from lexios.core.thread import LexiAssistantThread
 
@@ -64,7 +66,7 @@ async def generate_conversation_name(thread: LexiAssistantThread):
     update_conversation_title_backend(thread, new_title)
 
     # Notify the frontend
-    await frontend_output(
+    await render_message(
         content = new_title,
         user_id = thread.user_id,
         conversation_id=thread.conversation_id,

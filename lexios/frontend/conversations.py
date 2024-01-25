@@ -1,12 +1,13 @@
-# conversations.py 
+# frontend/conversations.py 
+
 import json
 
 from fastapi import Query, Depends, Form, APIRouter
 from fastapi_csrf_protect import CsrfProtect
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
+from lexios.frontend.service import Session_manager
 from lexios.frontend.session_data import LexiSessionData, verifier, cookie
-from lexios.frontend.service import session_manager
 
 # Conversations routes
 conversations_router = APIRouter() 
@@ -25,7 +26,9 @@ async def get_conversation_data(
         # Load a particular conversation by it's conversation_id
         if select_conversation_id:
             session_data.conversation_id_focus = select_conversation_id
-            messages = session_manager.retrieve_conversation(session_data.user_id, select_conversation_id)
+
+            # Retrieve messages using the session manager
+            messages = Session_manager.retrieve_conversation(session_data.user_id, select_conversation_id)
 
             if messages:
                 if not isinstance(messages, list):
@@ -44,7 +47,7 @@ async def get_conversation_data(
         # Gest a list of conversations to update the titles on screen 
         else:
          
-            conversations = session_manager.find_user_conversations(session_data.user_id)
+            conversations = Session_manager.find_user_conversations(session_data.user_id)
 
             # Retrieve stored conversations
             if conversations:
@@ -98,7 +101,7 @@ async def update_conversation_title(
     """
     Update conversation title in database.
     """
-    session_manager.update_conversation_title(session_data.user_id, conversation_id, new_title)
+    Session_manager.update_conversation_title(session_data.user_id, conversation_id, new_title)
 
     return JSONResponse({'message': 'Conversation title updated successfully'})
 
@@ -142,6 +145,6 @@ def delete_conversation(
     - `conversation_id`(str): Conversation identifier.
     """
     # Call lexi session manager to take care of the task
-    session_manager.delete_conversation(session_data.user_id, conversation_id)
+    Session_manager.delete_conversation(session_data.user_id, conversation_id)
 
     return JSONResponse({'message': 'Conversation deleted successfully'})

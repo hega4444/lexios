@@ -9,17 +9,14 @@ from lexios.core.session_manager import LexiSessionManager
 from lexios.core.lexios_main import LexiOS_Backend
 from lexios.integration.make import get_lexi_backend_instance
 
-# Define a in-memory backend for the users logged
-frontend_active_users = {}
-
 # Create the instance of Lexi backend
-lexi: LexiOS_Backend = get_lexi_backend_instance(active_users = frontend_active_users)
+Lexi: LexiOS_Backend = get_lexi_backend_instance()
 
 # Update lexi in Globals
-Globals(lexi=lexi)
+Globals(lexi= Lexi)
 
 # Retrieve a reference to the session manager
-session_manager : LexiSessionManager = lexi.session_manager
+Session_manager : LexiSessionManager = Lexi.session_manager
 
 PROJECT_FOLDER = find_project_folder()
 

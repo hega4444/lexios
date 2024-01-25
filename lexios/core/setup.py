@@ -213,7 +213,7 @@ def _set_up_db_integration(lexios: LexiOS_Backend):
 
         try:
 
-            for db_connection in lexios.databases:
+            for db_connection in lexios.databases or []:
                 lexios.sql_engine = LexiDatabase(**db_connection.settings)
 
             if lexios.sql_engine:
@@ -246,10 +246,10 @@ def _set_up_db_integration(lexios: LexiOS_Backend):
                     )
                     
                     # Run automated data analysis on tables
-                    if lexios.sql_engine.table_analyzer:
+                    if lexios.sql_engine.table_analyser:
                         # The SQL Engine provides a customized external command with additional content when executed
                         lexios.append_command(
-                            lexios.sql_engine.table_analyzer
+                            lexios.sql_engine.table_analyser
                         )
 
                     # Make predictions using a model
@@ -380,7 +380,7 @@ def _set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                         agent.id = uuid4()
 
                         agent._start_service(lexi)
-                        LexiLogging(f"Virtual agent {agent.name: <10} @ channel {agent.channel}. Service started.")
+                        LexiLogging(f"VirtualAgent {agent.name: <10} channel @{agent.channel} . Service started")
 
                     except Exception as e:
                          LexiException(f"Service for virtual Agent {agent.name} could not be started. {e}")           

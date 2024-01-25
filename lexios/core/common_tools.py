@@ -7,6 +7,7 @@ import pytz
 from datetime import timedelta, datetime
 from dateutil import parser
 
+
 from lexios.settings.main import *
 from lexios.core.exceptions import *
 from lexios.globals import Globals, GENERAL_VIRTUAL_AGENT, GENERAL_VIRTUAL_AGENT_LABEL, ROOT_ID
@@ -98,79 +99,3 @@ def custom_json_parser(json_formatted_str: str):
 
         return result
     
-# Send a message to the frontend  
-async def frontend_output(
-    content: str, 
-    spell: bool = True, 
-    user_id: int = None,
-    conversation_id: str= None, 
-    msg_type: str = "text", 
-    images: dict = None,
-    metadata: dict = None,
-    alias: str = None
-):
-    """ 
-    Processes the outbound messages to the frontend
-    
-    Parameters:
-
-    -`content`: str The content of the message to be rendered.\n
-    -`spell` <True> by default. Meaning if the message will have a typing effect when being rendered.
-    -`user_id`: int
-    -`conversation_id`: int
-    -`msg_type` : "text", "sys_notif", "title_update"
-    -`images`: dict with metadata used by the frontend to render images.
-    -`metadata`: used by different components to send their specific details at rendering.
-    -`alias`: str The name of the assistant the message comed from. Can be by default the root assistant name, or a virtual agent name.
-    
-    """
-    try:
-        lexi = Globals().lexi
-
-        # Log virtual agents messages
-        if user_id == GENERAL_VIRTUAL_AGENT:
-           LexiLogging(f"Virtual Agent message: {content}")
-
-        # Recover session id from session data backend
-        session_id = lexi.active_users.get(user_id).session_id
-
-        if session_id:
-            outbound_message = {
-                    "session_id" : str(session_id),
-                    "conversation_id": conversation_id,
-                    "msg_type": msg_type,
-                    "metadata": metadata,
-                    "spell": spell,
-                    "alias": alias,
-                }
-            
-            name = alias or LEXI_ALIAS
-            width = 8 # Adjust the width as needed
-
-            # Left-align the string within the specified width
-            formatted_alias = name.ljust(width)
-
-            # Truncate assiatant reply
-            max_content_length = 20
-            truncated_content = content[:max_content_length] + '...' if len(content) > max_content_length else content + "."
-
-            # Command line output:
-            if lexi.command_line is True:
-                LexiLogging(f"User Id: {user_id}: Agent: {formatted_alias}- Output : {truncated_content}")
-            
-            # Message
-            if content:
-                outbound_message['content'] = str(content)
-
-            # References to Images paths
-            if images:
-                outbound_message['images']  = images
-
-            # Send message using broker
-            async with aioredis.from_url(lexi.broker_url) as broker:
-                await broker.publish("fastapi_channel", json.dumps(outbound_message))
-
-    except Exception as e:
-        with CustomLogger("lexios") as log:
-            log.error("Backend At send message: ", e)
-

@@ -4,14 +4,14 @@ from typing import Any, List
 from uuid import uuid4
 from abc import abstractmethod
 
-from lexios.core.common_tools import frontend_output
 from lexios.settings.main import LEXI_ALIAS
 
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import LexiException
-from lexios.globals import Globals, GENERAL_VIRTUAL_AGENT
+from lexios.globals import GENERAL_VIRTUAL_AGENT
 
 from lexios.integration.plugin import PluginTemplate
+from lexios.integration.message import AgentMessage, UserMessage
 from lexios.integration.trusted_actions import TrustedAction
 from lexios.core.lexios_main import LexiOS_Backend
 
@@ -59,8 +59,6 @@ class VirtualAgent(PluginTemplate):
 
         # Generate a new Token identification for security
         self.id = None
-
-
 
         # Name
         self.name = name
@@ -143,7 +141,7 @@ class VirtualAgent(PluginTemplate):
         self.lexi : LexiOS_Backend = None
 
         # Call construtor of the PluginTemplate class
-        super().__init__(plugin_name= "VirtualAgent")
+        super().__init__(plugin_name= VirtualAgent.__name__)
 
     
     def link_to_agent(self, other_agent: 'VirtualAgent') -> 'VirtualAgent':
@@ -235,19 +233,8 @@ class VirtualAgent(PluginTemplate):
                     # Parse response
                     parsed_response = plain_text.replace("\n", "<br>")
 
-                    if not callback:
-                        # Render the response on the frontend
-                        await frontend_output(
-                            content = parsed_response,
-                            user_id=from_user_id,
-                            conversation_id=from_conversation_id,
-                            alias= self.name,
-                        )
-                    
-                    # Callback requests
-                    else:
-                        # Return the generated response to the source agent
-                        return parsed_response
+                    # Return the generated response to the source agent
+                    return parsed_response
                 
         except Exception as e:
             raise LexiException("Could not process virtual agent request.", DEBUG, e)
@@ -355,7 +342,7 @@ class VirtualAgent(PluginTemplate):
         Abstract method to be implemented by child classes.
 
         Parameters:
-          - action (TrustedAction): Context of the execution.
+          - `action` (TrustedAction): Context of the execution.
         """
         pass
 
@@ -368,7 +355,36 @@ class VirtualAgent(PluginTemplate):
         Abstract method to be implemented by child classes.
 
         Parameters:
-        - action (TrustedAction): Context of the execution.
+        - `action` (TrustedAction): Context of the execution.
         """
         pass
 
+
+    @abstractmethod
+    async def at_agent_message_event(self, agent_message: AgentMessage) -> AgentMessage:
+        """
+        Defines en entrypoint to act whenever a message is issued to
+        the user on behalf of a virtual agent.
+
+        Parameters:
+        - `agent_message` (AgentMessage): Message with the data about to be sent.
+
+        Returns:
+        - Same AgentMessage with any modification required. The message will be rendered with the updated version.
+        """
+        pass
+
+    @abstractmethod
+    async def at_user_message_event(self, user_message: UserMessage) -> UserMessage:
+        """
+        Defines en entrypoint to act whenever a message is issued to
+        the user on behalf of a virtual agent.
+
+        Parameters:
+        - `user_message` (UserMessage): Message with the data just received.
+
+        Returns:
+        - Same UserMessage with any modification required. The message will be then be processed 
+        by the loaded assistant in thread, linked to the virtual agent.
+        """
+        pass

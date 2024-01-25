@@ -136,7 +136,7 @@ class SimpleMinerBaseObject():
     def reset_limits(self):
         self.r2_limits = self.r2_limits_c
 
-    def analize_field_relationships(self, target, hide_unfit = True, show_details = True):
+    def analyse_field_relationships(self, target, hide_unfit = True, show_details = True):
 
         fields = self.db.get_table_fields(self.table_name)
         fields.remove(target.capitalize())
@@ -157,7 +157,7 @@ class SimpleMinerBaseObject():
         # Convert the subgroups to lists
         sub_features = [list(subgroup) for subgroup in subgroups]
 
-        print(f"\nsimpleMiner - Analizing relations to field '{target}'. This may take some time...")
+        print(f"\nminingEngine - Analysing relationships to field '{target}' in table '{self.table_name}'. This may take some time...")
 
         # Display the subgroups
         max_r2 = 0
@@ -166,7 +166,7 @@ class SimpleMinerBaseObject():
             self.field_scores[i] = {'features': features}
             
             # Show there is some progress
-            print(".", end = "", flush=True)
+            print("..", end = "", flush=True)
             # Set new features for the model
             self.define_model_features(features=features, target=[target])
 
@@ -199,6 +199,9 @@ class SimpleMinerBaseObject():
                 table_data.append(table_row)
 
         sorted_data = sorted(table_data, key=lambda x: (-x[4], x[1]))
+
+        # Finish to move to the next line.
+        print("\n")
 
         if show_details is True:
             category = [''] *4
@@ -248,6 +251,7 @@ class SimpleMinerBaseObject():
 
             print()
             print(table)
+    
         return sorted_data
 
     def features_plot(self, filename=None):

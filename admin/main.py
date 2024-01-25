@@ -75,7 +75,7 @@ def create_project(project_name):
         main_file_path = os.path.join(project_dir, "main.py")
         with open(main_file_path, "w") as main_file:
             main_file.write(
-                f'# {project_name}_main.py\n'
+                f'# {project_name}_main.py\n\n'
                 f'from lexios import lexiOS\n\n'
                 f'def main():\n'
                 f'    server = lexiOS()\n\n'

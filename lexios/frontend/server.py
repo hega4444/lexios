@@ -1,33 +1,35 @@
-# lexios/api/routes.py
+# frontend/server.py
+
 import os
 import json
 import asyncio
+import logging
+import uvicorn 
 
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
-from contextlib import asynccontextmanager
-from fastapi import File, UploadFile, Path
+from fastapi import File, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
-
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
 from fastapi.middleware.cors import CORSMiddleware
 
-from lexios.core.common_tools import LexiLogging, LexiException, WARNING
-from lexios.core.consent import _consent_backend
+from lexios.frontend.service import PROJECT_FOLDER, Lexi, templates
 from lexios.frontend.session_data import cookie, verifier, LexiSessionData
 from lexios.frontend.web_proxy import get_link_icon_and_title
-from lexios.frontend.messages_frontend import listen_to_redis
-
-from lexios.frontend.service import PROJECT_FOLDER, lexi, templates
+from lexios.frontend.websocket import listen_to_redis
 from lexios.frontend.login_routes import login_router
-from lexios.frontend.messages_frontend import messages_router
+from lexios.frontend.websocket import websocket_router
 from lexios.frontend.user_settings import settings_router
 from lexios.frontend.conversations import conversations_router
 from lexios.frontend.file_services import files_router
+
+from lexios.core.common_tools import LexiLogging, LexiException, WARNING, CustomLogger
+from lexios.core.consent import _consent_backend
 
 
 # Define logic at startup and shutdown
@@ -39,7 +41,7 @@ async def lifespan(app: FastAPI):
     app.redis_listener_task = asyncio.create_task(listen_to_redis())
         
     # Start LexiTaskScheduler listener
-    app.scheduler_task = asyncio.create_task(lexi.scheduler.check_pending_tasks())
+    app.scheduler_task = asyncio.create_task(Lexi.scheduler.check_pending_tasks())
     
     yield # Server running
 
@@ -52,17 +54,20 @@ async def lifespan(app: FastAPI):
     app.scheduler_task.cancel()
     await app.scheduler_task
 
-    print("Background tasks closed.")
+    LexiLogging("Background tasks closed.")
+
 
 # Define the main app
 app = FastAPI(lifespan=lifespan)
 
-# Routes to the frontend services
+
+# Routers for the frontend service:
 app.include_router(login_router)
-app.include_router(messages_router)
+app.include_router(websocket_router)
 app.include_router(conversations_router)
 app.include_router(settings_router)
 app.include_router(files_router)
+
 
 # CORS set up
 app.add_middleware(
@@ -77,33 +82,40 @@ app.add_middleware(
 class CsrfSettings(BaseModel):
   secret_key:str = 'REPLACE FOR A REAL KEY HERE'
 
+
 @CsrfProtect.load_config
 def get_csrf_config():
   return CsrfSettings()
+
 
 # Mount the static files
 folder = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=folder+"/static", html=True), name="static")
 
+
 # Define the folder path for serving static files
 temp_folder_path = os.path.join(PROJECT_FOLDER, "temp", "downloads")  # Adjust the path as needed
+
 
 # Define a response for token validation errors
 @app.exception_handler(CsrfProtectError)
 def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
   return JSONResponse(status_code=exc.status_code, content={ 'detail':  exc.message })
 
+
 # Return validation errors details
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    print("request:", request)
-    print("details:", exc)
+    LexiLogging("request:", request)
+    LexiLogging("details:", exc)
     return JSONResponse(content={"detail": "Validation Error, check console"}, status_code=422)
+
 
 # Retrieve the user_id:
 @app.get('/get_session_id', response_class=JSONResponse, dependencies=[Depends(cookie)])
 async def get_user_id(session_data: LexiSessionData = Depends(verifier)):
     return JSONResponse({"session_id": str(session_data.session_id)})
+
 
 # Endpoint to render the main Dashboard
 @app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(cookie)])
@@ -178,7 +190,7 @@ async def process_input(
     try:
 
         # Send message to Lexi and get response
-        await lexi._process_user_request(data=message)
+        await Lexi._process_user_request(data=message)
 
         return JSONResponse(content={"status": "Message sent to Lexi."})
     
@@ -194,7 +206,7 @@ async def reset_user_thread_request(
 ):
     try:
         # Send command to Lexi:
-        await lexi._reset_user_thread_request(
+        await Lexi._reset_user_thread_request(
             user_id= session_data.user_id, 
             conversation_id= session_data.conversation_id_focus
             )

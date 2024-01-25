@@ -616,7 +616,6 @@ a.add img {
 }
 
 .msg-body ul li.sender p {
-    /*color: #fdf6f6de;  deprecated*/ 
     font-size: 15px;
     line-height: 1.7;
     font-weight: 450;
@@ -627,9 +626,7 @@ a.add img {
     border-top-right-radius: 10px;
     border-bottom-right-radius: 10px;
     margin-bottom: 0;
-    max-width: 70%; /* Set the maximum width to 70% */
-   /* box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2); /* Larger and softer box shadow */
-    /*font-family: 'Ubuntu Mono', sans-serif;  /**/
+    max-width: 70%; 
 }
 
 .msg-body ul li.sender p b {
@@ -665,7 +662,6 @@ a.add img {
 }
 
 .msg-body ul li.repaly p {
-    /*color: #ebe5e5e6; deprecated*/
     font-size: 14px;
     line-height: 1.5;
     font-weight: 400;
@@ -694,7 +690,6 @@ a.add img {
 
 .time {
     display: block;
-    /*color: #b9b8b8dd; deprecated*/
     font-size: 12px;
     line-height: 1.5;
     font-weight: 400;

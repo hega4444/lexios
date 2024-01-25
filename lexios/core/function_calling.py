@@ -4,11 +4,11 @@ import openai
 
 from admin.verify_folder import find_project_folder
 
+from lexios.frontend.messages import render_message
 from lexios.frontend.session_data import read_session_data_from_backend 
 
 from lexios.core.common_tools import *
 from lexios.core.logger import CustomLogger, DEBUG
-from lexios.core.task_scheduler import LexiTaskScheduler
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
 from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 from lexios.core.thread import LexiAssistantThread
@@ -106,7 +106,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await frontend_output(show_message, user_id=self.user_id, 
+                    await render_message(show_message, user_id=self.user_id, 
                                           conversation_id=self.conversation_id, msg_type="sys_notif")
                     await asyncio.sleep(0.4)
 
@@ -234,7 +234,7 @@ class ToolCall():
                     }
                     
                     # Send to the frontend for rendering
-                    await frontend_output(
+                    await render_message(
                                     content=message, 
                                     images=images, 
                                     user_id=self.user_id, 
@@ -255,7 +255,7 @@ class ToolCall():
                     data = self.external_cmd.format_user_response(self.call_output, new_action)
 
                     # Print results
-                    await frontend_output(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
+                    await render_message(data, spell=False, user_id=self.user_id, conversation_id=self.conversation_id)
 
                 except Exception as e:
                     # Log warning
@@ -286,7 +286,7 @@ class ToolCall():
                     "text", None
                 )
                 if show_message:
-                    await frontend_output(show_message, user_id=self.user_id, 
+                    await render_message(show_message, user_id=self.user_id, 
                                           conversation_id=self.conversation_id, msg_type="sys_notif")
             except Exception:
                 pass
@@ -424,8 +424,10 @@ async def create_tool_calls(thread: LexiAssistantThread):
             await thread.consent_dialog.show_to_user()
 
         except Exception as e:
-            with CustomLogger("lexios") as log:
-                log.warning(f"Could not verify consent screen due to {e}.")
+            
+            # In case of error log in console and skip the consent screen
+            thread.consent_dialog = None
+            LexiWarning(f"Could not verify consent screen due to {e}.")
 
 
 async def attend_tool_calls(thread: LexiAssistantThread):

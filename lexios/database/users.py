@@ -7,7 +7,8 @@ from sqlalchemy import or_
 
 from lexios.settings.main import *
 from lexios.frontend.session_data import LexiSessionData
-from lexios.database.models import Session, User, UserSpecificData, UserSpecificDataORM
+from lexios.database.models import User, UserSpecificData, UserSpecificDataORM
+from lexios.database.setup import Session
 
 def create_user_account_in_db(email: str, password: str, user_data: LexiSessionData = None , google_data: dict = None):
     """ 

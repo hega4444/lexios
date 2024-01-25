@@ -6,6 +6,8 @@ from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
 from lexios.core.exceptions import IntegrationsManagerException, LexiWarning
 from lexios.integration.plugin import PluginTemplate
+from lexios.integration.virtual_agents import VirtualAgent
+from lexios.integration.database_connection import DatabaseConnection
 
 class IntegrationsManager():
     """
@@ -89,10 +91,11 @@ class IntegrationsManager():
         """
 
         # Databases 
-        if plugin.identifier == "DatabaseConnection":
+        if plugin.identifier == DatabaseConnection.__name__:
             self.databases.append(plugin)
 
-        if plugin.identifier == "VirtualAgent":
+        # Virtual Agents
+        if plugin.identifier == VirtualAgent.__name__:
             self.virtual_agents.append(plugin)
             
             # Load unnasigned methods to the agent

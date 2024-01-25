@@ -433,7 +433,7 @@ class LexiTaskScheduler():
             # Inform in the interface
             hhmm = datetime.now().strftime('%H:%M')
 
-            await frontend_output(
+            await render_message(
                 f"Scheduled action '{function_name}' executed at {hhmm}.",
                 user_id= action.user_id,
                 conversation_id= action.conversation_id,

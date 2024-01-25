@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from lexios.database.models import Session, ScheduledTaskPydantic, ScheduledTaskORM
+from lexios.database.setup import Session
+from lexios.database.models import ScheduledTaskPydantic, ScheduledTaskORM
 
 def save_scheduled_task_in_db(action: ScheduledTaskPydantic):
     """ 

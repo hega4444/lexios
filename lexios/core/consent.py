@@ -3,8 +3,9 @@ import uuid
 import json
 from datetime import datetime, timedelta
 
+from lexios.frontend.messages import render_message
+from lexios.core.common_tools import LexiException, LexiWarning
 
-from lexios.core.common_tools import frontend_output, LexiException
 
 _consent_backend = {}
 
@@ -12,7 +13,7 @@ class ConsentScreen():
     """
     The ConsentScreen is a component that allows to verify directly with the user if a specif permission is to 
     to be granted. External commands can define scopes of access required to execute the command. Whenever the
-    command is chosen by the Ai model to be executed, if a scope is required a message will be shown to the user
+    command is chosen by the AI model to be executed and a scope is required, a message will be shown to the user
     asking for permission to take the action. 
 
     """
@@ -62,8 +63,9 @@ class ConsentScreen():
                         self.scopes[call.function_name]["cmd_scopes"] = call.external_cmd.scopes
                         self.scopes[call.function_name]['arg_values'] = call.function_arguments
                           
-                    else:
-                        raise ValueError("Please enter a list of 'scopes'.")
+            if self.scopes == {}:
+                # Log a warning if the consent was summoned but no scopes could be found            
+                raise LexiWarning("Consent screen was requested but no scopes were found.")
 
             # Default prompt to user
             self.text_content = "The following actions require an explicit authorization from you..."
@@ -75,13 +77,13 @@ class ConsentScreen():
             self.choices = {}
 
         except Exception as e:
-            LexiException(f"Problems at generating consent screen for user_id {self.user_id}. {e}")
+            raise LexiException(f"Problems at generating consent screen for user_id {self.user_id}. {e}")
 
     async def show_to_user(self) -> bool:
         # Perform the verification
 
         # Send the details for the consent screen to the frontend
-        await frontend_output(
+        await render_message(
             content = self.text_content,
             
             user_id = self.user_id,

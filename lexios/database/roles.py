@@ -1,7 +1,8 @@
 # roles.py
 from typing import List
 
-from lexios.database.models import Session, Role
+from lexios.database.setup import Session
+from lexios.database.models import Role
 
 
 def get_assigned_roles_by_user_id(user_id: int) -> List[Role]:

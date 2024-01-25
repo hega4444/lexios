@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Lexi Extension",
+  "version": "1.0",
+  "description": "A Chrome extension for the Lexi app.",
+  "icons": {
+    "16": "icons/spiral-bn.png",
+    "48": "icons/spiral-bn.png",
+    "128": "icons/spiral-bn.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+    // Add any additional permissions your extension requires
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/spiral-bn.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

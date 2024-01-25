@@ -23,8 +23,9 @@ DEFAULT_THEME_BACKGROUND_COLOR = '#C4660E'
 
 # Dev tools
 TEST_MODE = True
-LOGS_VERBOSITY_LEVEL = "INFO" #values accepcted: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+LOGS_VERBOSITY_LEVEL = "INFO" #values accepcted: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL" 
 CONSOLE_VERBOSITY_LEVEL = "ERROR"
+COMMAND_LINE_MESSAGES_OUTPUT = True
 
 # Lexi_app server settings
 #-----------------------------------------------------------------------------------#

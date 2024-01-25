@@ -1,8 +1,9 @@
 # tools.py
 
 from lexios.integration.manager import IntegrationsManager
-from lexios.integration.database_plugin import DatabaseConnection
+from lexios.integration.database_connection import DatabaseConnection
 from lexios.integration.virtual_agents import VirtualAgent
+from lexios.integration.message import AgentMessage, UserMessage
 
 
 # Instantiate a Manager for managing integrations (internally)

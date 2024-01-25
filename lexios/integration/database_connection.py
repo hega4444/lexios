@@ -55,7 +55,7 @@ class DatabaseConnection(PluginTemplate):
         self.files = load_files
 
         # Call construtor of the PluginTemplate class
-        super().__init__(plugin_name= "DatabaseConnection")
+        super().__init__(plugin_name= DatabaseConnection.__name__)
 
     def load_file(self, filename, tablename):
         # Append file to inner state

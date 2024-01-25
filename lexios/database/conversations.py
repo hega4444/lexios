@@ -1,11 +1,13 @@
 # conversations.py
 
 from typing import Union, List
+from sqlalchemy.orm import object_session
 
-from sqlalchemy.orm import object_session  
-from lexios.database.models import Session, Conversation
+from lexios.database.setup import Session  
+from lexios.database.models import Conversation
 from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import LexiException
+
 
 def get_user_conversations(user_id: int, conversation_id : str =None) -> Union[List[Conversation], Conversation]:
     """ Retrieves stored conversations from database

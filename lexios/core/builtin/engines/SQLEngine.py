@@ -763,7 +763,7 @@ class LexiDatabase(SimpleSQL):
                     print(f"Could not load file '{file[tablename]}. Details: {e}'")
 
         # Define the external commands that need special treatment
-        self.table_analyzer = LexiExternalCommand(self.run_data_analysis_on_table)
+        self.table_analyser = LexiExternalCommand(self.run_data_analysis_on_table)
 
         
     def execute_fetch_sql_query(self, query:str , fetch_one = False) ->str:
@@ -864,14 +864,14 @@ class LexiDatabase(SimpleSQL):
             
             else:
                 # Inform there are no models available
-                return f"No predictive models found for table {table_name}. You can use function 'analize_table' for creating new model."
+                return f"No predictive models found for table {table_name}. You can use function 'analyse_table' for creating new model."
             
         except Exception as e:
             # Inform the service is not available
             raise ValueError(f"Service is not available now. Details: {e}")
 
     def run_data_analysis_on_table(self, table_name: str, target_field: str, model_type) ->str:
-        # KEYS: prediction predictive model ann linear features fields 
+        # KEYS: prediction predictive model ann linear features fields analyse analysis 
         # SUMM: Checks possible combinations of input features (table fields) to determine best predictive combination 
         # SUMM: Retrieves the model with best performance
         # target_field 'description': the target field that to predict, must be present in table_name
@@ -901,7 +901,7 @@ class LexiDatabase(SimpleSQL):
 
             try:
                 # Run an automated data analysis
-                r2_scroring = new_model.analize_field_relationships(
+                r2_scroring = new_model.analyse_field_relationships(
                     target= target_field,
                     hide_unfit=True,
                     show_details=False
@@ -955,7 +955,8 @@ class LexiDatabase(SimpleSQL):
             features_img = new_model.features_plot()
             performance_img = new_model.performance_plot()
 
-            self.table_analyzer.update_custom_messages(
+            # Stablish a message to be shown to the user after running the analysis
+            self.table_analyser.update_custom_messages(
                 event_type='after',
                 text= 'Below you can see the graphics this model has generated. The first describes the features inference on the predicted result. The second is a performance chart.',
                 images= {
@@ -968,7 +969,7 @@ class LexiDatabase(SimpleSQL):
             return json.dumps(new_model_record)
 
         except Exception as e:
-            raise ValueError(f"Could not analize data in table {table_name}. Details: {e}.")
+            raise ValueError(f"Could not analyse data in table {table_name}. Details: {e}.")
 
     def _generate_input_specs(self, model) -> str:
         # Creates a JSON structure that aims to clarify a predictive model expected input values

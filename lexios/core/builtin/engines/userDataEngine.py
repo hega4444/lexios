@@ -5,10 +5,10 @@ import json
 
 from lexios.globals import Globals
 from lexios.settings.main import *
+from lexios.frontend.messages import render_message
 from lexios.core.logger import CustomLogger
-from lexios.database.models import UserSpecificData
-from lexios.core.common_tools import frontend_output
 from lexios.integration.trusted_actions import TrustedAction
+from lexios.database.models import UserSpecificData
 from lexios.database.users import (
     create_user_specific_data, 
     update_user_specific_data, 
@@ -138,7 +138,7 @@ class UserDataManager():
             message = f"\nReminder for you... \n\nDetails: {data['content']}"
 
             # Send a message to user
-            await frontend_output(
+            await render_message(
                 content= message, 
                 user_id= self.user_id, 
                 conversation_id= self.conversation_id,

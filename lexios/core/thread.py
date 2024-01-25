@@ -4,6 +4,7 @@ from typing import Optional, Union
 from admin.verify_folder import find_project_folder
 
 from lexios.core.common_tools import *
+from lexios.frontend.messages import render_message
 from lexios.core.builtin.functions.greetings import greetings
 
 PROJECT_FOLDER = find_project_folder()
@@ -237,7 +238,7 @@ class LexiAssistantThread():
                         and request.just_say_hi is True
                     ):
                         # Render the automated salutation 
-                        await frontend_output(
+                        await render_message(
                             content = salutation,
                             user_id= self.user_id, 
                             conversation_id= self.conversation_id,
@@ -352,7 +353,7 @@ class LexiAssistantThread():
                                 self.save_message(assistant_reply)
                                 
                                 # Render assistant reply to frontend
-                                await frontend_output(
+                                await render_message(
                                     content= assistant_reply, 
                                     user_id= self.user_id, 
                                     conversation_id= self.conversation_id,
@@ -413,7 +414,7 @@ class LexiAssistantThread():
                     
                     # Inform the user about the problem:
                     if not self.run_in_background:
-                        await frontend_output(
+                        await render_message(
                             "I'm sorry, there was a problem processing your last request. Please try again...", 
                             user_id = self.user_id,
                             conversation_id=self.conversation_id,

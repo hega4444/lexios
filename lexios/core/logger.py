@@ -1,9 +1,38 @@
 import colorlog
 import logging
-import absl.logging
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
 from lexios.settings.main import LOG_FOLDER, LOGS_VERBOSITY_LEVEL, CONSOLE_VERBOSITY_LEVEL
+
+class CustomFormatter(colorlog.ColoredFormatter):
+    """
+    The CustomFormatter class is used along the project
+    and tries to blend with the uvicorn native logging 
+    formatters to have a unified output on console.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            f'{{log_color}}{{levelname}}{{reset}}:{{space}}{{asctime}}{{reset}} - {{log_color}}{{message}}{{reset}}',
+            datefmt=None,
+            log_colors={
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'red,bg_white',
+                'light_gray': '0;37',  # ANSI color code for light gray
+            },
+            style='{'
+        )
+    
+    def format(self, record):
+        # Calculate the number of spaces based on the length of the log level label
+        record.space = ' ' * (9 - len(record.levelname))
+
+         # Set the color for the timestamp to light grey
+        record.asctime = f'\x1b[0;37m{record.asctime}\x1b[0m'
+
+        return super().format(record)
 
 class CustomLogger:
     """
@@ -13,7 +42,8 @@ class CustomLogger:
     """
     log_path = LOG_FOLDER
 
-    def __init__(self, log_type):
+    def __init__(self, log_type:str):
+
         self.logger = logging.getLogger(log_type)
         self.logger.setLevel(logging.getLevelName(LOGS_VERBOSITY_LEVEL))
 
@@ -22,20 +52,7 @@ class CustomLogger:
 
             file_formatter = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
 
-            console_formatter = colorlog.ColoredFormatter(
-                '%(log_color)s%(levelname)-10s%(asctime)s - %(message)s',
-                datefmt=None,
-                reset=True,
-                log_colors={
-                    'DEBUG': 'cyan',
-                    'INFO': 'green',
-                    'WARNING': 'yellow',
-                    'ERROR': 'red',
-                    'CRITICAL': 'red,bg_white',
-                },
-                secondary_log_colors={},
-                style='%'
-            )
+            console_formatter = CustomFormatter()
 
             # File handler
             file_handler = logging.FileHandler(f'{self.log_path}/log_{log_type}.log')    

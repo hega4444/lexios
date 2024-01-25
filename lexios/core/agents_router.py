@@ -1,10 +1,7 @@
 # virtual_agent.py
 
 import inspect
-from uuid import uuid4
-from abc import abstractmethod
 
-from lexios.core.common_tools import frontend_output, CustomLogger, DEBUG
 from lexios.settings.main import LEXI_ALIAS
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
@@ -95,6 +92,7 @@ class AgentsRouter(PluginTemplate):
         -`information` : str Aggregated data for the next assitant to take over.
         -`no_callback` : bool By debault True, meaning the conversation is handled to the next assistant. 
         False for awaiting a response from the asistant.
+        - `just_say_hi`: bool True: No need for follow up, the agent will open with "hi..". False: Agent is required to solve an specific issue.
         
         """
         # SUMM: Forward the user input to another virtual assistant listed on the available options.
@@ -115,14 +113,18 @@ class AgentsRouter(PluginTemplate):
             return (f"Virtual agent {virtual_agent_name} not found. These are the valid agent names: {self._agent_names}"
                     f"\n Root assist. alias is '{LEXI_ALIAS}'.")
         
-        # Check the requested agent is not already loaded
-        elif requested_agent.name == current_agent.name:
-            return f"You already are '{virtual_agent_name}'. List of valid agent names: {self._agent_names}." 
-        
         # Or cannot be replaced (settings on virtual agents)
         elif not current_agent.can_be_replaced:
             return "You are currently set as the permanent assistant in this conversation. Routing service is Disabled."
         
+        # Check the requested agent is not already loaded
+        elif requested_agent.name == current_agent.name:
+            return f"You already are '{virtual_agent_name}'. Current agents: {self.list_virtual_agents()}." 
+        
+        # Check if the current agent has enabled a relationship with the requested agent
+        elif not any(neighbor.name == requested_agent.name for neighbor in current_agent.get_neighbors() or [] ):
+            return f"Agent {virtual_agent_name} cannot be accessed. Current agents: {self.list_virtual_agents()}."
+ 
         # If requested for the root assistant, redirect the message.
         elif requested_agent.name.lower() == root.name.lower():
             self.route_to_main_assistant(information=information)
@@ -148,7 +150,7 @@ class AgentsRouter(PluginTemplate):
                     from_conversation_id= self.action.conversation_id,
                     session_data= self.action.user,
                     # Negate the callback parameter, seems to work better this way.
-                    callback= not no_callback,
+                    callback= True,
                 )
             
             # Return the response inside the current thread

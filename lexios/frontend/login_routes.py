@@ -1,6 +1,8 @@
 
-# login_router.py
-from lexios.frontend.service import templates, session_manager, frontend_active_users
+# login_routes.py
+
+from lexios.frontend.active_users import frontend_active_users
+from lexios.frontend.service import templates, Session_manager
 from uuid import uuid4
 
 from fastapi import Query, Depends, Form, Request, APIRouter
@@ -279,7 +281,7 @@ async def logout(
     update_user_data_in_db(session_data)    
 
     # Conversation history 
-    session_manager.close_session(session_data.user_id)
+    Session_manager.close_session(session_data.user_id)
 
     # Remove from active users 
     frontend_active_users.pop(session_data.user_id, None)

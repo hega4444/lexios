@@ -4,6 +4,8 @@ import asyncio
 import openai
 from logging import DEBUG
 
+from lexios.frontend.messages import render_message
+
 from lexios.core.common_tools import *
 from lexios.core.thread import LexiAssistantThread
 from lexios.database.models import Conversation
@@ -68,6 +70,10 @@ def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conve
         # Register new assistants
         elif not loaded: 
             load_assistants(thread, new_conversation, True)
+    
+    except LoadThreadFailed:
+        # It will be created on the next message
+        pass
 
     except Exception as e:
         raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}",ERROR, e.args)
@@ -102,8 +108,9 @@ async def update_thread_messages(
                 assistant_id=thread.user_assistant.id, 
                 file_id=file_object.id
             )
-
-            assistant_files = openai.beta.assistants.files.list(thread.user_assistant.id)
+            
+            # Code below here only for debugging..
+            #assistant_files = openai.beta.assistants.files.list(thread.user_assistant.id)
             
             # Log file upload:
             with CustomLogger("file_uploads") as log:
@@ -113,7 +120,7 @@ async def update_thread_messages(
             filename = os.path.basename(new_file)
 
             #Notify the user:
-            await frontend_output(
+            await render_message(
                 f'File "{filename}" uploaded', 
                 user_id=thread.user_id, 
                 conversation_id=thread.conversation_id,
@@ -125,7 +132,6 @@ async def update_thread_messages(
             thread.save_message(f'File "{filename}" uploaded', type="sys_notif")
 
         except Exception as e:
-            # Log error
                 LexiException(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}", WARNING, e)   
 
     # Text messages (with or without attachments):
@@ -247,7 +253,7 @@ async def render_annotations(thread: LexiAssistantThread, links, attachments):
     try:
         # Handle links
         if links:
-            await frontend_output(
+            await render_message(
                     content = links.get("text"),
                     user_id = thread.user_id,
                     conversation_id=thread.conversation_id,
@@ -263,7 +269,7 @@ async def render_annotations(thread: LexiAssistantThread, links, attachments):
         if attachments:
             for filename in attachments:
 
-                await frontend_output(
+                await render_message(
                     f'Download "{filename}"',
                     user_id = thread.user_id,
                     conversation_id=thread.conversation_id,
@@ -464,7 +470,7 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
                 raise LoadThreadFailed(e)
         
         try:
-            # To this point an asisstant should be loaded unless a LoadAssistantFailed exception
+            # To this point an asisstant should be loaded unless a LoadAssistantFailed exception occurred
             refresh_assistant_references(thread, conversation)
             
             # For workers, save the loaded status aqquaried for a faster reboot
@@ -484,8 +490,8 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
 
         
     finally:
-        # Push changes into the database
-         save_conversation(thread, push=True)
+        # Push changes to the database
+        save_conversation(thread, push=True)
 
 
     return True
