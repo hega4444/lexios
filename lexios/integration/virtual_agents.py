@@ -1,8 +1,10 @@
 # virtual_agent.py
+
 import asyncio
 from typing import Any, List
 from uuid import uuid4
 from abc import abstractmethod
+
 
 from lexios.settings.main import LEXI_ALIAS
 
@@ -11,9 +13,8 @@ from lexios.core.exceptions import LexiException
 from lexios.globals import GENERAL_VIRTUAL_AGENT
 
 from lexios.integration.plugin import PluginTemplate
-from lexios.integration.message import AgentMessage, UserMessage
+from lexios.integration.messages import AgentMessage, UserMessage
 from lexios.integration.trusted_actions import TrustedAction
-from lexios.core.lexios_main import LexiOS_Backend
 
 
 class VirtualAgent(PluginTemplate):
@@ -134,11 +135,6 @@ class VirtualAgent(PluginTemplate):
         else:
             # General virtuaL agent
             self.as_user_id = GENERAL_VIRTUAL_AGENT
-
-        # A wildcard reference to the backend, the field is actually initiated at
-        # method start_service()
-
-        self.lexi : LexiOS_Backend = None
 
         # Call construtor of the PluginTemplate class
         super().__init__(plugin_name= VirtualAgent.__name__)
@@ -273,50 +269,18 @@ class VirtualAgent(PluginTemplate):
     def unhide(self):
         # Add agent to the Router's agent list
         self.hidden = False
-
-    # Build the thread
-    def _build(self, lexi: LexiOS_Backend):
-        """ Build a copy of the model (assistant, instructions & tools)
-        """
-        
-        # Determine the initial scope of resources needed by the agent
-        # This is just a request, all components go under security clearance
-        # Except for the commands required by LexiOS, such as 'time_and_location'
-        # Or routing commands to the Root assistant.
-
-        # Request Lexi to build the LexiThread needed
-        try:
-            thread = lexi._build_thread(
-                user_id= self.as_user_id,
-                conversation_id= str(self.channel),
-                virtual_agent=self,
-            )
-            
-            return thread
-        
-        except Exception as e:
-            raise LexiException(f"Building virtual agent: {e}.")
     
     # Start the service
-    def _start_service(self, lexi: LexiOS_Backend):
-        # Start virtual agent
-        try:
+    def _start_service(self):
+        """ 
+        Start Virtual Agent service.
+        """
 
-            # Save the reference to lexi
-            self.lexi = lexi
-
-            # Build the LexiThread 
-            self.main_thread= self._build(lexi)
-
-            # Change status
-            self.status = "ready"
-        
-        except LexiException as e:
-            self.status = "load_failed"
-            raise LexiException(f"Virtual agent {self.name} problems starting service. {e}")
+        # Change status
+        self.status = "ready"
         
     # Create a copy of the asistant
-    def _clone(self, lexi):
+    def _clone(self):
         # Check if cloning feature is allowed
 
         if not self.can_be_cloned:
@@ -327,8 +291,8 @@ class VirtualAgent(PluginTemplate):
         
         # Increment the counter 
         self.nr_copies += 1     
-        # Return a new copy
-        return self._build(lexi)
+        # Return the number of copy
+        return self.nr_copies
     
 
     # VirtualAgent has two additional methods for handling the conversations with the user

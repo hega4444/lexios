@@ -3,10 +3,9 @@
 import json
 import aioredis
 
-import inspect
-
 from lexios.frontend.active_users import frontend_active_users
-from lexios.integration.message import AgentMessage
+from lexios.integration.messages import AgentMessage
+from lexios.core.executor import execute_event
 from lexios.core.common_tools import (
     BROKER_URL, 
     LEXI_ALIAS, 
@@ -48,7 +47,7 @@ async def render_message(
     """
     Following import is at function level to isolate the circular import: 
     """
-    from lexios.core.agents_router import AgentsRouter, VirtualAgent
+    from lexios.core.agents_router import AgentsRouter, AgentEvent, VirtualAgent
 
     try:
 
@@ -95,37 +94,30 @@ async def render_message(
             # Check if the virtual agent has a custom entry point to read/edit the message
             agent : VirtualAgent = AgentsRouter().by_name(alias or LEXI_ALIAS)
 
-            implemented = not getattr(agent.at_agent_message_event, '__isabstractmethod__', False)
+            # Create a AgentMessage to share with the VirtualAgent
+            agent_message = AgentMessage(
+                user_id=user_id,
+                conversation_id= conversation_id,
+                content= content or '',
+                msg_type= msg_type,
+                metadata= metadata,
+                spell= spell,
+                images=None,
+            )
 
-            if (implemented and callable(getattr(agent, VirtualAgent.at_agent_message_event.__name__))):
+            # Process 'at_agent_message_event'
+            modified_message : AgentMessage = await execute_event(
+                executor= agent,
+                event_name= AgentEvent.agent_message,
+                input= agent_message,
 
-                # Create a AgentMessage to share with the VirtualAgent
-                agent_message = AgentMessage(
-                    user_id=user_id,
-                    conversation_id= conversation_id,
-                    content= content or '',
-                    msg_type= msg_type,
-                    metadata= metadata,
-                    spell= spell,
-                    images=None,
-                )
-
-                # Check if the method is a coroutine function
-                is_coroutine = inspect.iscoroutinefunction(agent.at_agent_message_event)
-
-                if is_coroutine:
-                    # async call
-                    modified_message = await agent.at_agent_message_event(agent_message= agent_message)
-                else:
-                    # sync call
-                    modified_message = agent.at_agent_message_event(agent_message= agent_message)
-
-                # Replace message content with the modified version
-                outbound_message["content"] = modified_message.content
-                outbound_message["metadata"] = modified_message.metadata
-                outbound_message["spell"] = modified_message.spell
-                outbound_message["images"] = modified_message.images
-
+            )
+            # Update outbound message content with the changes provided by the virtual agent
+            outbound_message["content"] = modified_message.content
+            outbound_message["metadata"] = modified_message.metadata
+            outbound_message["spell"] = modified_message.spell
+            outbound_message["images"] = modified_message.images
+            
             # Send message using broker
             async with aioredis.from_url(BROKER_URL) as broker:
                 await broker.publish("fastapi_channel", json.dumps(outbound_message))

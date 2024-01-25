@@ -379,7 +379,19 @@ def _set_up_virtual_agents_and_routing(lexi: LexiOS_Backend):
                         # Register a token for the agent
                         agent.id = uuid4()
 
-                        agent._start_service(lexi)
+                        # Build service thread
+                        service = lexi._build_thread(
+                            user_id= agent.as_user_id,
+                            conversation_id= str(agent.channel),
+                            virtual_agent= agent,
+                        )
+
+                        # Load the thread on the virtual agent
+                        agent.main_thread = service
+
+                        # Start the service
+                        agent._start_service()
+
                         LexiLogging(f"VirtualAgent {agent.name: <10} channel @{agent.channel} . Service started")
 
                     except Exception as e:

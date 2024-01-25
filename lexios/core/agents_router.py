@@ -4,11 +4,14 @@ import inspect
 
 from lexios.settings.main import LEXI_ALIAS
 from lexios.core.external_command import LexiExternalCommand
+from lexios.core.executor import execute_event
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
+
 
 from lexios.integration.plugin import PluginTemplate
 from lexios.integration.trusted_actions import TrustedAction
-from lexios.integration.virtual_agents import VirtualAgent
+from lexios.integration.tools import VirtualAgent, AgentEvent
+
 
 
 class AgentsRouter(PluginTemplate):
@@ -164,7 +167,6 @@ class AgentsRouter(PluginTemplate):
 
 
         """
-
         # SUMM: List all the current available virtual agents this node can connect to and their characteristics. 
         # SUMM: Use it to retrieve the virtual agent name that better fits the user requirements.
         # SUMM: OUTPUT {'callback_required': 'True Next assistant takes over conversation with the user. False: Await results from the virtual agent.}
@@ -231,23 +233,15 @@ class AgentsRouter(PluginTemplate):
                 prev_agent = self.by_name(self, action.prev_agent.lower())
 
                 if prev_agent:
-
                     # Verify the agent has a callback defined and that is in fact callable
-                    if hasattr(prev_agent, VirtualAgent.at_close_event.__name__) and callable(getattr(prev_agent, 
-                    VirtualAgent.at_close_event.__name__)):
-                        
-                        # Check the execution runtime the function needs
-                        is_async = inspect.iscoroutinefunction(prev_agent.at_close_event)
-
-                        if is_async:
-                            # If it's asynchronous, call it asynchronously
-                            await prev_agent.at_close_event(action=action)
-                        else:
-                            # If it's synchronous, call it without await
-                            prev_agent.at_close_event(action=action)
+                    await execute_event(
+                        executor= prev_agent,
+                        event_name= AgentEvent.close,
+                        input= action
+                    )
 
         except Exception as e:
-                        LexiException(f"At executing after_closing_event for agent {prev_agent.name}. {e}")
+            LexiException(f"At executing after_closing_event for agent {prev_agent.name}. {e}")
 
         try:
             # Execute event 'at_open_event' for the agent to be loaded 
@@ -263,21 +257,14 @@ class AgentsRouter(PluginTemplate):
                 if next_agent:
 
                     # Verify the next_agent has a callback defined and that is in fact callable
-                    if hasattr(next_agent, VirtualAgent.at_open_event.__name__) and callable(getattr(next_agent, 
-                    VirtualAgent.at_open_event.__name__)):
-                        
-                        # Check the execution runtime the function needs
-                        is_async = inspect.iscoroutinefunction(next_agent.at_open_event)
-
-                        if is_async:
-                            # If it's asynchronous, call it asynchronously
-                            await next_agent.at_open_event(action=action)
-                        else:
-                            # If it's synchronous, call it without await
-                            next_agent.at_open_event(action=action)
+                    await execute_event(
+                        executor= next_agent,
+                        event_name= AgentEvent.open,
+                        input= action
+                    )
 
         except Exception as e:
-                        LexiException(f"At executing callback_event for next_agent {next_agent.name}. {e}")
+            LexiException(f"At executing callback_event for next_agent {next_agent.name}. {e}")
 
 
 

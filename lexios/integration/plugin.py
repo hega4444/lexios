@@ -6,6 +6,7 @@ from lexios.core.common_tools import LexiException, LEXI_SIGNED_TRX_PASSWORD
 from lexios.integration.trusted_actions import TrustedAction
 
 class PluginTemplate():
+
     """
     PluginTemplate acts as an interface for the different components and commands that can be integrated to Lexi:
 
@@ -96,3 +97,6 @@ class PluginTemplate():
         pass
 
 
+# Definitions 
+before_execution = PluginTemplate.before_execution_event.__name__
+after_execution = PluginTemplate.after_execution_event.__name__

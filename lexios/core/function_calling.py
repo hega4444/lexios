@@ -1,6 +1,8 @@
 # Tools
+import copy
 import asyncio
 import openai
+
 
 from admin.verify_folder import find_project_folder
 
@@ -15,8 +17,9 @@ from lexios.core.thread import LexiAssistantThread
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
 from lexios.integration.trusted_actions import TrustedAction
-from lexios.integration.plugin import PluginTemplate
+from lexios.integration.plugin import PluginTemplate, before_execution, after_execution
 from lexios.core.consent import ConsentScreen
+from lexios.core.executor import execute_event
 
 
 # To make the code easier to read and keep references
@@ -116,6 +119,8 @@ class ToolCall():
         
         # Before        
     #----------------------------------BEGIN OF EXECUTE ACTION ---------------------------------------------#
+                
+
             # Record the execution
             LexiLogging(f"User Id: {self.user_id}: Executing '{self.function_name}'"
                         f" Parameters: {self.function_arguments}.")
@@ -133,26 +138,25 @@ class ToolCall():
                     can_be_replaced=self.thread.can_be_replaced or False,
                     timestamp = datetime.now(),
                 )
+                safe_copy = copy.deepcopy(new_action)
 
-                # If there is a specific PluginTemplate implementation of 'before_execution_event', then call it
                 try:
-                    # Check directly the specific plugin implementation
-
-                        if ( hasattr(self.external_cmd.dynamic_object, BEFORE_EVENT_NAME) and
-                        callable(self.external_cmd.dynamic_object.before_execution_event)):                    
-                        
-                            # Retrieve the callback function associated to the plugin    
-                            before_event = self.external_cmd.dynamic_object.before_execution_event
-                            
-                            # Submit signed context through the interface
-                            await before_event(self.external_cmd.dynamic_object, action= new_action)
+                    # Check if the command has a plugin implementation
+                    new_action = await self.external_cmd._execute_plugin_event(
+                        event_name= before_execution,
+                        action= new_action,
+                    )
                 
                 except Exception as e: 
-                    raise LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
-                                        f"Executing '{self.function_name}' {BEFORE_EVENT_NAME}(): {e}.")   
+                    # Rollback the new_action state
+                    new_action = safe_copy
+
+                    LexiWarning(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                                    f"Executing '{self.function_name}' {BEFORE_EVENT_NAME}: {e}. \nTrustedAction Rollback [done].\n")   
 
                 # Execute command with parameters and aggregated context given by Lexi
-                self.call_output = await self.external_cmd._execute_command(action=new_action, **params)
+                self.call_output = await self.external_cmd._execute_external_command(action=new_action, **params)
+
 
     #----------------------------------END OF EXECUTE ACTION ---------------------------------------------------#                 
             # Route to virtual agent
@@ -179,18 +183,14 @@ class ToolCall():
                 # Attach it to the external command as the lowest level of the interface
                 self.external_cmd._append_action(new_action)
 
-                # If there is a specific PluginTemplate implementation, call it and send the TrustedAction
                 try:
-                    # Check directly the specific plugin implementation
-                        if (hasattr(self.external_cmd.dynamic_object, AFTER_EVENT_NAME) and
-                        callable(self.external_cmd.dynamic_object.after_execution_event)):                    
-                        
-                            # Retrieve the callback function associated to the plugin    
-                            callback = self.external_cmd.dynamic_object.after_execution_event
-                            
-                            # Submit signed context through the interface
-                            await callback(self.external_cmd.dynamic_object, action= new_action)
-                
+
+                    # Check directly if the command has a plugin implementation   
+                    new_action = await self.external_cmd._execute_plugin_event(
+                        event_name= before_execution,
+                        action= new_action,
+                    )
+            
                 except Exception as e: 
                     raise LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
                                         f"Executing '{self.function_name}' {AFTER_EVENT_NAME}(): {e}.")  

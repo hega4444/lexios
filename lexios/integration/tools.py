@@ -3,8 +3,9 @@
 from lexios.integration.manager import IntegrationsManager
 from lexios.integration.database_connection import DatabaseConnection
 from lexios.integration.virtual_agents import VirtualAgent
-from lexios.integration.message import AgentMessage, UserMessage
-
+from lexios.integration.messages import AgentMessage, UserMessage
+from lexios.integration.trusted_actions import TrustedAction
+from lexios.integration.agent_events import AgentEvent
 
 # Instantiate a Manager for managing integrations (internally)
 

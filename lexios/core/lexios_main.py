@@ -7,13 +7,13 @@ from asyncio import sleep
 from typing import ForwardRef
 
 from lexios.frontend.messages import render_message
-
-from lexios.integration.message import UserMessage
-
+from lexios.integration.messages import UserMessage
+from lexios.integration.agent_events import AgentEvent
+from lexios.integration.virtual_agents import VirtualAgent
 from lexios.core.common_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.thread import LexiAssistantThread
-
+from lexios.core.executor import execute_event
 
 
 class LexiOS_Backend():
@@ -25,7 +25,6 @@ class LexiOS_Backend():
 
         `model` : The GPT model that would be used for the main instance of Lexi and the root assistants on each Thread.
         `instructions`: Instructions for the root assistant.
-        `active_user`: Dictionary shared with the frontend to retrieve the session_id and route messages to thhe user in a secure way.
         `virtual_agents` : A list of VirtualAgent or child classes passed by the IntegrationsManager during startup.
         `databases` : A list of DatabaseConnection objects representing the different DBs Lexi has access to. 
 
@@ -236,7 +235,7 @@ class LexiOS_Backend():
 
                     # Check if there is there is a virtual agent loaded and has
                     # implemented a custom at_user_message_event()
-                    user_input = await self._check_agent_at_user_message_event(
+                    user_input = await self._process_at_user_message_event(
                         thread= thread, 
                         user_message= user_input
                     )
@@ -297,10 +296,13 @@ class LexiOS_Backend():
             
             except MainAssistantRequested as request:
                     await thread.process_input(request=request)
+                    
 
             except VirtualAgentRequested as request:
-                # Route a thread to a Virtual Agent
-                self._route_virtual_agent(thread, request)
+
+                # Load a Virtual Agent on the thread
+                self._load_virtual_agent(thread, request)
+
                 # Process the user request with the new context loaded
                 await thread.process_input(request= request)
 
@@ -333,68 +335,70 @@ class LexiOS_Backend():
         except Exception:
             LexiException(f"At user thread request: {e}.")
     
-    def _route_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
+    def _load_virtual_agent(self, thread: LexiAssistantThread, request: VirtualAgentRequested):
         """ 
         Loads an instance of a virtual agent
         
         """
-        from lexios.integration.virtual_agents import VirtualAgent
         
         # Find the agent
         agent : VirtualAgent = self.agents_router.by_name(request.to_agent)
 
-        if thread and agent and agent.can_be_cloned:
-
+        if (thread 
+            and agent and agent.can_be_cloned 
+            and not agent.hidden
+        ):
             # Get a blank slate of a virtual agent
-            cloned_virtual_agent = agent._clone(lexi=self)
+            cloned_copies = agent._clone()
+            
+            # Build service thread
+            cloned_thread = self._build_thread(
+                user_id= agent.as_user_id,
+                conversation_id= str(agent.channel + cloned_copies),
+                virtual_agent= agent,
+            )
 
-            # Load the cloned agent into the thread
-            thread.load_virtual_agent(cloned_virtual_agent)
+            # Replace user's thread context with the VirtualAgent's
+            thread.load_virtual_agent(cloned_thread)
 
-    
-    async def _check_agent_at_user_message_event(self, thread: LexiAssistantThread, user_message: str):
+
+    async def _process_at_user_message_event(self, thread: LexiAssistantThread, user_message: str):
         """
-        Checks whether the virtual agent loaded in the thread has
-        implemented the method at_user_message_event(). If so, it calls
-        it before processing the user request. 
-        """
-        from lexios.integration.virtual_agents import VirtualAgent
+        Checks whether the virtual agent loaded in thread has
+        implemented its method at_user_message_event(). If so, it calls
+        th method before processing the user request. The message can be altered to adapt 
+        the input for the assistant and / or new instructions can be entered at this entry point. 
+        New instructions will take effect immediately at the user scope, not the main instance (service)
+        of the agent.
 
+
+        """
+
+        # Identify the current virtual agent loaded in thread
         agent : VirtualAgent = self.agents_router.by_name(thread._name_ or LEXI_ALIAS)
 
-        implemented = not getattr(agent.at_user_message_event, '__isabstractmethod__', False)
+        # Prepare a UserMessage to share with the Agent
+        message_to_agent = UserMessage(
+            user_id = thread.user_id,
+            conversation_id = thread.conversation_id,
+            content= user_message,
+        )
 
-        if implemented:
+        # Send the information to the agent and wait for its processing
+        modified_message : UserMessage = await execute_event(
+            executor= agent,
+            event_name= AgentEvent.user_message,
+            input= message_to_agent,
+        )
 
-            user_message_event_method = getattr(agent, VirtualAgent.at_user_message_event.__name__)
-            
-            if callable(user_message_event_method):
-
-                user_message_to_agent = UserMessage(
-                    user_id = thread.user_id,
-                    conversation_id = thread.conversation_id,
-                    content= user_message,
-                )
-
-
-                # Check if the method is a coroutine function
-                is_coroutine = inspect.iscoroutinefunction(user_message_event_method)
-
-                if is_coroutine:
-                    # async call
-                    modified_message : UserMessage = await user_message_event_method(user_message=user_message_to_agent)
-                else:
-                    # sync call
-                    modified_message : UserMessage = user_message_event_method(user_message=user_message_to_agent)
-
-                # Replace with the modified message 
-                user_message = modified_message.content
-
-                if modified_message.assistant_instructions:
-                    # Add instructions to the thread.
-                    pass
+        # Check if there are new instructions for the assistant loaded
+        if modified_message.assistant_instructions:
+            # Update assistant instructions when proccessing the message
+            thread.instructions = modified_message.assistant_instructions
         
-        return user_message
+        # Return the new version of the UserMessage
+        return modified_message.content
+    
     
     def _build_thread(
             self, 

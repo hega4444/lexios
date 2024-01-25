@@ -52,10 +52,10 @@ class LexiExternalCommand(PluginTemplate):
         self.func = func
         self.name = func.__name__
 
-        # Specify the object that has to call that method (if any)
+        # Specify the object that will receive the method call
         self.static_object = requires_object
 
-        # Specify if the object needs to be instantiated in the moment
+        # Specify if the object needs to be initialized at execution time
         self.dynamic_object = requires_dynamic_object
 
         self.json_string = None
@@ -352,7 +352,48 @@ class LexiExternalCommand(PluginTemplate):
         """
         pass
 
-    async def _execute_command(self, action: TrustedAction = None, **kwargs) ->TrustedAction:
+    async def _execute_plugin_event(self, event_name: str, action: TrustedAction = None) ->TrustedAction:
+        """ 
+        Executes the external command plugin events before and after execution
+        
+        """
+        try:
+            # Check if the function requires an associated object
+            if self.static_object:
+                event_method_to_call = getattr(self.static_object, event_name)
+                
+            # Check if the function requires an object to be created right in the moment
+            # of execution (thus dynamic) calling its contructor and passing an instance 
+            # the TrustedAction object containing the aggregated execution context.
+                    
+            elif self.dynamic_object:
+                
+                # create an instance of the dynamic object that handles the tool call
+                required_object = self.dynamic_object(action=action)
+                event_method_to_call = getattr(required_object, event_name)
+            
+            else:
+                return action
+
+            # Check if the method remains an abstract method or has been implemented
+            implemented = not getattr(event_method_to_call, '__isabstractmethod__', False)
+
+            if not implemented:
+                return action
+
+            # Check whether the function needs a sync or async call
+            if asyncio.iscoroutinefunction(event_method_to_call):
+
+                result = await event_method_to_call(action = action)
+            else:
+                result = event_method_to_call(action = action)
+        
+            return result
+        
+        except Exception as e:
+            raise # for now..
+
+    async def _execute_external_command(self, action: TrustedAction = None, **kwargs) ->TrustedAction:
         # Executes the external command 
 
         parameters = kwargs
