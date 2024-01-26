@@ -4,8 +4,36 @@ from typing import Optional, Union
 from admin.verify_folder import find_project_folder
 
 from lexios.core.common_tools import *
-from lexios.frontend.messages import render_message
 from lexios.core.builtin.functions.greetings import greetings
+
+# Runtime dependencies
+def import_render_message():
+    from lexios.frontend.messages import render_message
+    return render_message
+
+def import_thread_loading():
+    from lexios.core.thread_loading import update_thread_messages, render_annotations
+    return update_thread_messages, render_annotations
+
+def import_call_functions():
+    from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
+    return create_tool_calls, attend_tool_calls, submit_function_outputs
+
+def import_download_functions():
+    from lexios.core.downloads import manage_downloads, manage_links
+    return manage_downloads, manage_links
+
+def import_generate_conversation_title():
+    from lexios.core.thread_conversations import generate_conversation_name
+    return generate_conversation_name
+
+def import_init_dependencies():
+    from lexios.core.toolbox import ToolBox
+    from lexios.core.thread_loading import load_assistant_and_orm_data
+    from lexios.frontend.session_data import read_session_data_from_backend
+    from lexios.database.users import get_user_data_by_user_id
+
+    return (ToolBox, load_assistant_and_orm_data, read_session_data_from_backend, get_user_data_by_user_id)
 
 PROJECT_FOLDER = find_project_folder()
 
@@ -42,11 +70,13 @@ class LexiAssistantThread():
         # Call the __init__ methods of the base classes
         super().__init__() 
           
-        # Imports needed only by  LexiThread __init__()
-        from lexios.core.toolbox import ToolBox
-        from lexios.core.thread_loading import load_assistant_and_orm_data
-        from lexios.frontend.session_data import read_session_data_from_backend
-        from lexios.database.users import get_user_data_by_user_id
+        # Imports needed only by  __init__()
+        (ToolBox, 
+        load_assistant_and_orm_data, 
+        read_session_data_from_backend, 
+        get_user_data_by_user_id  
+        
+        ) = import_init_dependencies()
 
         # Set running status
         self.running_stat = "loading"
@@ -185,12 +215,13 @@ class LexiAssistantThread():
             generated to re route the assistant to a new vertial agent or back to the root assistant. 
 
             """
-            # Child methods
-            from lexios.core.thread_loading import update_thread_messages, render_annotations
-            from lexios.core.function_calling import create_tool_calls, attend_tool_calls, submit_function_outputs
-            from lexios.core.downloads import manage_downloads, manage_links
-            from lexios.core.thread_conversations import generate_conversation_name
             
+            # Import the needed components
+            render_message = import_render_message()
+            update_thread_messages, render_annotations = import_thread_loading()
+            create_tool_calls, attend_tool_calls, submit_function_outputs = import_call_functions()
+            manage_downloads, manage_links = import_download_functions()
+            generate_conversation_name = import_generate_conversation_title()
 
             try:
                 if message:

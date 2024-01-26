@@ -3,6 +3,7 @@
 import json
 import aioredis
 
+from lexios.core.agents_router import AgentsRouter, AgentEvent, VirtualAgent
 from lexios.frontend.active_users import frontend_active_users
 from lexios.integration.messages import AgentMessage
 from lexios.core.executor import execute_event
@@ -14,7 +15,6 @@ from lexios.core.common_tools import (
     COMMAND_LINE_MESSAGES_OUTPUT,
     LexiLogging,
 )
-
 
 # Send a message to the frontend  
 async def render_message(
@@ -47,8 +47,10 @@ async def render_message(
     """
     Following import is at function level to isolate the circular import: 
     """
-    from lexios.core.agents_router import AgentsRouter, AgentEvent, VirtualAgent
+    # As a shared function across modules, the import of the following classes is done here to avoid
+    # circular import
 
+    
     try:
 
         # Log virtual agents messages
@@ -123,7 +125,7 @@ async def render_message(
                 await broker.publish("fastapi_channel", json.dumps(outbound_message))
 
     except Exception as e:
-       LexiLogging("Backend At send message: ", e)
+       LexiLogging("Backend at render_message: ", e)
 
 
           

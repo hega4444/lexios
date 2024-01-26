@@ -1,15 +1,15 @@
-# tools.py
+# integration/tools.py
 
-from lexios.integration.manager import IntegrationsManager
-from lexios.integration.database_connection import DatabaseConnection
-from lexios.integration.virtual_agents import VirtualAgent
+from lexios.integration.agent_events import AgentEvent
 from lexios.integration.messages import AgentMessage, UserMessage
 from lexios.integration.trusted_actions import TrustedAction
-from lexios.integration.agent_events import AgentEvent
+from lexios.integration.database_connection import DatabaseConnection
+from lexios.integration.virtual_agents import VirtualAgent
 
-# Instantiate a Manager for managing integrations (internally)
+def import_collector():
+    from lexios.integration.make import Collector
+    return Collector
 
-collector = IntegrationsManager()
 
 # Define a decorator for appending functions to Lexi
 def external_command(func: callable):
@@ -24,7 +24,7 @@ def external_command(func: callable):
     """
     # Filter by checking the parameter 'self' is not included in the function:
 
-    return collector._add_command(func)
+    return import_collector()._add_command(func)
     
 # Define a decorator for appending functions to Lexi
 def agent_command(method: callable):
@@ -37,6 +37,7 @@ def agent_command(method: callable):
 
     """
     # Filter by checking the parameter 'self' is not included in the function:
+    import_collector()
 
     method.__agent_command__ = True
     return method
@@ -49,7 +50,7 @@ def virtual_agent(cls):
 
     for name, attr in cls.__dict__.items():
         if hasattr(attr, '__agent_command__'):
-            collector._add_method(attr)
+            import_collector()._add_method(attr)
     return cls
 
 
@@ -59,8 +60,8 @@ if __name__ == "__main__":
     # Usage
     # Load external commands from the specified folder
     integrations_folder = "new_lexi_project/integrations"
-    collector.load_project_integrations(integrations_folder)
+    import_collector().load_project_integrations(integrations_folder)
 
     print("Collected:")
-    for command in collector.commands:
+    for command in import_collector.commands:
         print(command)

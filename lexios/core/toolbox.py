@@ -1,7 +1,7 @@
 # toolbox.py
 from typing import List
 
-from lexios.core.common_tools import CustomLogger, LexiException, LEXI_ALIAS
+from lexios.core.common_tools import LexiException, LEXI_ALIAS
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.security import RolesVerification
 from lexios.core.agents_router import AgentsRouter
@@ -85,7 +85,6 @@ class ToolBox():
                     tools.append(dict(command.specs))
                     
             except Exception as e:
-                with CustomLogger("lexios") as log:
-                    log.error(f"At Toolbox: User {thread.user_id} Details: {e}")
+                 LexiException(f"At Toolbox: User {thread.user_id} Details: {e}")
         
         return tools

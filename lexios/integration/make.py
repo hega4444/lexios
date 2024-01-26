@@ -1,8 +1,11 @@
 # make.py
 
 import os
-from lexios.integration.manager import IntegrationsManager, LexiOS_Backend
+from lexios.integration.manager import IntegrationsManager
+from lexios.core.lexios_main import LexiOS_Backend
 from admin.verify_folder import find_project_folder
+
+Collector = IntegrationsManager()
 
 # Dynamically fetch functions with @external_command decorator and integrate to Lexi
 def get_lexi_backend_instance(**kwargs) -> LexiOS_Backend:
@@ -25,11 +28,10 @@ def get_lexi_backend_instance(**kwargs) -> LexiOS_Backend:
         integrations_folder = os.path.join(project_folder, "integrations")
 
         # Collect all components in project's folder to be inegrated
-        collector = IntegrationsManager()
-        collector.load_project_integrations(folder_path=integrations_folder)
+        Collector.load_project_integrations(folder_path=integrations_folder)
 
         # Make Lexi with integrations
-        lexi = collector.make_lexi(**kwargs)
+        lexi = Collector.make_lexi(**kwargs)
 
         return lexi
     except Exception as e:

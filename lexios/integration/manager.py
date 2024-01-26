@@ -134,6 +134,8 @@ class IntegrationsManager():
         Returns:
         An instance to the backend (LexiOS_Backend).
         """
+
+        
         # Append the virtual agents
         if self.virtual_agents:
             kwargs['virtual_agents'] = self.virtual_agents

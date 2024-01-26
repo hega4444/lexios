@@ -6,7 +6,7 @@ import inspect
 from uuid import uuid4
 from abc import abstractmethod
 
-from typing import List, Any, Union, Optional
+from typing import List, Any, Union
 from collections import OrderedDict
 
 from lexios.core.common_tools import *
@@ -89,7 +89,7 @@ class LexiExternalCommand(PluginTemplate):
         # Complete the specs
         self.generate_specs()  # This will populate self.json_string
 
-        super().__init__(plugin_name="External_Command_Interface")
+        super().__init__(plugin_name=LexiExternalCommand.__name__)
 
     def generate_specs(self):
         """
@@ -203,9 +203,8 @@ class LexiExternalCommand(PluginTemplate):
 
         return comment_sections
 
-    def parse_custom_tags(self, source_lines):
+    def parse_custom_tags(self, source_lines: str):
         custom_tags = {}
-        in_docstring = False
 
         for line in source_lines:
             if '"""' in line:

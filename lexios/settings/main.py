@@ -1,7 +1,6 @@
 #lexios.settings.main.py 
 #-----------------------------------------------------------------------------------#
 # Try to gather the local settings from the current working project
-import sys
 
 try:
 
@@ -19,8 +18,9 @@ try:
         module = SourceFileLoader(module_name, module_path).load_module()
         # Update the local namespace with names from the module
         locals().update(vars(module))
-    except ImportError:
-        print(f"Failed to import {module_name}")
+
+    except ImportError as e:
+        print(f"Failed to import {module_name}. {e}")
 
 except Exception as e:
 

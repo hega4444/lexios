@@ -2,6 +2,8 @@
 
 import os
 import openai
+import sys
+
 from datetime import timedelta
 from asyncio import sleep
 from typing import ForwardRef
@@ -10,10 +12,29 @@ from lexios.frontend.messages import render_message
 from lexios.integration.messages import UserMessage
 from lexios.integration.agent_events import AgentEvent
 from lexios.integration.virtual_agents import VirtualAgent
+from lexios.core.agents_router import AgentsRouter
 from lexios.core.common_tools import *
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.executor import execute_event
+
+# Imports below are postponed to avoid circular import
+
+def import_session_manager(lexi):
+    from lexios.core.session_manager import LexiSessionManager
+    return LexiSessionManager(lexi)
+
+def import_task_scheduler(lexi):
+    from lexios.core.task_scheduler import LexiTaskScheduler
+    return LexiTaskScheduler(lexi)
+
+def _setup_virtual_agents_routing(lexi):
+    from lexios.core.setup import _set_up_virtual_agents_routing
+    return _set_up_virtual_agents_routing(lexi)
+
+def _setup_db_integration(lexi):
+    from lexios.core.setup import _set_up_db_integration
+    return _set_up_db_integration(lexi)
 
 
 class LexiOS_Backend():
@@ -65,8 +86,7 @@ class LexiOS_Backend():
         self.broker_url = BROKER_URL
 
         # Session Manager
-        from lexios.core.session_manager import LexiSessionManager
-        self.session_manager = LexiSessionManager(self)
+        self.session_manager = import_session_manager(self)
 
         # Settings for output messages:
         self.filter_echo = True # Filter assistant replies that are an echo of user input      
@@ -120,8 +140,7 @@ class LexiOS_Backend():
         self.define_output_methods(command_line=True, backend=BROKER_PATH)
 
         # Set up LexiScheduler:
-        from lexios.core.task_scheduler import LexiTaskScheduler
-        self.scheduler = LexiTaskScheduler(lexi = self)
+        self.scheduler = import_task_scheduler(lexi = self)
 
         # Commands needed for the system, creates the minimun toolbox
         self.required_commands = {}
@@ -131,23 +150,19 @@ class LexiOS_Backend():
         _append_basic_IO(self)
 
         # Setup Virtual Agents
-        from lexios.core.setup import _set_up_virtual_agents_and_routing
-        from lexios.core.agents_router import AgentsRouter
-        self.agents_router : AgentsRouter = None
         self.virtual_agents = virtual_agents
-        
-        _set_up_virtual_agents_and_routing(self)
+        self.agents_router : AgentsRouter = None
+        _setup_virtual_agents_routing(self)
+
 
         # Setup SQL Engine:
-
         # List of databases Lexi is connecting to
         self.databases = databases
 
         # SQL Engine
         self.sql_engine = None
-
-        from lexios.core.setup import _set_up_db_integration
-        _set_up_db_integration(self)
+        # Run the setup script
+        _setup_db_integration(self)
 
         # Check if admin assistant needs initialization
         if self.admin_assistant is None and self.set_up_admin is True:

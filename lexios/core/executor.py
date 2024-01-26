@@ -3,11 +3,11 @@
 import inspect
 from typing import Any, Coroutine
 
-from lexios.integration.plugin import PluginTemplate
+from lexios.integration.virtual_agents import VirtualAgent
 from lexios.core.exceptions import LexiWarning
 
 async def execute_event(
-        executor: PluginTemplate,
+        executor: VirtualAgent,
         event_name: str,
         input: any,
 
@@ -18,9 +18,9 @@ async def execute_event(
     in the framework.
 
     Parameters:
-    - `executor`(PluginTemplate): The object instance that is being called. 
-    - `method_name`(str): The method to be called.
-    - `input`(any): What the executor receives as input parameter.
+    - `executor`(VirtualAgent): The agent instance that is being called. 
+    - `method_name`(str): The method to call.
+    - `input`(any): What the executor receives as input object.
 
     Returs:
     - An updated version of the input object class it received.

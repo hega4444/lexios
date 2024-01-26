@@ -5,12 +5,7 @@ from typing import Any, List
 from uuid import uuid4
 from abc import abstractmethod
 
-
-from lexios.settings.main import LEXI_ALIAS
-
-from lexios.core.logger import CustomLogger, DEBUG
-from lexios.core.exceptions import LexiException
-from lexios.globals import GENERAL_VIRTUAL_AGENT
+from lexios.core.common_tools import LEXI_ALIAS, DEBUG, GENERAL_VIRTUAL_AGENT, LexiException, LexiLogging
 
 from lexios.integration.plugin import PluginTemplate
 from lexios.integration.messages import AgentMessage, UserMessage
@@ -210,7 +205,7 @@ class VirtualAgent(PluginTemplate):
         # Component.
 
         # Log the start of the service on console
-        CustomLogger("lexios").info(f"Virtual agent {self.name} @ channel . {self.channel}. Processing new request.")
+        LexiLogging(f"Virtual agent {self.name} @ channel . {self.channel}. Processing new request.")
         try:
             # Thread is loaded
             if self.main_thread:

@@ -46,7 +46,7 @@ class ToolCall():
         id: str, 
         function_name: str, 
         function_arguments: str, 
-        ext_command : LexiExternalCommand,
+        external_command : LexiExternalCommand,
         user_message : str = None,
     ):
         super().__init__()
@@ -61,7 +61,7 @@ class ToolCall():
         self.call_output :str = None
         self.output : any = None
         self.custom_output : any = None
-        self.external_cmd : LexiExternalCommand= ext_command
+        self.external_cmd : LexiExternalCommand= external_command
         self.function_name : str = function_name
         self.function_arguments = function_arguments
         self.type : str = "function"
@@ -69,7 +69,7 @@ class ToolCall():
         self.user_message : str = user_message
         
         # Determine if it is a valid call
-        if ext_command:
+        if external_command:
             self.status = "queued"
         else:
             self.status = "not_found"
@@ -110,7 +110,9 @@ class ToolCall():
                 )
                 if show_message:
                     await render_message(show_message, user_id=self.user_id, 
-                                          conversation_id=self.conversation_id, msg_type="sys_notif")
+                                          conversation_id=self.conversation_id, 
+                                            msg_type="sys_notif", alias= self.thread._name_)
+                    
                     await asyncio.sleep(0.4)
 
             except Exception as e:
@@ -205,11 +207,9 @@ class ToolCall():
                 message = self.external_cmd.custom_messages.get("after").get("text", None)
 
                 # IMG data
-                images = self.external_cmd.custom_messages.get("after").get(
-                    "images", None
-                )
+                images = self.external_cmd.custom_messages.get("after").get("images", None)
+                
                 if images:
-
                     # Create the directory if it doesn't exist
                     user_folder = os.path.join(PROJECT_FOLDER, "temp", "downloads", str(self.user_id).zfill(5))
                     os.makedirs(user_folder, exist_ok=True)
@@ -240,7 +240,8 @@ class ToolCall():
                                     user_id=self.user_id, 
                                     spell= False,
                                     conversation_id=self.conversation_id, 
-                                    msg_type="text"
+                                    msg_type="text",
+                                    alias= self.thread._name_
                     )   
                 
             except Exception as e:
@@ -383,7 +384,7 @@ async def create_tool_calls(thread: LexiAssistantThread):
                     function_name=call["function"]["name"],
                     function_arguments=call["function"]["arguments"],
                     # Get the reference to the ext command:
-                    ext_command=ext_command,
+                    external_command=ext_command,
                     user_message=thread.user_message,
                 )
 

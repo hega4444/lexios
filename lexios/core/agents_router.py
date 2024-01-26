@@ -3,14 +3,14 @@
 import inspect
 
 from lexios.settings.main import LEXI_ALIAS
-from lexios.core.external_command import LexiExternalCommand
+
 from lexios.core.executor import execute_event
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested, LexiException
 
-
 from lexios.integration.plugin import PluginTemplate
 from lexios.integration.trusted_actions import TrustedAction
-from lexios.integration.tools import VirtualAgent, AgentEvent
+from lexios.integration.virtual_agents import VirtualAgent
+from lexios.integration.agent_events import AgentEvent
 
 
 
@@ -270,6 +270,8 @@ class AgentsRouter(PluginTemplate):
 
 
 if __name__ == "__main__":
+
+    from lexios.core.external_command import LexiExternalCommand
 
     command = LexiExternalCommand(AgentsRouter.route_to_virtual_agent)
 
