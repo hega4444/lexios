@@ -10,7 +10,6 @@ from lexios.frontend.messages import render_message
 from lexios.frontend.session_data import read_session_data_from_backend 
 
 from lexios.core.common_tools import *
-from lexios.core.logger import CustomLogger, DEBUG
 from lexios.core.exceptions import VirtualAgentRequested, MainAssistantRequested
 from lexios.core.exceptions import LexiException, MainAssistantRequested, VirtualAgentRequested
 from lexios.core.thread import LexiAssistantThread
@@ -116,7 +115,7 @@ class ToolCall():
                     await asyncio.sleep(0.4)
 
             except Exception as e:
-                LexiWarning(f"Command {self.external_cmd.name} could not print its messages. {e}")
+                LexiLogging(f"Command {self.external_cmd.name} could not print its messages. {e}", WARNING)
 
         
         # Before        
@@ -189,7 +188,7 @@ class ToolCall():
 
                     # Check directly if the command has a plugin implementation   
                     new_action = await self.external_cmd._execute_plugin_event(
-                        event_name= before_execution,
+                        event_name= after_execution,
                         action= new_action,
                     )
             
@@ -246,8 +245,7 @@ class ToolCall():
                 
             except Exception as e:
                 # Log warning
-                with CustomLogger("lexios") as log:
-                    log.warning(f"Warning: '{self.function_name}' could not render custom messages/images. {e}")
+                LexiLogging(f"'{self.function_name}' could not render custom messages/images. {e}", WARNING)
 
             # Check if a preview output(automatic w/o checking with the AI model)
             if self.external_cmd.custom_messages.get("show_return_to_user", None):
@@ -260,8 +258,7 @@ class ToolCall():
 
                 except Exception as e:
                     # Log warning
-                    with CustomLogger("lexios") as log:
-                        log.warning(f"Warning: '{self.function_name}' could not print its results. Details: {e}")
+                    LexiLogging(f"Warning: '{self.function_name}' could not print its results. Details: {e}", WARNING)
 
             return self.call_output
         
@@ -355,8 +352,7 @@ async def create_tool_calls(thread: LexiAssistantThread):
             .get("tool_calls")
         )
     except Exception as e:
-        with CustomLogger("lexios") as log:
-            log.error(f"Could not parse tool_calls from Run object. {e}")
+        LexiException(f"Could not parse tool_calls from Run object. {e}")
 
 
     # Create Tool_calls:
