@@ -18,7 +18,7 @@ from lexios.core.external_command import LexiExternalCommand
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.executor import execute_event
 
-# Imports below are postponed to avoid circular import
+# Imports below are postponed to avoid circular dependency
 
 def import_session_manager(lexi):
     from lexios.core.session_manager import LexiSessionManager
@@ -254,7 +254,7 @@ class LexiOS_Backend():
                         thread= thread, 
                         user_message= user_input
                     )
-                    
+                        
                     # Thread found and ready, process new request
                     if thread.running_stat == "ready":
                         # Send the message to the corresponding Thread
@@ -381,7 +381,7 @@ class LexiOS_Backend():
         """
         Checks whether the virtual agent loaded in thread has
         implemented its method at_user_message_event(). If so, it calls
-        th method before processing the user request. The message can be altered to adapt 
+        the method before processing the user request. The message can be altered to adapt 
         the input for the assistant and / or new instructions can be entered at this entry point. 
         New instructions will take effect immediately at the user scope, not the main instance (service)
         of the agent.

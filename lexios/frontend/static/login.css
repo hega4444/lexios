@@ -56,7 +56,7 @@ body {
     justify-content: center;
     height: 100vh; /* Make the body full height of the viewport */
     overflow: hidden;
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Lato', sans-serif;
     font-weight: 500;
 }
 
@@ -89,7 +89,7 @@ body {
     text-decoration: none; /* Remove the default link underline */
     filter: blur(0.4px); /* Apply a slight blur effect (adjust the value as needed) */
     pointer-events: none; /* Prevent the text from being clickable */
-    font-family: 'Nunito Sans', sans-serif;
+    font-family: 'Lato', sans-serif;
 }
 
 .api-text {
@@ -123,7 +123,7 @@ body {
     text-align: center;
     /*border: 0.5px solid rgba(185, 101, 206, 0.155); */
     background-color: #45424260;
-    font-family: 'Montserrat', sans-serif;;
+    font-family: 'Lato', sans-serif;;
     background: none;
 }
 

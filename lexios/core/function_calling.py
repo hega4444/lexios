@@ -153,7 +153,7 @@ class ToolCall():
                     # Rollback the new_action state
                     new_action = safe_copy
 
-                    LexiWarning(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                    LexiLogging(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
                                     f"Executing '{self.function_name}' {BEFORE_EVENT_NAME}: {e}. \nTrustedAction Rollback [done].\n")   
 
                 # Execute command with parameters and aggregated context given by Lexi
@@ -194,7 +194,7 @@ class ToolCall():
                     )
             
                 except Exception as e: 
-                    raise LexiException(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                    raise LexiLogging(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
                                         f"Executing '{self.function_name}' {AFTER_EVENT_NAME}(): {e}.")  
                     
                                                                                                    

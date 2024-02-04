@@ -1,4 +1,5 @@
 #thread.py
+import asyncio
 import openai
 from typing import Optional, Union
 from admin.verify_folder import find_project_folder
@@ -205,6 +206,7 @@ class LexiAssistantThread():
             file:str = None, 
             request: Optional[Union[VirtualAgentRequested, MainAssistantRequested]] = None,
         ):  
+            
             """
             Handles the execution of an external Run. 
             
@@ -222,6 +224,21 @@ class LexiAssistantThread():
             create_tool_calls, attend_tool_calls, submit_function_outputs = import_call_functions()
             manage_downloads, manage_links = import_download_functions()
             generate_conversation_name = import_generate_conversation_title()
+
+            """
+            # Demo Response
+            await asyncio.sleep(1)
+            await render_message(
+                content = "Sure, the lights are on. Have a great day, Tom!",
+                user_id= self.user_id, 
+                conversation_id= self.conversation_id,
+                alias= self._name_,
+            )
+
+            # End and await for further user input
+            self.running_stat = "ready"
+            return
+            """
 
             try:
                 if message:

@@ -24,18 +24,19 @@ class DatabaseConnection(PluginTemplate):
 
     def __init__( 
         self,
+        database_name: str,
+        admin_user: str,
+        admin_pass: str,
+        host: str,
+        port: int,
         engine: str = 'PostgreSQL',
-        database_name: str = None,
-        admin_user: str = None,
-        admin_pass: str = None,
-        host: str = None,
-        port: int = None,
         test_mode: bool = False,
         load_setup_script = False,
         secutiry_object = None,
         load_files: List[str] = None,
         force: bool = False,
-    ):
+        
+    ) -> 'DatabaseConnection':
         
         # Save settings
         self.settings =  {

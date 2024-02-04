@@ -76,9 +76,9 @@ def create_project(project_name):
         with open(main_file_path, "w") as main_file:
             main_file.write(
                 f'# {project_name}_main.py\n\n'
-                f'from lexios import lexiOS\n\n'
+                f'from lexios import LexiOS\n\n'
                 f'def main():\n'
-                f'    server = lexiOS()\n\n'
+                f'    server = LexiOS()\n\n'
                 f'if __name__ == "__main__":\n'
                 f'    main()\n'
             )
@@ -87,7 +87,7 @@ def create_project(project_name):
         example_file_path = os.path.join(integrations_dir, "example.py")
         with open(example_file_path, "w") as example_file:
             example_file.write(
-                f'# {project_name}_example.py'
+                f'# {project_name}_example.py\n'
                 f'\n'
                 f'from lexios.globals import GENERAL_VIRTUAL_AGENT\n'
                 f'from lexios.integration.tools import external_command\n'
@@ -98,7 +98,6 @@ def create_project(project_name):
                 f'def getCurrentWeather(location, unit: str = "c"):\n'
                 f'# summ: Get the weather in location\n'
                 f'# keys: location unit\n'
-                f"# unit 'enum': ['c', 'f']\n"
                 f"# unit 'enum': ['c', 'f']\n"
                 f"# location 'description': 'some text'\n"
                 f'  pass\n'
@@ -132,7 +131,7 @@ def create_project(project_name):
         
         # Setup database
         try:
-            from lexios.database.models import initial_database_setup
+            from lexios.database.make import initial_database_setup
 
             initial_database_setup(database_name= project_name)
             print(f"Database for '{project_name}' was created.")
@@ -143,7 +142,7 @@ def create_project(project_name):
         # Create data folder
         os.makedirs(os.path.join(project_dir, "data"))
 
-        print(f"Lexios project '{project_name}' created successfully!")
+        print(f"Lexios project '{project_name}' created successfully.")
 
     except Exception as e:
         print(f"Error: {e}")

@@ -31,7 +31,7 @@ class LexiOS():
                 }
             )
 
-        # Init fastAPI server in asynchronous mode
+        # Init fastAPI server (async)
         uvicorn.run(**settings)
 
 

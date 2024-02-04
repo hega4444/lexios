@@ -5,7 +5,7 @@ from abc import abstractmethod
 from lexios.core.common_tools import LexiException, LEXI_SIGNED_TRX_PASSWORD
 from lexios.integration.trusted_actions import TrustedAction
 
-def import_integrations_collector():
+def import_collector():
     from lexios.integration.make import Collector
     return Collector
 
@@ -51,11 +51,8 @@ class PluginTemplate():
         # Set a label identifier
         self.identifier = plugin_name
 
-        # Connect to the integrations manager
-        self.manager = import_integrations_collector()
-
-        # Call the inegrations manager to append this plugin
-        self.manager._add_plugin(self)
+        # Call the integrations manager to append this plugin
+        import_collector()._add_plugin(self)
 
         # Signature (password for the ext command) otherwise the transactions will be signed by Lexi itself.
         self.secret_signature = secret_signature or LEXI_SIGNED_TRX_PASSWORD

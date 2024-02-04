@@ -104,7 +104,7 @@ async def render_message(
                 msg_type= msg_type,
                 metadata= metadata,
                 spell= spell,
-                images=None,
+                images=images,
             )
 
             # Process 'at_agent_message_event'
@@ -116,8 +116,8 @@ async def render_message(
             )
             # Update outbound message content with the changes provided by the virtual agent
             outbound_message["content"] = modified_message.content
-            outbound_message["metadata"] = modified_message.metadata
             outbound_message["spell"] = modified_message.spell
+            outbound_message["metadata"] = modified_message.metadata
             outbound_message["images"] = modified_message.images
             
             # Send message using broker

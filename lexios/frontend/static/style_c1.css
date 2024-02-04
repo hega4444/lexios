@@ -147,9 +147,19 @@ table {
  Typography Style
 ******************************** */
 
+/* Lexi copyright */
+.lexi-register{
+    position: relative;
+    bottom: 17px;
+    left: 4px;
+    font-weight: 300;
+    font-size: medium;
+    color: rgba(240, 248, 255, 0.856);
+}
+
 body {
     margin: 0;
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Lato', sans-serif;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -234,7 +244,7 @@ a {
     text-decoration: none; /* Remove the default link underline */
     filter: blur(0.4px); /* Apply a slight blur effect (adjust the value as needed) */
     pointer-events: none; /* Prevent the text from being clickable */
-    font-family: 'Nunito Sans', sans-serif;
+    font-family: 'Lato', sans-serif;
     position: relative;
     top: -26px; /* Adjust this value to move the element up or down */
 }
