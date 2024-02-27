@@ -108,7 +108,7 @@ class TrustedAction():
                 'transaction_id' : self.transaction_id,
                 'transaction_name': self.transaction_name,
                 'timestamp': self.timestamp,
-                'execution_result': self.execution_result,
+                'execution_result': str(self.execution_result),
                 'exp': datetime.utcnow() + self.jwt_expiration
             }
             

@@ -76,7 +76,7 @@ def load_assistant_and_orm_data(thread: LexiAssistantThread, conversation: Conve
         pass
 
     except Exception as e:
-        raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}",ERROR, e.args)
+        raise LexiException(f"Thread_loading at load_assistant_orm_data() {e}")
     
                 
 async def update_thread_messages(
@@ -132,7 +132,7 @@ async def update_thread_messages(
             thread.save_message(f'File "{filename}" uploaded', type="sys_notif")
 
         except Exception as e:
-                LexiException(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}", WARNING, e)   
+                LexiException(f"Problem uploading file {new_file} for user {thread.user_id}. Details: {e}", WARNING)   
 
     # Text messages (with or without attachments):
     if new_message or message_to_agent:
@@ -300,7 +300,11 @@ def load_assistants(thread: LexiAssistantThread, conversation: Conversation, new
     # Define target # 
     
     # Verify if whether it's a virtual agent
-    agent = thread.lexi.agents_router.by_name(thread._name_, None)
+    try:
+        agent = thread.lexi.agents_router.by_name(thread._name_, None)
+    except Exception as e:
+        # In case routing is not yet active
+        agent = None
 
     # Define the target, meaning the assistant most relevant for loading (root / agent)
     if agent and agent.name == LEXI_ALIAS:

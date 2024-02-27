@@ -354,7 +354,7 @@ class LexiAssistantThread():
                             )
 
                         # Log run status
-                        LexiLogging(f"User Id: {self.user_id} run Status: '{self.run.status}' "
+                        LexiDebug(f"User Id: {self.user_id} run Status: '{self.run.status}' "
                                     f"Last Error: '{self.run.last_error or 'No errors'}'.")
                         
                         # Check if the run failed

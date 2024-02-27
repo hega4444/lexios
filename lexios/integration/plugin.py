@@ -78,6 +78,8 @@ class PluginTemplate():
 
         Abstract method to be implemented by child classes.
 
+        Implementing subclasses should NOT call super().before_execution_event().
+
         Parameters:
           - action (TrustedAction): Context of the execution.
         """
@@ -89,6 +91,8 @@ class PluginTemplate():
         Defines en entrypoint to act after a command (action) is executed.  
 
         Abstract method to be implemented by child classes.
+
+        Implementing subclasses should NOT call super().before_execution_event().
 
         Parameters:
         - action (TrustedAction): Context of the execution.

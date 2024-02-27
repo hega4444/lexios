@@ -230,7 +230,7 @@ class AgentsRouter(PluginTemplate):
             ):    
                 prev_agent : VirtualAgent
                 # Retrieve the agent by its name
-                prev_agent = self.by_name(self, action.prev_agent.lower())
+                prev_agent = self.by_name(action.prev_agent.lower())
 
                 if prev_agent:
                     # Verify the agent has a callback defined and that is in fact callable
@@ -252,7 +252,7 @@ class AgentsRouter(PluginTemplate):
                 
                 agent : VirtualAgent
                 # Retrieve the next_agent by its name
-                next_agent = self.by_name(self, action.next_agent.lower())
+                next_agent = self.by_name(action.next_agent.lower())
 
                 if next_agent:
 

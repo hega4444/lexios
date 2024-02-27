@@ -10,11 +10,11 @@ LEXI_ALIAS = "Lexi"
 LEXI_GPT_MODEL = "gpt-3.5-turbo-0125"
 LEXI_GPT_TEMPERATURE = 0.8
 
-UPLOAD_FOLDER = 'temp/uploads'
-DOWNLOAD_FOLDER = 'temp/downloads'
+UPLOAD_FOLDER = 'Nika/temp_uploads'
+DOWNLOAD_FOLDER = 'Nika/temp_downloads'
 TIME_ZONE = "Europe/Berlin" # values accecpted: from Datetime library
 TIME_DELTA = 0 # Adjust time zone if neccesary (min)
-LOG_FOLDER = "<new>/backend_logs"
+LOG_FOLDER = 'Nika/backlogs'
 
 # Design settings 
 NEW_CHAT_PROMPT = "new chat.."
@@ -32,8 +32,8 @@ COMMAND_LINE_MESSAGES_OUTPUT = True
 SERVER_IP = '127.0.0.1' #'192.168.1.108'
 SERVER_PORT = 8000
 ENABLE_SSL = False
-SSL_KEYFILE = "<new>/ssl/key.pem"
-SSL_CERTFILE = "<new>/ssl/cert.pem"
+SSL_KEYFILE = 'Nika/ssl/key.pem'
+SSL_CERTFILE = 'Nika/ssl/cert.pem'
 
 # Message broker - Redis
 #-----------------------------------------------------------------------------------#
@@ -53,7 +53,7 @@ USER_DATA_MANAGER = True
 # Inner Lexi database connection
 LEXI_DATABASE_ENGINE = 'PostgreSQL'
 LEXI_DATABASE_HOST = 'localhost'
-LEXI_DATABASE_NAME = 'lexi_database'
+LEXI_DATABASE_NAME = 'Nika_database'
 LEXI_DB_ADMIN_USER = 'postgres'
 LEXI_DB_ADMIN_PASS = 'postgres'
 LEXI_DB_ADMIN_PORT = 5432

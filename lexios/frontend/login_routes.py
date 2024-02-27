@@ -109,11 +109,11 @@ async def submit_login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 # Google oauth2 login submit
-@login_router.get("/google_submit_login/", response_class=RedirectResponse, dependencies=[Depends(cookie)])
+@login_router.get("/google_submit_login/", response_class=RedirectResponse)
 async def google_submit_login(
     request: Request,
     csrf_protect: CsrfProtect = Depends(), 
-    session_data: LexiSessionData = Depends(verifier),
+    #session_data: LexiSessionData = Depends(verifier),
 ):
 
     # Validate the token
@@ -121,6 +121,8 @@ async def google_submit_login(
         await csrf_protect.validate_csrf(request)
     except Exception as e:
         pass
+
+    session_id = uuid4()
 
     #Retrieve the parameters from the request
     state = request.query_params.get('state', default=None)
@@ -150,19 +152,29 @@ async def google_submit_login(
             if user:
 
                 # Validate user and attach session id
-                user.session_id = session_data.session_id
+                user.session_id = session_id
                 user.validated = True
 
-                # Update backend
-                await backend.update(session_data.session_id, user)
+                # Create session id
+
+                # Save sessiondata to in-memory backend
+                await backend.create(session_id, user)
                 
                 # Update active users
                 frontend_active_users[user.user_id] = user
 
                 # Append identifiers to request and redirect to dashboard screen
                 try:
+
+                    # Generate CSRF token
+                    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+                    response = RedirectResponse(f"/dashboard#{session_id}")
+
+                    # Attach session cookie
+                    cookie.attach_to_response(response, session_id)
+                    csrf_protect.set_csrf_cookie(signed_token, response)
                     
-                    return RedirectResponse(f"/dashboard#{session_data.session_id}")
+                    return response
 
                 except Exception as e:
                     pass

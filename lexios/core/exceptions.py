@@ -7,6 +7,15 @@ from lexios.core.logger import CustomLogger
 from logging import DEBUG, INFO, WARNING, CRITICAL, ERROR
 
 
+class LexiDebug(Exception):
+    """ A simple exception for easier logging. It logs both on console and file.
+    """
+    def __init__(self, message=None, type=DEBUG, **kwargs):
+        default_message = f"{message} {kwargs or ''}"
+
+        with CustomLogger("lexios") as log:
+            log.debug(default_message)
+
 class LexiLogging(Exception):
     """ A simple exception for easier logging. It logs both on console and file.
     """

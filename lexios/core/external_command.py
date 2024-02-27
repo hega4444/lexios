@@ -159,10 +159,10 @@ class LexiExternalCommand(PluginTemplate):
                                         [
                                             ("type", "object"),
                                             ("properties", properties_dict),
+                                            ("required", required_params),
                                         ]
                                     ),
                                 ),
-                                ("required", required_params),
                             ]
                         ),
                     ),
@@ -277,7 +277,7 @@ class LexiExternalCommand(PluginTemplate):
         )
         json_string += '    "parameters": {\n'
 
-        # Add location parameter
+        # Add properties
         json_string += '      "type": "object",\n'
         json_string += '      "properties": {\n'
         properties = self.specs["function"]["parameters"]["properties"]
@@ -290,13 +290,15 @@ class LexiExternalCommand(PluginTemplate):
         json_string = json_string.rstrip(",\n")
 
         json_string += "\n"
-        json_string += "      }\n"
+        json_string += "      },\n"
 
-        # Add required field
-        json_string += "    },\n"
+        # Add required fields
         json_string += (
-            '    "required": ' + json.dumps(self.specs["function"]["required"]) + "\n"
+            '      "required": ' + json.dumps(self.specs["function"]["parameters"]["required"]) + "\n"
         )
+
+        json_string += "    },\n"
+
 
         # Complete the JSON string
         json_string += "  }\n"

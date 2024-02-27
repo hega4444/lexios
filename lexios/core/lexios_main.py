@@ -149,12 +149,6 @@ class LexiOS_Backend():
         from lexios.core.setup import _append_basic_IO
         _append_basic_IO(self)
 
-        # Setup Virtual Agents
-        self.virtual_agents = virtual_agents
-        self.agents_router : AgentsRouter = None
-        _setup_virtual_agents_routing(self)
-
-
         # Setup SQL Engine:
         # List of databases Lexi is connecting to
         self.databases = databases
@@ -163,6 +157,11 @@ class LexiOS_Backend():
         self.sql_engine = None
         # Run the setup script
         _setup_db_integration(self)
+
+        # Setup Virtual Agents
+        self.virtual_agents = virtual_agents
+        self.agents_router : AgentsRouter = None
+        _setup_virtual_agents_routing(self)
 
         # Check if admin assistant needs initialization
         if self.admin_assistant is None and self.set_up_admin is True:
@@ -419,7 +418,7 @@ class LexiOS_Backend():
             self, 
             user_id:int, 
             conversation_id:str, 
-            virtual_agent: ForwardRef('VirtualAgent') = None,
+            virtual_agent = None,
             instructions:str = None,
             restore_conversation = None,
             run_in_background: bool = False,

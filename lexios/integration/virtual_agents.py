@@ -47,6 +47,7 @@ class VirtualAgent(PluginTemplate):
             roles : List[str] = None,
             retrieval: bool = False,
             interpreter: bool = False,
+            sql_access: bool = False,
             ref_assistant_id: uuid4 = None, 
             pre_loaded_assistant_id = None,
             pre_loaded_thread_id = None,
@@ -96,6 +97,7 @@ class VirtualAgent(PluginTemplate):
         # Open AI Assistant Builtin Tools
         self.retrieval = retrieval
         self.interpreter = interpreter
+        self.sql_access = sql_access
 
         # Asks for the complete toolbox available in lexios
         self.request_full_access = request_full_access

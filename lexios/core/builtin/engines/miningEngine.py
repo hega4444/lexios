@@ -12,12 +12,14 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 from stringcolor import *
 import matplotlib
+
 
 matplotlib.use("Agg")
 
@@ -32,13 +34,16 @@ tf.get_logger().setLevel('ERROR')
 
 class SimpleMinerBaseObject():
 
-    def __init__(self, db_object, table_name, color = None, model_name = None) -> None:
+    def __init__(self, db_object, schema_name, table_name, color = None, model_name = None) -> None:
+
+        from lexios.core.builtin.engines.SQLEngine import SimpleSQL
         
         # Identification
         self.model_name = model_name
 
         # Inner atrributes
-        self.db = db_object
+        self.db : SimpleSQL = db_object
+        self.schema_name = schema_name
         self.table_name = table_name
         self.model = None
         self.model_type = None
@@ -70,7 +75,7 @@ class SimpleMinerBaseObject():
         self.actual_values = None
         self.predicted_values = None
 
-        self.table_fields = self.db.get_table_fields(table_name = self.table_name)
+        self.table_fields = self.db.get_table_fields(schema_name= self.schema_name, table_name = self.table_name)
 
         if self.db.check_table_exists(self.table_name) is False:
             raise ValueError(f"Table '{table_name}' does not exist.")
@@ -79,12 +84,26 @@ class SimpleMinerBaseObject():
         return all([True if f.capitalize() in self.table_fields else False for f in features])
 
     def __get_data_frame(self, features, target):
-             
-            fields = ", ".join(features).lower() + ", " + target[0].lower() 
-            query = f"SELECT {fields} FROM {self.table_name};"  
-            data = list(self.db.into_dict(sql_block = query).values())
-            
-            self.data_frame = pd.DataFrame(data)
+        # Construct the list of fields to select
+        fields = ", ".join(features).lower()
+        
+        # Add the target column if target is not None
+        if target is not None:
+            fields += ", " + target[0].lower()
+        
+        # Construct the FROM clause with or without the schema name
+        if self.schema_name:
+            from_clause = f"{self.schema_name}.{self.table_name}"
+        else:
+            from_clause = self.table_name
+        
+        # Construct the SQL query
+        query = f"SELECT {fields} FROM {from_clause};"
+        
+        # Execute the query and convert the result to a DataFrame
+        data = list(self.db.into_dict(sql_block=query).values())
+        self.data_frame = pd.DataFrame(data)
+
 
     def define_model_features(self, features, target = None):
 
@@ -136,9 +155,56 @@ class SimpleMinerBaseObject():
     def reset_limits(self):
         self.r2_limits = self.r2_limits_c
 
+
     def analyse_field_relationships(self, target, hide_unfit = True, show_details = True):
 
-        fields = self.db.get_table_fields(self.table_name)
+        fields = self.db.get_table_fields(schema_name=self.schema_name, table_name=self.table_name)
+        try:
+            target = target.capitalize()
+            fields.remove(target)
+        except Exception:
+            pass
+        self.current_target = target
+        try:
+            fields.remove('Id')
+        except Exception:
+            pass
+
+
+        # Prepare data frame
+        self.__get_data_frame(features=fields, target=None)
+
+        # Prepare your data for PCA
+        X = self.data_frame[fields].select_dtypes(include=['number']).fillna(0)
+
+        # Fit PCA
+        pca = PCA()
+        pca.fit(X)
+
+        # Get the first principal component
+        first_component = pca.components_[0]
+
+        # Get the names of the features
+        feature_names = X.columns
+
+        # Create a dictionary to store feature names and their weights
+        feature_weights = {feature_names[i]: abs(first_component[i]) for i in range(len(feature_names))}
+
+        # Sort features based on their absolute weights
+        sorted_features = sorted(feature_weights.items(), key=lambda x: x[1], reverse=True)
+
+        # Get the top 5 most important features
+        top_features = sorted_features[:4]
+
+        self.field_scores = top_features
+
+        return top_features
+
+
+    # Deprecated
+    def analyse_field_relationships_old(self, target, hide_unfit = True, show_details = True):
+
+        fields = self.db.get_table_fields(schema_name=self.schema_name, table_name=self.table_name)
         fields.remove(target.capitalize())
         target = target.capitalize()
         self.current_target = target
@@ -159,25 +225,31 @@ class SimpleMinerBaseObject():
 
         print(f"\nminingEngine - Analysing relationships to field '{target}' in table '{self.table_name}'. This may take some time...")
 
-        # Display the subgroups
+        # Process each features subgroup 
         max_r2 = 0
+        exceptions_count = 0
         for i, features in enumerate(sub_features):
 
-            self.field_scores[i] = {'features': features}
+            try:
+
+                self.field_scores[i] = {'features': features}
+                
+                # Show there is some progress
+                print("..", end = "", flush=True)
+                # Set new features for the model
+                self.define_model_features(features=features, target=[target])
+
+                self.field_scores[i]['scores'] = {}
+                self.field_scores[i]['scores']['MAE'] = self.mae
+                self.field_scores[i]['scores']['MSE'] = self.mse
+                self.field_scores[i]['scores']['RMSE'] = self.rmse
+                self.field_scores[i]['scores']['R2'] = self.r2
+
+                if self.r2 > max_r2:
+                    max_r2 = self.r2
             
-            # Show there is some progress
-            print("..", end = "", flush=True)
-            # Set new features for the model
-            self.define_model_features(features=features, target=[target])
-
-            self.field_scores[i]['scores'] = {}
-            self.field_scores[i]['scores']['MAE'] = self.mae
-            self.field_scores[i]['scores']['MSE'] = self.mse
-            self.field_scores[i]['scores']['RMSE'] = self.rmse
-            self.field_scores[i]['scores']['R2'] = self.r2
-
-            if self.r2 > max_r2:
-                max_r2 = self.r2
+            except Exception as e:
+                exceptions_count += 1 
         
         self.max_r2 = max_r2
 
@@ -256,12 +328,12 @@ class SimpleMinerBaseObject():
 
     def features_plot(self, filename=None):
         if self.field_scores:
-            r_values = [(feat['features'], round(feat['scores']['R2'],3)) for feat in self.field_scores.values()]
-            r_values = [feat for feat in r_values if len(feat[0]) == 1]
-            r_values = sorted(r_values, key =lambda x: -x[1])[:self.plot_limit]
+
+            # Revisar esta logica X
+            r_values = self.field_scores
 
             # Data for the three elements
-            labels = [label[0][0] for label in r_values]
+            labels = [label[0] for label in r_values]
             r2_values = [value[1] for value in r_values]
 
             # Create a figure with a soft grey background
@@ -327,8 +399,8 @@ class SimpleMinerBaseObject():
 
 class SimpleMiner_Linear(SimpleMinerBaseObject):
 
-    def __init__(self, db_object, table_name, color=None) -> None:
-        super().__init__(db_object, table_name, color)
+    def __init__(self, db_object, schema_name, table_name, color=None) -> None:
+        super().__init__(db_object, schema_name, table_name, color)
 
         self.model_type = "Linear"
     
@@ -431,8 +503,8 @@ class SimpleMiner_Linear(SimpleMinerBaseObject):
     
 class SimpleMiner_ANN(SimpleMinerBaseObject):
 
-    def __init__(self, db_object, table_name, color=None):
-        super().__init__(db_object, table_name, color)
+    def __init__(self, db_object, schema_name, table_name, color=None):
+        super().__init__(db_object, schema_name, table_name, color)
 
         self.model_type = "ANN-seq"
         self.model_current_features = []

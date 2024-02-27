@@ -152,11 +152,14 @@ class SimpleSQL():
     def connect_to_database(self, user='postgres', password='postgres', port=5432 ):
         #Connect to database
         try:
-            return psycopg2.connect(dbname=self.db_name,
+            connection = psycopg2.connect(dbname=self.db_name,
                                     user= user,
                                     password= password,
                                     host='localhost',
                                     port= port)
+            
+            return connection
+
         except Exception:
             if self.force:
                 try:
@@ -255,12 +258,13 @@ class SimpleSQL():
             WHERE table_schema = 'public'
             ORDER BY table_name;""", options={'align':'l', 'color':'Multi1'})
         
-    def get_table_fields(self, table_name, capitalize = True):
+    def get_table_fields(self, schema_name, table_name, capitalize = True):
         self.execute(f"""
                         SELECT column_name
                         FROM information_schema.columns
-                        WHERE table_name = '{table_name}';    
-                     """)
+                        WHERE table_schema = '{schema_name}'
+                        AND table_name = '{table_name}';
+            """)
         records = self.cur.fetchall()
         fields = [name[0] for name in records]
 
@@ -629,15 +633,17 @@ class SimpleSQL():
 
         self.create_table_from_dict(table_data, table_name = table_name, create_pri_key = create_pri_key)
 
-    def new_model(self, model_type, table_name):
+    def new_model(self, model_type, schema_name, table_name):
 
         if model_type == LINEAR_MODEL:
             return SimpleMiner_Linear(db_object = self,
+                                      schema_name = schema_name,
                                       table_name = table_name, 
                                       )
         
         elif model_type == ANN_MODEL:
             return SimpleMiner_ANN(db_object = self,
+                                      schema_name = schema_name,
                                       table_name = table_name, 
                                       )
         
@@ -650,7 +656,7 @@ class SimpleSQL():
 
         if self.db_name.lower() != self.db_name:
             print(cs("Avoid CAPs when choosing Database name. Program terminated" , color='yellow'))
-            sys.exit(1)
+            #sys.exit(1)
 
         try:
             if self.drop_after is True:
@@ -779,7 +785,7 @@ class LexiDatabase(SimpleSQL):
         """
         # KEYS: SQL query SELECT EXECUTE
         # SUMM: Executes a SQL query and retrieves the fetchall() result in json format
-        # query 'description': PostgreSQL syntax
+        # query 'description': IMPORTANT: USE PostgreSQL syntax ONLY
         # fetch_one 'description': True Retrieves only one record or False all found
         # fetch_one 'enum': ["True", "False"]
         
@@ -809,45 +815,72 @@ class LexiDatabase(SimpleSQL):
             # Return the JSON data or use it as needed
             return json_data
         except Exception as e:
-            return {'status': 'Failed', 'details':e}
+            return {'status': 'Failed', 'details':e, 'suggestion':'Enforce Postgres SQL syntax.'}
 
     def retrieve_database_erd(self) -> str:
+        # KEYS: database erd
+        # SUMM: Retrieves a detailed description of the Database ERD    
+
+
+        # References header
+        references = {
+            "s": "Schema",
+            "t": "Table",
+            "cn": "Column",
+            "r": "Constraint",
+            "td": "TableDescription",
+            "cd": "ColumnDescription"
+        }
+
+        # Initialize the structure with the keys dictionary
+        erd_structure = {"keys": references}
+
+        query = """
+            SELECT
+                tc.table_schema AS s,
+                tc.table_name AS t,
+                kcu.column_name AS cn,
+                CASE 
+                    WHEN tc.constraint_type = 'PRIMARY KEY' THEN 'PK'
+                    ELSE 'FK'
+                END AS r,
+                obj_description((tc.table_schema || '.' || tc.table_name)::regclass) AS td,
+                col_description((tc.table_schema || '.' || tc.table_name)::regclass, kcu.ordinal_position) AS cd
+            FROM
+                information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+            WHERE
+                tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
         """
-        Creates a dynamic structure representing the database ERD to share with the Ai model.
-
-        Returns:
-        - A JSON with the ERD structure. 
-        """
-        # KEYS: ERD Entity Relation Diagram Database Tables SQL
-        # SUMM: Retrieves a complete Entity Relationship Diagram of the existing Database
-
-        try:
-            # Retrieve table and column information
-            self.cur.execute("""
-                SELECT table_name, column_name, data_type
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-            """)
-
-            # Fetch all rows as a list of tuples
-            table_info = self.cur.fetchall()
-
-            # Organize the information into a JSON model
-            json_model = {}
-            for table, column, data_type in table_info:
-                if table not in json_model:
-                    json_model[table] = []
-                json_model[table].append({"column_name": column, "data_type": data_type})
-
-            if json_model:
-                # Serialize the JSON model
-                json_string = json.dumps(json_model, indent=4)
-
-                return json_string
-            return {'status': 'Database ERD not found.'}
         
-        except Exception as e:
-            {'status': 'Failed', 'details':e}
+        self.cur.execute(query)
+        rows = self.cur.fetchall()
+        
+        json_model = {}
+        for row in rows:
+            schema, table, column, constraint_type, table_desc, column_desc = row
+            if schema not in json_model:
+                json_model[schema] = {}
+            if table not in json_model[schema]:
+                json_model[schema][table] = {"td": table_desc, "columns": []}
+            json_model[schema][table]["columns"].append({"cn": column, "cd": column_desc, "r": constraint_type})
+
+        # Compress keys
+        compressed_model = {}
+        for schema, tables in json_model.items():
+            compressed_model[schema] = {}
+            for table, info in tables.items():
+                compressed_model[schema][table] = {
+                    references[key]: value for key, value in info.items() if key != "columns"
+                }
+                if "columns" in info:
+                    compressed_model[schema][table]["cols"] = [
+                        {key: value for key, value in col.items()} for col in info["columns"]
+                    ]
+
+        erd_structure.update(compressed_model)
+        return json.dumps(erd_structure, separators=(',', ':'))
 
     def show_predictive_models_for_table(self, table_name: str) ->str:
         # KEYS: prediction forescat values future decision
@@ -870,11 +903,13 @@ class LexiDatabase(SimpleSQL):
             # Inform the service is not available
             raise ValueError(f"Service is not available now. Details: {e}")
 
-    def run_data_analysis_on_table(self, table_name: str, target_field: str, model_type) ->str:
+    def run_data_analysis_on_table(self, schema_name: str, table_name: str, target_field: str, model_type) ->str:
         # KEYS: prediction predictive model ann linear features fields analyse analysis 
         # SUMM: Checks possible combinations of input features (table fields) to determine best predictive combination 
         # SUMM: Retrieves the model with best performance
-        # target_field 'description': the target field that to predict, must be present in table_name
+        # schema_name 'description': Indicate the associated table schema when needed.
+        # table_name 'description': Table to analyse data from.
+        # target_field 'description': The target field that to predict, must be present in table_name
         # model_type 'description': The kind of algorithm to use (ANN_MODEL or LINEAR_MODEL)
         # model_type 'enum': ["ANN_MODEL", "LINEAR_MODEL"]
 
@@ -892,7 +927,8 @@ class LexiDatabase(SimpleSQL):
             # Create a new model
             new_model = self.new_model(
                 model_type = model_type,
-                table_name = table_name
+                schema_name = schema_name,
+                table_name = table_name,
             )
 
             # Name the model 
@@ -901,13 +937,13 @@ class LexiDatabase(SimpleSQL):
 
             try:
                 # Run an automated data analysis
-                r2_scroring = new_model.analyse_field_relationships(
+                r2_scoring = new_model.analyse_field_relationships(
                     target= target_field,
                     hide_unfit=True,
                     show_details=False
                 )
                 # Automatic features set up using best combination found
-                set_features = [f.replace(" ", "") for f in r2_scroring[0][0].split(",")]
+                set_features = [f[0] for f in r2_scoring]
                 new_model.define_model_features(
                     features=set_features,
                     target=[target_field.capitalize()]
@@ -974,12 +1010,13 @@ class LexiDatabase(SimpleSQL):
     def _generate_input_specs(self, model) -> str:
         # Creates a JSON structure that aims to clarify a predictive model expected input values
         
+        schema_name = model.schema_name
         table_name = model.table_name
         column_names = model.current_features
 
         results_dict = {}
 
-        db_table_fields = self.get_table_fields(table_name, capitalize=False)
+        db_table_fields = self.get_table_fields(schema_name=schema_name, table_name=table_name, capitalize=False)
         column_names_lower = [c_name_.lower() for c_name_ in column_names]
 
         selected_columns = [c_name for c_name in db_table_fields if c_name.lower() in column_names_lower]
@@ -988,7 +1025,11 @@ class LexiDatabase(SimpleSQL):
         for column_name in selected_columns:
             
             try:
-                self.execute(f"SELECT data_type FROM information_schema.columns WHERE table_name = '{table_name}' AND column_name = '{column_name}'")
+                self.execute(f"SELECT data_type FROM information_schema.columns "
+                             f"WHERE table_schema = '{schema_name}' AND "
+                             f"table_name = '{table_name}' AND "
+                             f"column_name = '{column_name}'"
+                )
                 
                 # Fetch the results
                 results = self.cur.fetchall()
@@ -1008,7 +1049,7 @@ class LexiDatabase(SimpleSQL):
             results_dict[column_name]['data_type'] = db_data_type
 
             # Add an example value
-            self.execute(f"SELECT {column_name} FROM {table_name} ORDER BY random() LIMIT 1;")
+            self.execute(f"SELECT {column_name} FROM {schema_name}.{table_name} ORDER BY random() LIMIT 1;")
             results = self.cur.fetchone()
             ref_value = results[0]
 
@@ -1115,24 +1156,38 @@ if __name__ == "__main__":
 
     options = {
     "test_mode" : True,
-    "db_name" : "__test__",
+    "db_name" : "Adventureworks",
     "load_file": ""
     }
 
 
     with LexiDatabase(**options) as lexi_db:
 
+        """
         #Read and create new table in DB
         lexi_db.create_table_from_csv("data/SalaryData2.csv", 
                             table_name= "salaries" ,
                             create_pri_key = True
                             )
         
+       
+
         print(lexi_db.retrieve_database_erd())
 
-        print(lexi_db.run_data_analysis_on_table("salaries", "salary", "linear"))
+        """
 
+
+        print(lexi_db.run_data_analysis_on_table(
+            schema_name="sales", 
+            table_name="salesorderdetail", 
+            target_field="orderqty", 
+            model_type="linear"
+            )
+        )
+
+"""
         print(lexi_db.execute_fetch_sql_query("SELECT DISTINCT column_name, data_type FROM information_schema.columns WHERE table_name = 'salaries' AND column_name = 'Age'"))
 
         print(lexi_db.execute_fetch_sql_query("SELECT AVG(age) AS average_age FROM salaries;"))
 
+"""

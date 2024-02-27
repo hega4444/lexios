@@ -15,13 +15,12 @@ from lexios.core.exceptions import LexiException, MainAssistantRequested, Virtua
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.external_command import LexiExternalCommand
 from lexios.core.lexios_main import LexiOS_Backend
+from lexios.core.consent import ConsentScreen
 from lexios.integration.trusted_actions import TrustedAction
 from lexios.integration.plugin import PluginTemplate, before_execution, after_execution
-from lexios.core.consent import ConsentScreen
-from lexios.core.executor import execute_event
 
 
-# To make the code easier to read and keep references
+# To make the code easier to read and keep references to the plugin interface events
 
 BEFORE_EVENT_NAME = PluginTemplate.before_execution_event.__name__
 AFTER_EVENT_NAME =  PluginTemplate.after_execution_event.__name__
@@ -123,7 +122,7 @@ class ToolCall():
                 
 
             # Record the execution
-            LexiLogging(f"User Id: {self.user_id}: Executing '{self.function_name}'"
+            LexiLogging(f"User Id: {self.user_id}: Agent: {self.thread.virtual_agent_name or LEXI_ALIAS} Executing '{self.function_name}'"
                         f" Parameters: {self.function_arguments}.")
             try:
                 # Create a snapshot of the current context to share with the service that executes the command
@@ -152,7 +151,7 @@ class ToolCall():
                     # Rollback the new_action state
                     new_action = safe_copy
 
-                    LexiLogging(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                    LexiDebug(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
                                     f"Executing '{self.function_name}' {BEFORE_EVENT_NAME}: {e}. \nTrustedAction Rollback [done].\n")   
 
                 # Execute command with parameters and aggregated context given by Lexi
@@ -193,8 +192,8 @@ class ToolCall():
                     )
             
                 except Exception as e: 
-                    raise LexiLogging(f"User Id: {self.user_id}: Agent {self.thread.virtual_agent_name or LEXI_ALIAS} "
-                                        f"Executing '{self.function_name}' {AFTER_EVENT_NAME}(): {e}.")  
+                    LexiDebug(f"User Id: {self.user_id}: Agent: {self.thread.virtual_agent_name or LEXI_ALIAS} "
+                                        f"Executing '{self.function_name}' {AFTER_EVENT_NAME}(): {e}.", DEBUG)  
                     
                                                                                                    
             # Change tool_call status to completed
@@ -245,7 +244,7 @@ class ToolCall():
                 
             except Exception as e:
                 # Log warning
-                LexiLogging(f"'{self.function_name}' could not render custom messages/images. {e}", WARNING)
+                LexiLogging(f"'{self.function_name}' could not render custom messages/images. {e}")
 
             # Check if a preview output(automatic w/o checking with the AI model)
             if self.external_cmd.custom_messages.get("show_return_to_user", None):
@@ -258,7 +257,7 @@ class ToolCall():
 
                 except Exception as e:
                     # Log warning
-                    LexiLogging(f"Warning: '{self.function_name}' could not print its results. Details: {e}", WARNING)
+                    LexiLogging(f"Warning: '{self.function_name}' could not print its results. Details: {e}", DEBUG)
 
             return self.call_output
         

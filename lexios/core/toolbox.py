@@ -1,11 +1,19 @@
 # toolbox.py
 from typing import List
 
-from lexios.core.common_tools import LexiException, LEXI_ALIAS
+from lexios.core.common_tools import LexiException, LEXI_ALIAS, DEBUG
 from lexios.core.thread import LexiAssistantThread
 from lexios.core.security import RolesVerification
 from lexios.core.agents_router import AgentsRouter
 
+# For now, keep a list of functions related to DB access so they have access to them when requested
+# by setting VirtualAgent property 'sql_access' to True.
+DATABASE_FUNCTIONS = [
+    "retrieve_database_erd",
+    "execute_fetch_sql_query",
+    "show_predictive_models_for_table",
+    "run_data_analysis_on_table",                  
+    ]
 
 class ToolBox():
     """
@@ -63,6 +71,18 @@ class ToolBox():
                         command.name == AgentsRouter.route_to_virtual_agent.__name__
                     ):
                         continue # exclude command
+                
+                # Verify if the command is related to the Database module
+                if (thread.virtual_agent_name and 
+                    thread.virtual_agent_name.lower() != LEXI_ALIAS.lower()):
+
+                    # Recover the agent
+                    agent = AgentsRouter().by_name(thread.virtual_agent_name)
+
+                    if (agent and agent.sql_access and
+                        command.name in DATABASE_FUNCTIONS):
+
+                        required = True
 
                 # For background assistants, filter commands not allowed in background 
                 elif thread.run_in_background and not command.allowed_in_background:
@@ -85,6 +105,6 @@ class ToolBox():
                     tools.append(dict(command.specs))
                     
             except Exception as e:
-                 LexiException(f"At Toolbox: User {thread.user_id} Details: {e}")
+                LexiException(f"At Toolbox: User {thread.user_id} Details: {e}", DEBUG)
         
         return tools
