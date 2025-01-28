@@ -118,7 +118,7 @@ open-source (MIT)
 
 ## 🆘 Support
 
-For support and questions, please [contact information goes here]
+For support and questions, please hernan.mip@gmail.com
 
 ---
 
