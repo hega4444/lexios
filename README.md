@@ -114,7 +114,7 @@ We welcome contributions! Please read our contributing guidelines and submit pul
 
 ## 📄 License
 
-open-source (MIT)
+open-source (GPL)
 
 ## 🆘 Support
 
